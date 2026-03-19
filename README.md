@@ -28,10 +28,10 @@
 ./gradlew assembleDebug
 ```
 
-Windows：
+specific abi:
 
-```powershell
-.\gradlew.bat assembleDebug
+```bash
+./gradlew assembleRelease -PabiList=arm64-v8a
 ```
 
 ## Credits
