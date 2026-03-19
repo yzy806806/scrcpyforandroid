@@ -46,11 +46,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Enable full ABI matrix for CI build
-        run: |
-          perl -0777 -i -pe 's/abiFilters\.add\("armeabi-v7a"\)\s*abiFilters\.add\("arm64-v8a"\)/abiFilters.add("armeabi-v7a")\n            abiFilters.add("arm64-v8a")\n            abiFilters.add("x86")\n            abiFilters.add("x86_64")/s' app/build.gradle.kts
-          perl -0777 -i -pe 's/include\("armeabi-v7a",\s*"arm64-v8a"\)/include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")/s' app/build.gradle.kts
-
       - name: Build debug and unsigned release APKs
         run: ./gradlew clean assembleDebug assembleRelease
 
@@ -59,49 +54,20 @@ jobs:
           set -euxo pipefail
           mkdir -p out
 
-          collect_one() {
-            local src="$1"
-            local pattern="$2"
-            local out_name="$3"
-            local file
-            file=$(find "$src" -type f -name "*$pattern*.apk" | head -n1 || true)
-            if [ -n "$file" ]; then
-              cp "$file" "out/$out_name"
-            fi
-          }
+          find app/build/outputs/apk -type f -name "*.apk" | sort > out/apk-list.txt
+          cat out/apk-list.txt
 
-          collect_unsigned_release_one() {
-            local pattern="$1"
-            local out_name="$2"
-            local file
-            file=$(find app/build/outputs/apk/release -type f -name "*unsigned*.apk" -name "*$pattern*.apk" | head -n1 || true)
-            if [ -n "$file" ]; then
-              cp "$file" "out/$out_name"
-            fi
-          }
-
-          collect_one app/build/outputs/apk/debug universal ci-debug-arm_all.apk
-          collect_one app/build/outputs/apk/debug arm64-v8a ci-debug-arm64.apk
-          collect_one app/build/outputs/apk/debug armeabi-v7a ci-debug-arm32.apk
-          collect_one app/build/outputs/apk/debug x86_64 ci-debug-x86_64.apk
-          x86_32_debug=$(find app/build/outputs/apk/debug -type f -name "*x86*.apk" ! -name "*x86_64*" | head -n1 || true)
-          if [ -n "$x86_32_debug" ]; then
-            cp "$x86_32_debug" out/ci-debug-x86_32.apk
+          if [ ! -s out/apk-list.txt ]; then
+            echo "No APK files were generated under app/build/outputs/apk"
+            exit 1
           fi
 
-          collect_unsigned_release_one universal ci-release-unsigned-arm_all.apk
-          collect_unsigned_release_one arm64-v8a ci-release-unsigned-arm64.apk
-          collect_unsigned_release_one armeabi-v7a ci-release-unsigned-arm32.apk
-          collect_unsigned_release_one x86_64 ci-release-unsigned-x86_64.apk
-          x86_32_release=$(find app/build/outputs/apk/release -type f -name "*unsigned*.apk" -name "*x86*.apk" ! -name "*x86_64*" | head -n1 || true)
-          if [ -n "$x86_32_release" ]; then
-            cp "$x86_32_release" out/ci-release-unsigned-x86_32.apk
-          fi
+          while IFS= read -r apk; do
+            base_name="$(basename "$apk")"
+            cp "$apk" "out/ci-${base_name}"
+          done < out/apk-list.txt
 
-          x86_all=$(find app/build/outputs/apk -type f \( -name "*x86_all*.apk" -o -name "*x86-all*.apk" -o -name "*x86universal*.apk" \) | head -n1 || true)
-          if [ -n "$x86_all" ]; then
-            cp "$x86_all" out/ci-release-unsigned-x86_all.apk
-          fi
+          rm -f out/apk-list.txt
 
           ls -la out
 
@@ -148,11 +114,6 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Enable full ABI matrix for release build
-        run: |
-          perl -0777 -i -pe 's/abiFilters\.add\("armeabi-v7a"\)\s*abiFilters\.add\("arm64-v8a"\)/abiFilters.add("armeabi-v7a")\n            abiFilters.add("arm64-v8a")\n            abiFilters.add("x86")\n            abiFilters.add("x86_64")/s' app/build.gradle.kts
-          perl -0777 -i -pe 's/include\("armeabi-v7a",\s*"arm64-v8a"\)/include("armeabi-v7a", "arm64-v8a", "x86", "x86_64")/s' app/build.gradle.kts
-
       - name: Build debug and unsigned release APKs
         run: ./gradlew clean assembleDebug assembleRelease
 
@@ -163,49 +124,20 @@ jobs:
           REPO_NAME="${GITHUB_REPOSITORY##*/}"
           mkdir -p dist
 
-          collect_one() {
-            local src="$1"
-            local pattern="$2"
-            local out_name="$3"
-            local file
-            file=$(find "$src" -type f -name "*$pattern*.apk" | head -n1 || true)
-            if [ -n "$file" ]; then
-              cp "$file" "dist/$out_name"
-            fi
-          }
+          find app/build/outputs/apk -type f -name "*.apk" | sort > dist/apk-list.txt
+          cat dist/apk-list.txt
 
-          collect_unsigned_release_one() {
-            local pattern="$1"
-            local out_name="$2"
-            local file
-            file=$(find app/build/outputs/apk/release -type f -name "*unsigned*.apk" -name "*$pattern*.apk" | head -n1 || true)
-            if [ -n "$file" ]; then
-              cp "$file" "dist/$out_name"
-            fi
-          }
-
-          collect_one app/build/outputs/apk/debug universal "${REPO_NAME}-${TAG}-debug-arm_all.apk"
-          collect_one app/build/outputs/apk/debug arm64-v8a "${REPO_NAME}-${TAG}-debug-arm64.apk"
-          collect_one app/build/outputs/apk/debug armeabi-v7a "${REPO_NAME}-${TAG}-debug-arm32.apk"
-          collect_one app/build/outputs/apk/debug x86_64 "${REPO_NAME}-${TAG}-debug-x86_64.apk"
-          x86_32_debug=$(find app/build/outputs/apk/debug -type f -name "*x86*.apk" ! -name "*x86_64*" | head -n1 || true)
-          if [ -n "$x86_32_debug" ]; then
-            cp "$x86_32_debug" "dist/${REPO_NAME}-${TAG}-debug-x86_32.apk"
+          if [ ! -s dist/apk-list.txt ]; then
+            echo "No APK files were generated under app/build/outputs/apk"
+            exit 1
           fi
 
-          collect_unsigned_release_one universal "${REPO_NAME}-${TAG}-release-unsigned-arm_all.apk"
-          collect_unsigned_release_one arm64-v8a "${REPO_NAME}-${TAG}-release-unsigned-arm64.apk"
-          collect_unsigned_release_one armeabi-v7a "${REPO_NAME}-${TAG}-release-unsigned-arm32.apk"
-          collect_unsigned_release_one x86_64 "${REPO_NAME}-${TAG}-release-unsigned-x86_64.apk"
-          x86_32_release=$(find app/build/outputs/apk/release -type f -name "*unsigned*.apk" -name "*x86*.apk" ! -name "*x86_64*" | head -n1 || true)
-          if [ -n "$x86_32_release" ]; then
-            cp "$x86_32_release" "dist/${REPO_NAME}-${TAG}-release-unsigned-x86_32.apk"
-          fi
+          while IFS= read -r apk; do
+            base_name="$(basename "$apk")"
+            cp "$apk" "dist/${REPO_NAME}-${TAG}-${base_name}"
+          done < dist/apk-list.txt
 
-          x86_all=$(find app/build/outputs/apk -type f \( -name "*x86_all*.apk" -o -name "*x86-all*.apk" -o -name "*x86universal*.apk" \) | head -n1 || true)
-          if [ -n "$x86_all" ]; then
-            cp "$x86_all" "dist/${REPO_NAME}-${TAG}-release-unsigned-x86_all.apk"
-          fi
+          rm -f dist/apk-list.txt
 
           ls -la dist
 
