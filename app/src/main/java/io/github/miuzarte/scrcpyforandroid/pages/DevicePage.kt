@@ -832,7 +832,7 @@ fun DeviceTabScreen(
                     }
                 },
             )
-            SectionSmallTitle(text = "无线配对", showLeadingSpacer = false)
+            SectionSmallTitle(text = "无线配对")
             // "使用配对码配对设备"
             PairingCard(
                 busy = busy,
