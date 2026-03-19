@@ -1,0 +1,19 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../scrcpy"
+		},
+		{
+			"path": "../miuix"
+		},
+		{
+			"path": "../adblib"
+		},
+		{
+			"path": "../KernelSU"
+		}
+	],
+}
