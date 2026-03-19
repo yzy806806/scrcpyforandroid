@@ -8,8 +8,8 @@ import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 
 internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
-    val raw = context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
-        .getString(AppPreferenceKeys.QuickDevices, "")
+    val raw = context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        .getString(AppPreferenceKeys.QUICK_DEVICES, "")
         .orEmpty()
 
     if (raw.isBlank()) return emptyList()
@@ -21,7 +21,7 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
             3 -> {
                 val name = parts[0].trim()
                 val host = parts[1].trim()
-                val port = parts[2].trim().toIntOrNull() ?: AppDefaults.DefaultAdbPort
+                val port = parts[2].trim().toIntOrNull() ?: AppDefaults.ADB_PORT
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
@@ -39,7 +39,8 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
                 // Backward compatibility with old format: name|host:port
                 val name = parts[0].trim()
                 val host = parts[1].substringBefore(":").trim()
-                val port = parts[1].substringAfter(":", AppDefaults.DefaultAdbPort.toString()).trim().toIntOrNull() ?: AppDefaults.DefaultAdbPort
+                val port = parts[1].substringAfter(":", AppDefaults.ADB_PORT.toString()).trim()
+                    .toIntOrNull() ?: AppDefaults.ADB_PORT
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
@@ -59,9 +60,9 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
 
 internal fun saveQuickDevices(context: Context, quickDevices: List<DeviceShortcut>) {
     val raw = quickDevices.joinToString("\n") { "${it.name}|${it.host}|${it.port}" }
-    context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
+    context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
         .edit {
-            putString(AppPreferenceKeys.QuickDevices, raw)
+            putString(AppPreferenceKeys.QUICK_DEVICES, raw)
         }
 }
 
@@ -70,7 +71,8 @@ internal fun parseQuickTarget(raw: String): ConnectionTarget? {
     if (value.isEmpty()) return null
     val host = value.substringBefore(':').trim()
     if (host.isEmpty()) return null
-    val port = value.substringAfter(':', AppDefaults.DefaultAdbPort.toString()).trim().toIntOrNull() ?: AppDefaults.DefaultAdbPort
+    val port = value.substringAfter(':', AppDefaults.ADB_PORT.toString()).trim().toIntOrNull()
+        ?: AppDefaults.ADB_PORT
     return ConnectionTarget(host, port)
 }
 

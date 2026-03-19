@@ -7,13 +7,18 @@ import java.nio.file.Path
 class NativeAdbService(appContext: Context) {
 
     private val transport = DirectAdbTransport(appContext)
-    @Volatile private var connection: DirectAdbConnection? = null
-    @Volatile private var connectedHost: String? = null
-    @Volatile private var connectedPort: Int? = null
+    @Volatile
+    private var connection: DirectAdbConnection? = null
+    @Volatile
+    private var connectedHost: String? = null
+    @Volatile
+    private var connectedPort: Int? = null
 
     var keyName: String
         get() = transport.keyName
-        set(value) { transport.keyName = value }
+        set(value) {
+            transport.keyName = value
+        }
 
     @Synchronized
     fun pair(host: String, port: Int, pairingCode: String): Boolean {

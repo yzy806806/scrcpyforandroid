@@ -24,6 +24,7 @@ class AnnexBDecoder(
     private var outCount = 0L
     private var fpsWindowStartNs = System.nanoTime()
     private var fpsWindowFrameCount = 0
+
     @Volatile
     private var released = false
 
@@ -65,16 +66,26 @@ class AnnexBDecoder(
                 codec.queueInputBuffer(inputIndex, 0, data.size, ptsUs, flags)
                 inCount += 1
                 if (inCount == 1L || inCount % 180L == 0L || isConfig) {
-                    Log.i(TAG, "feed(): mime=$decoderMime in=$inCount size=${data.size} key=$isKeyFrame cfg=$isConfig pts=$ptsUs")
+                    Log.i(
+                        TAG,
+                        "feed(): mime=$decoderMime in=$inCount size=${data.size} key=$isKeyFrame cfg=$isConfig pts=$ptsUs"
+                    )
                 }
             } else {
                 if (isConfig || isKeyFrame) {
-                    Log.w(TAG, "drop critical packet: mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig")
+                    Log.w(
+                        TAG,
+                        "drop critical packet: mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig"
+                    )
                 }
             }
             drainOutput()
         }.onFailure {
-            Log.w(TAG, "feed failed: mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig", it)
+            Log.w(
+                TAG,
+                "feed failed: mime=$decoderMime size=${data.size} key=$isKeyFrame cfg=$isConfig",
+                it
+            )
         }
     }
 
@@ -108,10 +119,12 @@ class AnnexBDecoder(
                         Log.i(TAG, "drain(): mime=$decoderMime out=$outCount")
                     }
                 }
+
                 outIndex == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
                     notifyOutputSize(codec.outputFormat)
                     continue
                 }
+
                 else -> return
             }
         }

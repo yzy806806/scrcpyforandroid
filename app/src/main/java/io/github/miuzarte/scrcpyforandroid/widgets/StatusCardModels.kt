@@ -69,12 +69,16 @@ internal fun StatusCardLayout(
 ) {
     val haptics = rememberAppHaptics()
     Row(
-        modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min),
         horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Card(
-            modifier = Modifier.weight(1f).fillMaxHeight(),
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight(),
             colors = defaultColors(color = spec.big.containerColor),
             pressFeedbackType = PressFeedbackType.Tilt,
             onClick = haptics.press,
@@ -125,15 +129,21 @@ internal fun StatusCardLayout(
             }
         }
 
-        Column(modifier = Modifier.weight(1f).fillMaxHeight()) {
+        Column(modifier = Modifier
+            .weight(1f)
+            .fillMaxHeight()) {
             StatusMetricCard(
                 spec = spec.firstSmall,
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             )
             Spacer(Modifier.height(UiSpacing.PageItem))
             StatusMetricCard(
                 spec = spec.secondSmall,
-                modifier = Modifier.fillMaxWidth().weight(1f),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f),
             )
         }
     }

@@ -4,7 +4,6 @@ import android.media.AudioAttributes
 import android.media.AudioFormat
 import android.media.AudioManager
 import android.media.AudioTrack
-import android.os.Build
 import android.media.MediaCodec
 import android.media.MediaFormat
 import android.util.Log
@@ -23,15 +22,22 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
     private var audioTrack: AudioTrack? = null
     private val bufferInfo = MediaCodec.BufferInfo()
 
-    @Volatile private var prepared = false
-    @Volatile private var released = false
+    @Volatile
+    private var prepared = false
+    @Volatile
+    private var released = false
     private var packetCount = 0L
 
     fun feedPacket(data: ByteArray, ptsUs: Long, isConfig: Boolean) {
         if (released) return
 
         if (isConfig) {
-            Log.i(TAG, "feedPacket(): config packet size=${data.size} codec=0x${codecId.toUInt().toString(16)}")
+            Log.i(
+                TAG,
+                "feedPacket(): config packet size=${data.size} codec=0x${
+                    codecId.toUInt().toString(16)
+                }"
+            )
             when (codecId) {
                 AUDIO_CODEC_OPUS -> prepareOpus(data)
                 AUDIO_CODEC_AAC -> prepareAac(data)
@@ -47,13 +53,7 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
         }
 
         if (codecId == AUDIO_CODEC_RAW) {
-            ensureRawAudioTrack()?.let { track ->
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    track.write(data, 0, data.size, AudioTrack.WRITE_NON_BLOCKING)
-                } else {
-                    track.write(data, 0, data.size)
-                }
-            }
+            ensureRawAudioTrack()?.write(data, 0, data.size, AudioTrack.WRITE_NON_BLOCKING)
             return
         }
 
@@ -74,11 +74,16 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
     private fun prepareOpus(opusHead: ByteArray) {
         if (prepared || released) return
         runCatching {
-            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_OPUS, SAMPLE_RATE, CHANNELS)
+            val format = MediaFormat.createAudioFormat(
+                MediaFormat.MIMETYPE_AUDIO_OPUS,
+                SAMPLE_RATE,
+                CHANNELS
+            )
             format.setByteBuffer("csd-0", ByteBuffer.wrap(opusHead))
             // pre-skip field: 2 bytes LE at offset 10 of the OpusHead
             if (opusHead.size >= 12) {
-                val preSkip = ((opusHead[11].toInt() and 0xFF) shl 8) or (opusHead[10].toInt() and 0xFF)
+                val preSkip =
+                    ((opusHead[11].toInt() and 0xFF) shl 8) or (opusHead[10].toInt() and 0xFF)
                 val codecDelayNs = preSkip.toLong() * 1_000_000_000L / SAMPLE_RATE
                 format.setByteBuffer("csd-1", longBuffer(codecDelayNs))
                 format.setByteBuffer("csd-2", longBuffer(OPUS_SEEK_PREROLL_NS))
@@ -90,7 +95,8 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
     private fun prepareAac(aacConfig: ByteArray) {
         if (prepared || released) return
         runCatching {
-            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, CHANNELS)
+            val format =
+                MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_AAC, SAMPLE_RATE, CHANNELS)
             format.setByteBuffer("csd-0", ByteBuffer.wrap(aacConfig))
             startCodecAndTrack(format)
         }.onFailure { Log.w(TAG, "prepareAac failed", it) }
@@ -99,7 +105,11 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
     private fun prepareFlac(flacConfig: ByteArray) {
         if (prepared || released) return
         runCatching {
-            val format = MediaFormat.createAudioFormat(MediaFormat.MIMETYPE_AUDIO_FLAC, SAMPLE_RATE, CHANNELS)
+            val format = MediaFormat.createAudioFormat(
+                MediaFormat.MIMETYPE_AUDIO_FLAC,
+                SAMPLE_RATE,
+                CHANNELS
+            )
             if (flacConfig.isNotEmpty()) {
                 format.setByteBuffer("csd-0", ByteBuffer.wrap(flacConfig))
             }
@@ -161,11 +171,7 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
                 val pcm = ByteArray(size)
                 outBuf.position(bufferInfo.offset)
                 outBuf.get(pcm)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    track.write(pcm, 0, size, AudioTrack.WRITE_NON_BLOCKING)
-                } else {
-                    track.write(pcm, 0, size)
-                }
+                track.write(pcm, 0, size, AudioTrack.WRITE_NON_BLOCKING)
             }
             codec.releaseOutputBuffer(idx, false)
             idx = codec.dequeueOutputBuffer(bufferInfo, 0L)
@@ -190,9 +196,9 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
     companion object {
         private const val TAG = "ScrcpyAudioPlayer"
         const val AUDIO_CODEC_OPUS = 0x6f707573
-        const val AUDIO_CODEC_AAC  = 0x00616163
+        const val AUDIO_CODEC_AAC = 0x00616163
         const val AUDIO_CODEC_FLAC = 0x666c6163
-        const val AUDIO_CODEC_RAW  = 0x00726177
+        const val AUDIO_CODEC_RAW = 0x00726177
         private const val SAMPLE_RATE = 48000
         private const val CHANNELS = 2
         private const val CODEC_TIMEOUT_US = 10_000L

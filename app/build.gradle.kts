@@ -28,6 +28,7 @@ android {
 
         ndk {
             abiFilters.clear()
+            //noinspection ChromeOsAbiSupport
             abiFilters += configuredAbiList
         }
 

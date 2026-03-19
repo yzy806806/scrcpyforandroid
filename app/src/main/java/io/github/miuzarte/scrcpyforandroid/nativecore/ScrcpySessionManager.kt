@@ -11,21 +11,25 @@ import java.io.InputStreamReader
 import java.nio.file.Path
 import java.security.SecureRandom
 import java.util.ArrayDeque
-import java.util.LinkedHashSet
 import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
 class ScrcpySessionManager(private val adbService: NativeAdbService) {
     @Volatile
     private var activeSession: ActiveSession? = null
+
     @Volatile
     private var videoConsumer: ((VideoPacket) -> Unit)? = null
+
     @Volatile
     private var videoReaderThread: Thread? = null
+
     @Volatile
     private var audioConsumer: ((AudioPacket) -> Unit)? = null
+
     @Volatile
     private var audioReaderThread: Thread? = null
+
     @Volatile
     private var lastServerCommand: String? = null
     private val serverLogBuffer = ArrayDeque<String>()
@@ -44,7 +48,10 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             adbService.push(serverJarPath, targetPath)
             val cmd = buildServerCommand(targetPath, scid, options)
             lastServerCommand = cmd
-            Log.i(TAG, "start(): socket=$socketName codec=${options.videoCodec} audio=${options.audio} audioCodec=${options.audioCodec}")
+            Log.i(
+                TAG,
+                "start(): socket=$socketName codec=${options.videoCodec} audio=${options.audio} audioCodec=${options.audioCodec}"
+            )
             val serverStream = adbService.openShellStream(cmd)
             val serverLogThread = startServerLogThread(serverStream, socketName)
             Thread.sleep(SERVER_BOOT_DELAY_MS)
@@ -64,13 +71,16 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                     videoStream = firstStream
                     videoInput = firstInput
                 }
+
                 options.audio -> {
                     audioStream = firstStream
                     audioInput = firstInput
                 }
+
                 options.control -> {
                     controlStream = firstStream
                 }
+
                 else -> {
                     throw IllegalArgumentException("At least one of video/audio/control must be enabled")
                 }
@@ -128,11 +138,15 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                 audioStream = audioStream,
                 audioInput = audioInput,
                 controlStream = controlStream,
-                controlWriter = controlStream?.outputStream?.let { ScrcpyControlWriter(DataOutputStream(it)) },
+                controlWriter = controlStream?.outputStream?.let {
+                    ScrcpyControlWriter(
+                        DataOutputStream(it)
+                    )
+                },
             )
             return sessionInfo
         } catch (t: Throwable) {
-            val tail = snapshotServerLogs(maxLines = 120)
+            val tail = snapshotServerLogs()
             val detail = if (tail.isBlank()) "" else " | server_log_tail=\n$tail"
             throw IllegalStateException("scrcpy start failed: ${t.message}$detail", t)
         }
@@ -173,7 +187,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                     )
                 } catch (_: EOFException) {
                     break
-                } catch (e: InterruptedException) {
+                } catch (_: InterruptedException) {
                     // Ignore transient interrupts while session remains active.
                     if (activeSession !== session || vStream.closed) {
                         break
@@ -212,10 +226,12 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                     Log.w(TAG, "audio disabled by server")
                     return@thread
                 }
+
                 AUDIO_ERROR -> {
                     Log.e(TAG, "audio stream configuration error from server")
                     return@thread
                 }
+
                 else -> {
                     Log.i(TAG, "audio stream codec=0x${streamCodecId.toUInt().toString(16)}")
                 }
@@ -223,7 +239,9 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             if (session.info.audioCodecId != 0 && streamCodecId != session.info.audioCodecId) {
                 Log.w(
                     TAG,
-                    "audio codec mismatch: requested=0x${session.info.audioCodecId.toUInt().toString(16)} stream=0x${streamCodecId.toUInt().toString(16)}",
+                    "audio codec mismatch: requested=0x${
+                        session.info.audioCodecId.toUInt().toString(16)
+                    } stream=0x${streamCodecId.toUInt().toString(16)}",
                 )
             }
 
@@ -238,10 +256,16 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
 
                     val isConfig = (ptsAndFlags and PACKET_FLAG_CONFIG) != 0L
                     val ptsUs = ptsAndFlags and PACKET_PTS_MASK
-                    audioConsumer?.invoke(AudioPacket(data = payload, ptsUs = ptsUs, isConfig = isConfig))
+                    audioConsumer?.invoke(
+                        AudioPacket(
+                            data = payload,
+                            ptsUs = ptsUs,
+                            isConfig = isConfig
+                        )
+                    )
                 } catch (_: EOFException) {
                     break
-                } catch (e: InterruptedException) {
+                } catch (_: InterruptedException) {
                     if (activeSession !== session || aStream.closed) break
                     Thread.interrupted()
                 } catch (e: Exception) {
@@ -279,12 +303,38 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         actionButton: Int,
         buttons: Int,
     ) {
-        requireControlWriter().injectTouch(action, pointerId, x, y, screenWidth, screenHeight, pressure, actionButton, buttons)
+        requireControlWriter().injectTouch(
+            action,
+            pointerId,
+            x,
+            y,
+            screenWidth,
+            screenHeight,
+            pressure,
+            actionButton,
+            buttons
+        )
     }
 
     @Synchronized
-    fun injectScroll(x: Int, y: Int, screenWidth: Int, screenHeight: Int, hScroll: Float, vScroll: Float, buttons: Int) {
-        requireControlWriter().injectScroll(x, y, screenWidth, screenHeight, hScroll, vScroll, buttons)
+    fun injectScroll(
+        x: Int,
+        y: Int,
+        screenWidth: Int,
+        screenHeight: Int,
+        hScroll: Float,
+        vScroll: Float,
+        buttons: Int
+    ) {
+        requireControlWriter().injectScroll(
+            x,
+            y,
+            screenWidth,
+            screenHeight,
+            hScroll,
+            vScroll,
+            buttons
+        )
     }
 
     @Synchronized
@@ -384,10 +434,15 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
     }
 
     private fun requireControlWriter(): ScrcpyControlWriter {
-        return activeSession?.controlWriter ?: throw IllegalStateException("scrcpy control channel not available")
+        return activeSession?.controlWriter
+            ?: throw IllegalStateException("scrcpy control channel not available")
     }
 
-    private fun buildServerCommand(targetPath: String, scid: Int, options: ScrcpyStartOptions): String {
+    private fun buildServerCommand(
+        targetPath: String,
+        scid: Int,
+        options: ScrcpyStartOptions
+    ): String {
         val serverArgs = buildServerArgs(scid, options)
         return "CLASSPATH=$targetPath app_process / com.genymobile.scrcpy.Server ${options.serverVersion} $serverArgs"
     }
@@ -474,7 +529,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             ServerArg(
                 type = ServerArgType.NUMBER,
                 key = "video_bit_rate",
-                value = options.videoBitRate, zeroValueBehavior = ZeroValueBehavior.KEEP,
+                value = options.videoBitRate,
             ),
             ServerArg(
                 type = ServerArgType.NUMBER,
@@ -528,7 +583,6 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                 key = "audio_bit_rate",
                 value = options.audioBitRate,
                 includeWhen = options.audio,
-                zeroValueBehavior = ZeroValueBehavior.KEEP,
             ),
             ServerArg(
                 type = ServerArgType.STRING,
@@ -539,7 +593,8 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             ServerArg(
                 type = ServerArgType.BOOLEAN,
                 key = "audio_dup",
-                value = options.audioDup, includeWhen = options.audioDup,
+                value = options.audioDup,
+                includeWhen = options.audioDup,
             ),
             ServerArg(
                 type = ServerArgType.STRING,
@@ -579,15 +634,22 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             ServerArg(
                 type = ServerArgType.BOOLEAN,
                 key = "list_encoders",
-                value = options.listEncoders, includeWhen = options.listEncoders,
+                value = options.listEncoders,
+                includeWhen = options.listEncoders,
             ),
             ServerArg(
                 type = ServerArgType.BOOLEAN,
                 key = "list_camera_sizes",
-                value = options.listCameraSizes, includeWhen = options.listCameraSizes,
+                value = options.listCameraSizes,
+                includeWhen = options.listCameraSizes,
             ),
             // Reserved for future args that require repeated/list values.
-            // ServerArg(type = ServerArgType.LIST, key = "_unused_list", value = emptyList<String>(), includeWhen = false),
+            // ServerArg(
+            //     type = ServerArgType.LIST,
+            //     key = "_unused_list",
+            //     value = emptyList<String>(),
+            //     includeWhen = false,
+            // ),
         )
 
         val rendered = args.mapNotNull { it.render() }
@@ -608,8 +670,8 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
     }
 
     private enum class ZeroValueBehavior {
-        KEEP,
         OMIT,
+        KEEP,
     }
 
     private data class ServerArg<T>(
@@ -658,7 +720,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                 ?.filter { it.isNotBlank() }
                 .orEmpty()
             if (items.isEmpty()) return null
-            return "$key=${items.joinToString(",")}" 
+            return "$key=${items.joinToString(",")}"
         }
     }
 
@@ -716,7 +778,12 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
     private fun startServerLogThread(serverStream: AdbSocketStream, socketName: String): Thread {
         return thread(start = true, name = "scrcpy-server-log") {
             try {
-                BufferedReader(InputStreamReader(serverStream.inputStream, Charsets.UTF_8)).use { reader ->
+                BufferedReader(
+                    InputStreamReader(
+                        serverStream.inputStream,
+                        Charsets.UTF_8
+                    )
+                ).use { reader ->
                     while (true) {
                         val line = reader.readLine() ?: break
                         appendServerLog(line)
@@ -740,7 +807,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
     }
 
     @Synchronized
-    private fun snapshotServerLogs(maxLines: Int): String {
+    private fun snapshotServerLogs(maxLines: Int = 120): String {
         if (serverLogBuffer.isEmpty()) {
             return ""
         }
@@ -748,7 +815,10 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         return serverLogBuffer.toList().takeLast(take).joinToString("\n")
     }
 
-    private fun openAbstractSocketWithRetry(socketName: String, expectDummyByte: Boolean): AdbSocketStream {
+    private fun openAbstractSocketWithRetry(
+        socketName: String,
+        expectDummyByte: Boolean
+    ): AdbSocketStream {
         var lastEx: Exception? = null
         repeat(CONNECT_RETRY_COUNT) { attempt ->
             try {
@@ -963,7 +1033,15 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         }
 
         @Synchronized
-        fun injectScroll(x: Int, y: Int, screenWidth: Int, screenHeight: Int, hScroll: Float, vScroll: Float, buttons: Int) {
+        fun injectScroll(
+            x: Int,
+            y: Int,
+            screenWidth: Int,
+            screenHeight: Int,
+            hScroll: Float,
+            vScroll: Float,
+            buttons: Int
+        ) {
             output.writeByte(TYPE_INJECT_SCROLL_EVENT)
             writePosition(x, y, screenWidth, screenHeight)
             output.writeShort(encodeSignedFixedPoint16(hScroll / 16f))
@@ -1033,6 +1111,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         private const val AUDIO_CODEC_AAC = 0x00616163
         private const val AUDIO_CODEC_FLAC = 0x666c6163
         private const val AUDIO_CODEC_RAW = 0x00726177
+
         // Audio stream disable codes from server (writeDisableStream)
         private const val AUDIO_DISABLED = 0
         private const val AUDIO_ERROR = 1
@@ -1044,10 +1123,12 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         private const val TYPE_SET_DISPLAY_POWER = 10
         private val VIDEO_ENCODER_REGEX = Regex("--video-encoder=([\\w.\\-]+)")
         private val AUDIO_ENCODER_REGEX = Regex("--audio-encoder=([\\w.\\-]+)")
-        private val VIDEO_ENCODER_FALLBACK_REGEX = Regex("""--video-encoder=['\"]?([^'\"\s]+)""")
-        private val AUDIO_ENCODER_FALLBACK_REGEX = Regex("""--audio-encoder=['\"]?([^'\"\s]+)""")
-        private val VIDEO_ENCODER_TYPE_REGEX = Regex("""--video-codec=[^\s]+\s+--video-encoder=([^\s]+).*?\((hw|sw)\)""")
-        private val AUDIO_ENCODER_TYPE_REGEX = Regex("""--audio-codec=[^\s]+\s+--audio-encoder=([^\s]+).*?\((hw|sw)\)""")
+        private val VIDEO_ENCODER_FALLBACK_REGEX = Regex("""--video-encoder=['"]?([^'"\s]+)""")
+        private val AUDIO_ENCODER_FALLBACK_REGEX = Regex("""--audio-encoder=['"]?([^'"\s]+)""")
+        private val VIDEO_ENCODER_TYPE_REGEX =
+            Regex("""--video-codec=\S+\s+--video-encoder=(\S+).*?\((hw|sw)\)""")
+        private val AUDIO_ENCODER_TYPE_REGEX =
+            Regex("""--audio-codec=\S+\s+--audio-encoder=(\S+).*?\((hw|sw)\)""")
         private val CAMERA_SIZE_REGEX = Regex("--camera-size=([0-9]+x[0-9]+)")
         private val CAMERA_SIZE_FALLBACK_REGEX = Regex("\\b([1-9][0-9]{1,4}x[1-9][0-9]{1,4})\\b")
 

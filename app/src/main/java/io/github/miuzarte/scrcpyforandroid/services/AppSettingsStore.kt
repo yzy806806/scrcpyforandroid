@@ -6,215 +6,495 @@ import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.AppPreferenceKeys
 
 internal data class MainSettings(
-    val themeBaseIndex: Int = AppDefaults.DefaultThemeBaseIndex,
-    val monetEnabled: Boolean = AppDefaults.DefaultMonetEnabled,
-    val fullscreenDebugInfoEnabled: Boolean = AppDefaults.DefaultFullscreenDebugInfoEnabled,
-    val showFullscreenVirtualButtons: Boolean = AppDefaults.DefaultShowFullscreenVirtualButtons,
-    val devicePreviewCardHeightDp: Int = AppDefaults.DefaultDevicePreviewCardHeightDp,
-    val keepScreenOnWhenStreamingEnabled: Boolean = AppDefaults.DefaultKeepScreenOnWhenStreamingEnabled,
-    val virtualButtonsOutside: String = AppDefaults.DefaultVirtualButtonsOutside,
-    val virtualButtonsInMore: String = AppDefaults.DefaultVirtualButtonsInMore,
-    val customServerUri: String? = null,
-    val serverRemotePath: String = AppDefaults.DefaultServerRemotePathInput,
-    val videoCodec: String = AppDefaults.DefaultVideoCodec,
-    val audioEnabled: Boolean = AppDefaults.DefaultAudioEnabled,
-    val audioCodec: String = AppDefaults.DefaultAudioCodec,
-    val adbKeyName: String = AppDefaults.DefaultAdbKeyNameInput,
+    val audioEnabled: Boolean = AppDefaults.AUDIO_ENABLED,
+    val audioCodec: String = AppDefaults.AUDIO_CODEC,
+    val videoCodec: String = AppDefaults.VIDEO_CODEC,
+    val themeBaseIndex: Int = AppDefaults.THEME_BASE_INDEX,
+    val monetEnabled: Boolean = AppDefaults.MONET,
+    val fullscreenDebugInfoEnabled: Boolean = AppDefaults.FULLSCREEN_DEBUG_INFO,
+    val showFullscreenVirtualButtons: Boolean = AppDefaults.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
+    val keepScreenOnWhenStreamingEnabled: Boolean = AppDefaults.KEEP_SCREEN_ON_WHEN_STREAMING,
+    val devicePreviewCardHeightDp: Int = AppDefaults.DEVICE_PREVIEW_CARD_HEIGHT_DP,
+    val virtualButtonsOutside: String = AppDefaults.VIRTUAL_BUTTONS_OUTSIDE,
+    val virtualButtonsInMore: String = AppDefaults.VIRTUAL_BUTTONS_IN_MORE,
+    val customServerUri: String? = AppDefaults.CUSTOM_SERVER_URI,
+    val serverRemotePath: String = AppDefaults.SERVER_REMOTE_PATH_INPUT,
+    val adbKeyName: String = AppDefaults.ADB_KEY_NAME_INPUT,
 )
 
 internal data class DevicePageSettings(
-    val pairHost: String = AppDefaults.DefaultPairHost,
-    val pairPort: String = AppDefaults.DefaultPairPort,
-    val pairCode: String = AppDefaults.DefaultPairCode,
-    val quickConnectInput: String = AppDefaults.DefaultQuickConnectInput,
-    val bitRateMbps: Float = AppDefaults.DefaultBitRateMbps,
-    val bitRateInput: String = AppDefaults.DefaultBitRateInput,
-    val audioBitRateKbps: Int = AppDefaults.DefaultAudioBitRateKbps,
-    val maxSizeInput: String = AppDefaults.DefaultMaxSizeInput,
-    val maxFpsInput: String = AppDefaults.DefaultMaxFpsInput,
-    val noControl: Boolean = AppDefaults.DefaultNoControl,
-    val videoEncoder: String = AppDefaults.DefaultVideoEncoder,
-    val videoCodecOptions: String = AppDefaults.DefaultVideoCodecOptions,
-    val audioEncoder: String = AppDefaults.DefaultAudioEncoder,
-    val audioCodecOptions: String = AppDefaults.DefaultAudioCodecOptions,
-    val audioDup: Boolean = AppDefaults.DefaultAudioDup,
-    val audioSourcePreset: String = AppDefaults.DefaultAudioSourcePreset,
-    val audioSourceCustom: String = AppDefaults.DefaultAudioSourceCustom,
-    val videoSourcePreset: String = AppDefaults.DefaultVideoSourcePreset,
-    val cameraIdInput: String = AppDefaults.DefaultCameraIdInput,
-    val cameraFacingPreset: String = AppDefaults.DefaultCameraFacingPreset,
-    val cameraSizePreset: String = AppDefaults.DefaultCameraSizePreset,
-    val cameraSizeCustom: String = AppDefaults.DefaultCameraSizeCustom,
-    val cameraArInput: String = AppDefaults.DefaultCameraArInput,
-    val cameraFpsInput: String = AppDefaults.DefaultCameraFpsInput,
-    val cameraHighSpeed: Boolean = AppDefaults.DefaultCameraHighSpeed,
-    val noAudioPlayback: Boolean = AppDefaults.DefaultNoAudioPlayback,
-    val noVideo: Boolean = AppDefaults.DefaultNoVideo,
-    val requireAudio: Boolean = AppDefaults.DefaultRequireAudio,
-    val turnScreenOff: Boolean = AppDefaults.DefaultTurnScreenOff,
-    val newDisplayWidth: String = AppDefaults.DefaultNewDisplayWidth,
-    val newDisplayHeight: String = AppDefaults.DefaultNewDisplayHeight,
-    val newDisplayDpi: String = AppDefaults.DefaultNewDisplayDpi,
-    val displayIdInput: String = AppDefaults.DefaultDisplayIdInput,
-    val cropWidth: String = AppDefaults.DefaultCropWidth,
-    val cropHeight: String = AppDefaults.DefaultCropHeight,
-    val cropX: String = AppDefaults.DefaultCropX,
-    val cropY: String = AppDefaults.DefaultCropY,
+    val quickConnectInput: String = AppDefaults.QUICK_CONNECT_INPUT,
+    val pairHost: String = AppDefaults.PAIR_HOST,
+    val pairPort: String = AppDefaults.PAIR_PORT,
+    val pairCode: String = AppDefaults.PAIR_CODE,
+    val audioBitRateKbps: Int = AppDefaults.AUDIO_BIT_RATE_KBPS,
+    val audioBitRateInput: String = AppDefaults.AUDIO_BIT_RATE_INPUT,
+    val videoBitRateMbps: Float = AppDefaults.VIDEO_BIT_RATE_MBPS,
+    val videoBitRateInput: String = AppDefaults.VIDEO_BIT_RATE_INPUT,
+    val turnScreenOff: Boolean = AppDefaults.TURN_SCREEN_OFF,
+    val noControl: Boolean = AppDefaults.NO_CONTROL,
+    val noVideo: Boolean = AppDefaults.NO_VIDEO,
+    val videoSourcePreset: String = AppDefaults.VIDEO_SOURCE_PRESET,
+    val displayIdInput: String = AppDefaults.DISPLAY_ID,
+    val cameraIdInput: String = AppDefaults.CAMERA_ID,
+    val cameraFacingPreset: String = AppDefaults.CAMERA_FACING_PRESET,
+    val cameraSizePreset: String = AppDefaults.CAMERA_SIZE_PRESET,
+    val cameraSizeCustom: String = AppDefaults.CAMERA_SIZE_CUSTOM,
+    val cameraAr: String = AppDefaults.CAMERA_AR,
+    val cameraFps: String = AppDefaults.CAMERA_FPS,
+    val cameraHighSpeed: Boolean = AppDefaults.CAMERA_HIGH_SPEED,
+    val audioSourcePreset: String = AppDefaults.AUDIO_SOURCE_PRESET,
+    val audioSourceCustom: String = AppDefaults.AUDIO_SOURCE_CUSTOM,
+    val audioDup: Boolean = AppDefaults.AUDIO_DUP,
+    val noAudioPlayback: Boolean = AppDefaults.NO_AUDIO_PLAYBACK,
+    val requireAudio: Boolean = AppDefaults.REQUIRE_AUDIO,
+    val maxSizeInput: String = AppDefaults.MAX_SIZE_INPUT,
+    val maxFpsInput: String = AppDefaults.MAX_FPS_INPUT,
+    val videoEncoder: String = AppDefaults.VIDEO_ENCODER,
+    val videoCodecOptions: String = AppDefaults.VIDEO_CODEC_OPTION,
+    val audioEncoder: String = AppDefaults.AUDIO_ENCODER,
+    val audioCodecOptions: String = AppDefaults.AUDIO_CODEC_OPTION,
+    val newDisplayWidth: String = AppDefaults.NEW_DISPLAY_WIDTH,
+    val newDisplayHeight: String = AppDefaults.NEW_DISPLAY_HEIGHT,
+    val newDisplayDpi: String = AppDefaults.NEW_DISPLAY_DPI,
+    val cropWidth: String = AppDefaults.CROP_WIDTH,
+    val cropHeight: String = AppDefaults.CROP_HEIGHT,
+    val cropX: String = AppDefaults.CROP_X,
+    val cropY: String = AppDefaults.CROP_Y,
 )
 
 internal fun loadMainSettings(context: Context): MainSettings {
-    val prefs = context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences(
+        AppPreferenceKeys.PREFS_NAME,
+        Context.MODE_PRIVATE,
+    )
     return MainSettings(
-        themeBaseIndex = prefs.getInt(AppPreferenceKeys.ThemeBaseIndex, AppDefaults.DefaultThemeBaseIndex),
-        monetEnabled = prefs.getBoolean(AppPreferenceKeys.MonetEnabled, AppDefaults.DefaultMonetEnabled),
+        audioEnabled = prefs.getBoolean(
+            AppPreferenceKeys.AUDIO_ENABLED,
+            AppDefaults.AUDIO_ENABLED,
+        ),
+        audioCodec = prefs.getString(
+            AppPreferenceKeys.AUDIO_CODEC,
+            AppDefaults.AUDIO_CODEC,
+        ).orEmpty().ifBlank { AppDefaults.AUDIO_CODEC },
+        videoCodec = prefs.getString(
+            AppPreferenceKeys.VIDEO_CODEC,
+            AppDefaults.VIDEO_CODEC,
+        ).orEmpty().ifBlank { AppDefaults.VIDEO_CODEC },
+        themeBaseIndex = prefs.getInt(
+            AppPreferenceKeys.THEME_BASE_INDEX,
+            AppDefaults.THEME_BASE_INDEX,
+        ),
+        monetEnabled = prefs.getBoolean(
+            AppPreferenceKeys.MONET,
+            AppDefaults.MONET,
+        ),
         fullscreenDebugInfoEnabled = prefs.getBoolean(
-            AppPreferenceKeys.FullscreenDebugInfoEnabled,
-            AppDefaults.DefaultFullscreenDebugInfoEnabled,
+            AppPreferenceKeys.FULLSCREEN_DEBUG_INFO,
+            AppDefaults.FULLSCREEN_DEBUG_INFO,
         ),
         showFullscreenVirtualButtons = prefs.getBoolean(
-            AppPreferenceKeys.ShowFullscreenVirtualButtons,
-            AppDefaults.DefaultShowFullscreenVirtualButtons,
+            AppPreferenceKeys.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
+            AppDefaults.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
+        ),
+        keepScreenOnWhenStreamingEnabled = prefs.getBoolean(
+            AppPreferenceKeys.KEEP_SCREEN_ON_WHEN_STREAMING,
+            AppDefaults.KEEP_SCREEN_ON_WHEN_STREAMING,
         ),
         devicePreviewCardHeightDp = prefs.getInt(
-            AppPreferenceKeys.DevicePreviewCardHeightDp,
-            AppDefaults.DefaultDevicePreviewCardHeightDp,
+            AppPreferenceKeys.DEVICE_PREVIEW_CARD_HEIGHT_DP,
+            AppDefaults.DEVICE_PREVIEW_CARD_HEIGHT_DP,
         ).coerceAtLeast(120),
-        keepScreenOnWhenStreamingEnabled = prefs.getBoolean(
-            AppPreferenceKeys.KeepScreenOnWhenStreamingEnabled,
-            AppDefaults.DefaultKeepScreenOnWhenStreamingEnabled,
-        ),
         virtualButtonsOutside = prefs.getString(
-            AppPreferenceKeys.VirtualButtonsOutside,
-            AppDefaults.DefaultVirtualButtonsOutside,
-        ).orEmpty().ifBlank { AppDefaults.DefaultVirtualButtonsOutside },
+            AppPreferenceKeys.VIRTUAL_BUTTONS_OUTSIDE,
+            AppDefaults.VIRTUAL_BUTTONS_OUTSIDE,
+        ).orEmpty().ifBlank { AppDefaults.VIRTUAL_BUTTONS_OUTSIDE },
         virtualButtonsInMore = prefs.getString(
-            AppPreferenceKeys.VirtualButtonsInMore,
-            AppDefaults.DefaultVirtualButtonsInMore,
-        ).orEmpty().ifBlank { AppDefaults.DefaultVirtualButtonsInMore },
-        customServerUri = prefs.getString(AppPreferenceKeys.CustomServerUri, null),
+            AppPreferenceKeys.VIRTUAL_BUTTONS_IN_MORE,
+            AppDefaults.VIRTUAL_BUTTONS_IN_MORE,
+        ).orEmpty().ifBlank { AppDefaults.VIRTUAL_BUTTONS_IN_MORE },
+        customServerUri = prefs.getString(
+            AppPreferenceKeys.CUSTOM_SERVER_URI,
+            AppDefaults.CUSTOM_SERVER_URI
+        ).orEmpty().ifBlank { null },
         serverRemotePath = prefs.getString(
-            AppPreferenceKeys.ServerRemotePath,
-            AppDefaults.DefaultServerRemotePathInput,
+            AppPreferenceKeys.SERVER_REMOTE_PATH,
+            AppDefaults.SERVER_REMOTE_PATH_INPUT,
         ).orEmpty(),
-        videoCodec = prefs.getString(AppPreferenceKeys.VideoCodec, AppDefaults.DefaultVideoCodec)
-            .orEmpty()
-            .ifBlank { AppDefaults.DefaultVideoCodec },
-        audioEnabled = prefs.getBoolean(AppPreferenceKeys.AudioEnabled, AppDefaults.DefaultAudioEnabled),
-        audioCodec = prefs.getString(AppPreferenceKeys.AudioCodec, AppDefaults.DefaultAudioCodec)
-            .orEmpty()
-            .ifBlank { AppDefaults.DefaultAudioCodec },
-        adbKeyName = prefs.getString(AppPreferenceKeys.AdbKeyName, AppDefaults.DefaultAdbKeyNameInput).orEmpty(),
+        adbKeyName = prefs.getString(
+            AppPreferenceKeys.ADB_KEY_NAME,
+            AppDefaults.ADB_KEY_NAME_INPUT,
+        ).orEmpty(),
     )
 }
 
 internal fun saveMainSettings(context: Context, settings: MainSettings) {
-    context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
-        .edit {
-            putInt(AppPreferenceKeys.ThemeBaseIndex, settings.themeBaseIndex)
-                .putBoolean(AppPreferenceKeys.MonetEnabled, settings.monetEnabled)
-                .putBoolean(AppPreferenceKeys.FullscreenDebugInfoEnabled, settings.fullscreenDebugInfoEnabled)
-                .putBoolean(AppPreferenceKeys.ShowFullscreenVirtualButtons, settings.showFullscreenVirtualButtons)
-                .putInt(AppPreferenceKeys.DevicePreviewCardHeightDp, settings.devicePreviewCardHeightDp.coerceAtLeast(120))
-                .putBoolean(AppPreferenceKeys.KeepScreenOnWhenStreamingEnabled, settings.keepScreenOnWhenStreamingEnabled)
-                .putString(AppPreferenceKeys.VirtualButtonsOutside, settings.virtualButtonsOutside)
-                .putString(AppPreferenceKeys.VirtualButtonsInMore, settings.virtualButtonsInMore)
-                .putString(AppPreferenceKeys.CustomServerUri, settings.customServerUri)
-                .putString(AppPreferenceKeys.ServerRemotePath, settings.serverRemotePath)
-                .putString(AppPreferenceKeys.VideoCodec, settings.videoCodec)
-                .putBoolean(AppPreferenceKeys.AudioEnabled, settings.audioEnabled)
-                .putString(AppPreferenceKeys.AudioCodec, settings.audioCodec)
-                .putString(AppPreferenceKeys.AdbKeyName, settings.adbKeyName)
-        }
+    context.getSharedPreferences(
+        AppPreferenceKeys.PREFS_NAME,
+        Context.MODE_PRIVATE,
+    ).edit {
+        putBoolean(
+            AppPreferenceKeys.AUDIO_ENABLED,
+            settings.audioEnabled,
+        )
+            .putString(
+                AppPreferenceKeys.AUDIO_CODEC,
+                settings.audioCodec,
+            )
+            .putString(
+                AppPreferenceKeys.VIDEO_CODEC,
+                settings.videoCodec,
+            )
+            .putInt(
+                AppPreferenceKeys.THEME_BASE_INDEX,
+                settings.themeBaseIndex,
+            )
+            .putBoolean(
+                AppPreferenceKeys.MONET,
+                settings.monetEnabled,
+            )
+            .putBoolean(
+                AppPreferenceKeys.FULLSCREEN_DEBUG_INFO,
+                settings.fullscreenDebugInfoEnabled,
+            )
+            .putBoolean(
+                AppPreferenceKeys.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
+                settings.showFullscreenVirtualButtons,
+            )
+            .putBoolean(
+                AppPreferenceKeys.KEEP_SCREEN_ON_WHEN_STREAMING,
+                settings.keepScreenOnWhenStreamingEnabled,
+            )
+            .putInt(
+                AppPreferenceKeys.DEVICE_PREVIEW_CARD_HEIGHT_DP,
+                settings.devicePreviewCardHeightDp.coerceAtLeast(120),
+            )
+            .putString(
+                AppPreferenceKeys.VIRTUAL_BUTTONS_OUTSIDE,
+                settings.virtualButtonsOutside,
+            )
+            .putString(
+                AppPreferenceKeys.VIRTUAL_BUTTONS_IN_MORE,
+                settings.virtualButtonsInMore,
+            )
+            .putString(
+                AppPreferenceKeys.CUSTOM_SERVER_URI,
+                settings.customServerUri,
+            )
+            .putString(
+                AppPreferenceKeys.SERVER_REMOTE_PATH,
+                settings.serverRemotePath,
+            )
+            .putString(
+                AppPreferenceKeys.ADB_KEY_NAME,
+                settings.adbKeyName,
+            )
+    }
 }
 
 internal fun loadDevicePageSettings(context: Context): DevicePageSettings {
-    val prefs = context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
+    val prefs = context.getSharedPreferences(
+        AppPreferenceKeys.PREFS_NAME,
+        Context.MODE_PRIVATE,
+    )
+    val audioBitRateKbps = prefs.getInt(
+        AppPreferenceKeys.AUDIO_BIT_RATE_KBPS,
+        AppDefaults.AUDIO_BIT_RATE_KBPS,
+    )
     return DevicePageSettings(
-        pairHost = AppDefaults.DefaultPairHost,
-        pairPort = AppDefaults.DefaultPairPort,
-        pairCode = AppDefaults.DefaultPairCode,
-        quickConnectInput = prefs.getString(AppPreferenceKeys.QuickConnectInput, AppDefaults.DefaultQuickConnectInput).orEmpty(),
-        bitRateMbps = prefs.getFloat(AppPreferenceKeys.BitRateMbps, AppDefaults.DefaultBitRateMbps),
-        bitRateInput = prefs.getString(AppPreferenceKeys.BitRateInput, AppDefaults.DefaultBitRateInput)
-            .orEmpty()
-            .ifBlank { AppDefaults.DefaultBitRateInput },
-        maxSizeInput = prefs.getString(AppPreferenceKeys.MaxSizeInput, AppDefaults.DefaultMaxSizeInput).orEmpty(),
-        audioBitRateKbps = prefs.getInt(AppPreferenceKeys.AudioBitRateKbps, AppDefaults.DefaultAudioBitRateKbps),
-        maxFpsInput = prefs.getString(AppPreferenceKeys.MaxFpsInput, AppDefaults.DefaultMaxFpsInput).orEmpty(),
-        noControl = prefs.getBoolean(AppPreferenceKeys.NoControl, AppDefaults.DefaultNoControl),
-        videoEncoder = prefs.getString(AppPreferenceKeys.VideoEncoder, AppDefaults.DefaultVideoEncoder).orEmpty(),
-        videoCodecOptions = prefs.getString(AppPreferenceKeys.VideoCodecOptions, AppDefaults.DefaultVideoCodecOptions).orEmpty(),
-        audioEncoder = prefs.getString(AppPreferenceKeys.AudioEncoder, AppDefaults.DefaultAudioEncoder).orEmpty(),
-        audioCodecOptions = prefs.getString(AppPreferenceKeys.AudioCodecOptions, AppDefaults.DefaultAudioCodecOptions).orEmpty(),
-        audioDup = prefs.getBoolean(AppPreferenceKeys.AudioDup, AppDefaults.DefaultAudioDup),
-        audioSourcePreset = prefs.getString(AppPreferenceKeys.AudioSourcePreset, AppDefaults.DefaultAudioSourcePreset)
-            .orEmpty()
-            .ifBlank { AppDefaults.DefaultAudioSourcePreset },
-        audioSourceCustom = prefs.getString(AppPreferenceKeys.AudioSourceCustom, AppDefaults.DefaultAudioSourceCustom).orEmpty(),
-        videoSourcePreset = prefs.getString(AppPreferenceKeys.VideoSourcePreset, AppDefaults.DefaultVideoSourcePreset)
-            .orEmpty()
-            .ifBlank { AppDefaults.DefaultVideoSourcePreset },
-        cameraIdInput = prefs.getString(AppPreferenceKeys.CameraIdInput, AppDefaults.DefaultCameraIdInput).orEmpty(),
-        cameraFacingPreset = prefs.getString(AppPreferenceKeys.CameraFacingPreset, AppDefaults.DefaultCameraFacingPreset).orEmpty(),
-        cameraSizePreset = prefs.getString(AppPreferenceKeys.CameraSizePreset, AppDefaults.DefaultCameraSizePreset).orEmpty(),
-        cameraSizeCustom = prefs.getString(AppPreferenceKeys.CameraSizeCustom, AppDefaults.DefaultCameraSizeCustom).orEmpty(),
-        cameraArInput = prefs.getString(AppPreferenceKeys.CameraArInput, AppDefaults.DefaultCameraArInput).orEmpty(),
-        cameraFpsInput = prefs.getString(AppPreferenceKeys.CameraFpsInput, AppDefaults.DefaultCameraFpsInput).orEmpty(),
-        cameraHighSpeed = prefs.getBoolean(AppPreferenceKeys.CameraHighSpeed, AppDefaults.DefaultCameraHighSpeed),
-        noAudioPlayback = prefs.getBoolean(AppPreferenceKeys.NoAudioPlayback, AppDefaults.DefaultNoAudioPlayback),
-        noVideo = prefs.getBoolean(AppPreferenceKeys.NoVideo, AppDefaults.DefaultNoVideo),
-        requireAudio = prefs.getBoolean(AppPreferenceKeys.RequireAudio, AppDefaults.DefaultRequireAudio),
-        turnScreenOff = prefs.getBoolean(AppPreferenceKeys.TurnScreenOff, AppDefaults.DefaultTurnScreenOff),
-        newDisplayWidth = prefs.getString(AppPreferenceKeys.NewDisplayWidth, AppDefaults.DefaultNewDisplayWidth).orEmpty(),
-        newDisplayHeight = prefs.getString(AppPreferenceKeys.NewDisplayHeight, AppDefaults.DefaultNewDisplayHeight).orEmpty(),
-        newDisplayDpi = prefs.getString(AppPreferenceKeys.NewDisplayDpi, AppDefaults.DefaultNewDisplayDpi).orEmpty(),
-        displayIdInput = prefs.getString(AppPreferenceKeys.DisplayIdInput, AppDefaults.DefaultDisplayIdInput).orEmpty(),
-        cropWidth = prefs.getString(AppPreferenceKeys.CropWidth, AppDefaults.DefaultCropWidth).orEmpty(),
-        cropHeight = prefs.getString(AppPreferenceKeys.CropHeight, AppDefaults.DefaultCropHeight).orEmpty(),
-        cropX = prefs.getString(AppPreferenceKeys.CropX, AppDefaults.DefaultCropX).orEmpty(),
-        cropY = prefs.getString(AppPreferenceKeys.CropY, AppDefaults.DefaultCropY).orEmpty(),
+        quickConnectInput = prefs.getString(
+            AppPreferenceKeys.QUICK_CONNECT_INPUT,
+            AppDefaults.QUICK_CONNECT_INPUT,
+        ).orEmpty(),
+        pairHost = AppDefaults.PAIR_HOST,
+        pairPort = AppDefaults.PAIR_PORT,
+        pairCode = AppDefaults.PAIR_CODE,
+        audioBitRateKbps = audioBitRateKbps,
+        audioBitRateInput = prefs.getString(
+            AppPreferenceKeys.AUDIO_BIT_RATE_INPUT,
+            AppDefaults.AUDIO_BIT_RATE_INPUT,
+        ).orEmpty().ifBlank { audioBitRateKbps.toString() },
+        videoBitRateMbps = prefs.getFloat(
+            AppPreferenceKeys.VIDEO_BIT_RATE_MBPS,
+            AppDefaults.VIDEO_BIT_RATE_MBPS,
+        ),
+        videoBitRateInput = prefs.getString(
+            AppPreferenceKeys.VIDEO_BIT_RATE_INPUT,
+            AppDefaults.VIDEO_BIT_RATE_INPUT
+        ).orEmpty().ifBlank { AppDefaults.VIDEO_BIT_RATE_INPUT },
+        turnScreenOff = prefs.getBoolean(
+            AppPreferenceKeys.TURN_SCREEN_OFF,
+            AppDefaults.TURN_SCREEN_OFF,
+        ),
+        noControl = prefs.getBoolean(
+            AppPreferenceKeys.NO_CONTROL,
+            AppDefaults.NO_CONTROL,
+        ),
+        noVideo = prefs.getBoolean(
+            AppPreferenceKeys.NO_VIDEO,
+            AppDefaults.NO_VIDEO,
+        ),
+        videoSourcePreset = prefs.getString(
+            AppPreferenceKeys.VIDEO_SOURCE_PRESET,
+            AppDefaults.VIDEO_SOURCE_PRESET,
+        ).orEmpty().ifBlank { AppDefaults.VIDEO_SOURCE_PRESET },
+        displayIdInput = prefs.getString(
+            AppPreferenceKeys.DISPLAY_ID,
+            AppDefaults.DISPLAY_ID,
+        )
+            .orEmpty(),
+        cameraIdInput = prefs.getString(
+            AppPreferenceKeys.CAMERA_ID,
+            AppDefaults.CAMERA_ID,
+        )
+            .orEmpty(),
+        cameraFacingPreset = prefs.getString(
+            AppPreferenceKeys.CAMERA_FACING_PRESET,
+            AppDefaults.CAMERA_FACING_PRESET,
+        ).orEmpty(),
+        cameraSizePreset = prefs.getString(
+            AppPreferenceKeys.CAMERA_SIZE_PRESET,
+            AppDefaults.CAMERA_SIZE_PRESET,
+        ).orEmpty(),
+        cameraSizeCustom = prefs.getString(
+            AppPreferenceKeys.CAMERA_SIZE_CUSTOM,
+            AppDefaults.CAMERA_SIZE_CUSTOM,
+        ).orEmpty(),
+        cameraAr = prefs.getString(
+            AppPreferenceKeys.CAMERA_AR,
+            AppDefaults.CAMERA_AR,
+        ).orEmpty(),
+        cameraFps = prefs.getString(
+            AppPreferenceKeys.CAMERA_FPS,
+            AppDefaults.CAMERA_FPS,
+        ).orEmpty(),
+        cameraHighSpeed = prefs.getBoolean(
+            AppPreferenceKeys.CAMERA_HIGH_SPEED,
+            AppDefaults.CAMERA_HIGH_SPEED,
+        ),
+        audioSourcePreset = prefs.getString(
+            AppPreferenceKeys.AUDIO_SOURCE_PRESET,
+            AppDefaults.AUDIO_SOURCE_PRESET,
+        ).orEmpty().ifBlank { AppDefaults.AUDIO_SOURCE_PRESET },
+        audioSourceCustom = prefs.getString(
+            AppPreferenceKeys.AUDIO_SOURCE_CUSTOM,
+            AppDefaults.AUDIO_SOURCE_CUSTOM,
+        ).orEmpty(),
+        audioDup = prefs.getBoolean(
+            AppPreferenceKeys.AUDIO_DUP,
+            AppDefaults.AUDIO_DUP,
+        ),
+        noAudioPlayback = prefs.getBoolean(
+            AppPreferenceKeys.NO_AUDIO_PLAYBACK,
+            AppDefaults.NO_AUDIO_PLAYBACK,
+        ),
+        requireAudio = prefs.getBoolean(
+            AppPreferenceKeys.REQUIRE_AUDIO,
+            AppDefaults.REQUIRE_AUDIO,
+        ),
+        maxSizeInput = prefs.getString(
+            AppPreferenceKeys.MAX_SIZE_INPUT,
+            AppDefaults.MAX_SIZE_INPUT,
+        )
+            .orEmpty(),
+        maxFpsInput = prefs.getString(
+            AppPreferenceKeys.MAX_FPS_INPUT,
+            AppDefaults.MAX_FPS_INPUT,
+        )
+            .orEmpty(),
+        videoEncoder = prefs.getString(
+            AppPreferenceKeys.VIDEO_ENCODER,
+            AppDefaults.VIDEO_ENCODER,
+        )
+            .orEmpty(),
+        videoCodecOptions = prefs.getString(
+            AppPreferenceKeys.VIDEO_CODEC_OPTION,
+            AppDefaults.VIDEO_CODEC_OPTION,
+        ).orEmpty(),
+        audioEncoder = prefs.getString(
+            AppPreferenceKeys.AUDIO_ENCODER,
+            AppDefaults.AUDIO_ENCODER,
+        ).orEmpty(),
+        audioCodecOptions = prefs.getString(
+            AppPreferenceKeys.AUDIO_CODEC_OPTION,
+            AppDefaults.AUDIO_CODEC_OPTION,
+        ).orEmpty(),
+        newDisplayWidth = prefs.getString(
+            AppPreferenceKeys.NEW_DISPLAY_WIDTH,
+            AppDefaults.NEW_DISPLAY_WIDTH,
+        ).orEmpty(),
+        newDisplayHeight = prefs.getString(
+            AppPreferenceKeys.NEW_DISPLAY_HEIGHT,
+            AppDefaults.NEW_DISPLAY_HEIGHT,
+        ).orEmpty(),
+        newDisplayDpi = prefs.getString(
+            AppPreferenceKeys.NEW_DISPLAY_DPI,
+            AppDefaults.NEW_DISPLAY_DPI,
+        ).orEmpty(),
+        cropWidth = prefs.getString(
+            AppPreferenceKeys.CROP_WIDTH,
+            AppDefaults.CROP_WIDTH,
+        ).orEmpty(),
+        cropHeight = prefs.getString(
+            AppPreferenceKeys.CROP_HEIGHT,
+            AppDefaults.CROP_HEIGHT,
+        ).orEmpty(),
+        cropX = prefs.getString(
+            AppPreferenceKeys.CROP_X,
+            AppDefaults.CROP_X,
+        ).orEmpty(),
+        cropY = prefs.getString(
+            AppPreferenceKeys.CROP_Y,
+            AppDefaults.CROP_Y,
+        ).orEmpty(),
     )
 }
 
 internal fun saveDevicePageSettings(context: Context, settings: DevicePageSettings) {
-    context.getSharedPreferences(AppPreferenceKeys.PrefsName, Context.MODE_PRIVATE)
+    context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
         .edit {
-            remove(AppPreferenceKeys.PairHost)
-                .remove(AppPreferenceKeys.PairPort)
-                .remove(AppPreferenceKeys.PairCode)
-                .putString(AppPreferenceKeys.QuickConnectInput, settings.quickConnectInput)
-                .putFloat(AppPreferenceKeys.BitRateMbps, settings.bitRateMbps)
-                .putString(AppPreferenceKeys.BitRateInput, settings.bitRateInput)
-                .putInt(AppPreferenceKeys.AudioBitRateKbps, settings.audioBitRateKbps)
-                .putString(AppPreferenceKeys.MaxSizeInput, settings.maxSizeInput)
-                .putString(AppPreferenceKeys.MaxFpsInput, settings.maxFpsInput)
-                .putBoolean(AppPreferenceKeys.NoControl, settings.noControl)
-                .putString(AppPreferenceKeys.VideoEncoder, settings.videoEncoder)
-                .putString(AppPreferenceKeys.VideoCodecOptions, settings.videoCodecOptions)
-                .putString(AppPreferenceKeys.AudioEncoder, settings.audioEncoder)
-                .putString(AppPreferenceKeys.AudioCodecOptions, settings.audioCodecOptions)
-                .putBoolean(AppPreferenceKeys.AudioDup, settings.audioDup)
-                .putString(AppPreferenceKeys.AudioSourcePreset, settings.audioSourcePreset)
-                .putString(AppPreferenceKeys.AudioSourceCustom, settings.audioSourceCustom)
-                .putString(AppPreferenceKeys.VideoSourcePreset, settings.videoSourcePreset)
-                .putString(AppPreferenceKeys.CameraIdInput, settings.cameraIdInput)
-                .putString(AppPreferenceKeys.CameraFacingPreset, settings.cameraFacingPreset)
-                .putString(AppPreferenceKeys.CameraSizePreset, settings.cameraSizePreset)
-                .putString(AppPreferenceKeys.CameraSizeCustom, settings.cameraSizeCustom)
-                .putString(AppPreferenceKeys.CameraArInput, settings.cameraArInput)
-                .putString(AppPreferenceKeys.CameraFpsInput, settings.cameraFpsInput)
-                .putBoolean(AppPreferenceKeys.CameraHighSpeed, settings.cameraHighSpeed)
-                .putBoolean(AppPreferenceKeys.NoAudioPlayback, settings.noAudioPlayback)
-                .putBoolean(AppPreferenceKeys.NoVideo, settings.noVideo)
-                .putBoolean(AppPreferenceKeys.RequireAudio, settings.requireAudio)
-                .putBoolean(AppPreferenceKeys.TurnScreenOff, settings.turnScreenOff)
-                .putString(AppPreferenceKeys.NewDisplayWidth, settings.newDisplayWidth)
-                .putString(AppPreferenceKeys.NewDisplayHeight, settings.newDisplayHeight)
-                .putString(AppPreferenceKeys.NewDisplayDpi, settings.newDisplayDpi)
-                .putString(AppPreferenceKeys.DisplayIdInput, settings.displayIdInput)
-                .putString(AppPreferenceKeys.CropWidth, settings.cropWidth)
-                .putString(AppPreferenceKeys.CropHeight, settings.cropHeight)
-                .putString(AppPreferenceKeys.CropX, settings.cropX)
-                .putString(AppPreferenceKeys.CropY, settings.cropY)
+            remove(AppPreferenceKeys.PAIR_HOST)
+                .remove(AppPreferenceKeys.PAIR_PORT)
+                .remove(AppPreferenceKeys.PAIR_CODE)
+                .putString(
+                    AppPreferenceKeys.QUICK_CONNECT_INPUT,
+                    settings.quickConnectInput,
+                )
+                .putInt(
+                    AppPreferenceKeys.AUDIO_BIT_RATE_KBPS,
+                    settings.audioBitRateKbps,
+                )
+                .putString(
+                    AppPreferenceKeys.AUDIO_BIT_RATE_INPUT,
+                    settings.audioBitRateInput,
+                )
+                .putFloat(
+                    AppPreferenceKeys.VIDEO_BIT_RATE_MBPS,
+                    settings.videoBitRateMbps,
+                )
+                .putString(
+                    AppPreferenceKeys.VIDEO_BIT_RATE_INPUT,
+                    settings.videoBitRateInput,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.TURN_SCREEN_OFF,
+                    settings.turnScreenOff,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.NO_CONTROL,
+                    settings.noControl,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.NO_VIDEO,
+                    settings.noVideo,
+                )
+                .putString(
+                    AppPreferenceKeys.VIDEO_SOURCE_PRESET,
+                    settings.videoSourcePreset,
+                )
+                .putString(
+                    AppPreferenceKeys.DISPLAY_ID,
+                    settings.displayIdInput,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_ID,
+                    settings.cameraIdInput,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_FACING_PRESET,
+                    settings.cameraFacingPreset,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_SIZE_PRESET,
+                    settings.cameraSizePreset,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_SIZE_CUSTOM,
+                    settings.cameraSizeCustom,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_AR,
+                    settings.cameraAr,
+                )
+                .putString(
+                    AppPreferenceKeys.CAMERA_FPS,
+                    settings.cameraFps,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.CAMERA_HIGH_SPEED,
+                    settings.cameraHighSpeed,
+                )
+                .putString(
+                    AppPreferenceKeys.AUDIO_SOURCE_PRESET,
+                    settings.audioSourcePreset,
+                )
+                .putString(
+                    AppPreferenceKeys.AUDIO_SOURCE_CUSTOM,
+                    settings.audioSourceCustom,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.AUDIO_DUP,
+                    settings.audioDup,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.NO_AUDIO_PLAYBACK,
+                    settings.noAudioPlayback,
+                )
+                .putBoolean(
+                    AppPreferenceKeys.REQUIRE_AUDIO,
+                    settings.requireAudio,
+                )
+                .putString(
+                    AppPreferenceKeys.MAX_SIZE_INPUT,
+                    settings.maxSizeInput,
+                )
+                .putString(
+                    AppPreferenceKeys.MAX_FPS_INPUT,
+                    settings.maxFpsInput,
+                )
+                .putString(
+                    AppPreferenceKeys.VIDEO_ENCODER,
+                    settings.videoEncoder,
+                )
+                .putString(
+                    AppPreferenceKeys.VIDEO_CODEC_OPTION,
+                    settings.videoCodecOptions,
+                )
+                .putString(
+                    AppPreferenceKeys.AUDIO_ENCODER,
+                    settings.audioEncoder,
+                )
+                .putString(
+                    AppPreferenceKeys.AUDIO_CODEC_OPTION,
+                    settings.audioCodecOptions,
+                )
+                .putString(
+                    AppPreferenceKeys.NEW_DISPLAY_WIDTH,
+                    settings.newDisplayWidth,
+                )
+                .putString(
+                    AppPreferenceKeys.NEW_DISPLAY_HEIGHT,
+                    settings.newDisplayHeight,
+                )
+                .putString(
+                    AppPreferenceKeys.NEW_DISPLAY_DPI,
+                    settings.newDisplayDpi,
+                )
+                .putString(
+                    AppPreferenceKeys.CROP_WIDTH,
+                    settings.cropWidth,
+                )
+                .putString(
+                    AppPreferenceKeys.CROP_HEIGHT,
+                    settings.cropHeight,
+                )
+                .putString(
+                    AppPreferenceKeys.CROP_X,
+                    settings.cropX,
+                )
+                .putString(
+                    AppPreferenceKeys.CROP_Y,
+                    settings.cropY,
+                )
         }
 }

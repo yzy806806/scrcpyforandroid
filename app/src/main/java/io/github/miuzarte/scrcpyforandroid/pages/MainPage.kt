@@ -6,8 +6,8 @@ import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -34,7 +34,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
@@ -92,14 +91,18 @@ fun MainPage() {
     val initialDeviceSettings = remember(context) { loadDevicePageSettings(context) }
     val snackHostState = remember { SnackbarHostState() }
     val tabs = remember { MainTabDestination.entries }
-    val pagerState = rememberPagerState(initialPage = MainTabDestination.Device.ordinal, pageCount = { tabs.size })
+    val pagerState = rememberPagerState(
+        initialPage = MainTabDestination.Device.ordinal,
+        pageCount = { tabs.size })
     val currentTab = tabs[pagerState.currentPage]
     val saveableStateHolder = rememberSaveableStateHolder()
     val scope = rememberCoroutineScope()
     val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
-    val deviceScrollBehavior = MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Device })
-    val settingsScrollBehavior = MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Settings })
+    val deviceScrollBehavior =
+        MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Device })
+    val settingsScrollBehavior =
+        MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Settings })
     val advancedScrollBehavior = MiuixScrollBehavior(
         canScroll = {
             currentRootScreen is RootScreen.Advanced || currentRootScreen is RootScreen.VirtualButtonOrder
@@ -110,27 +113,23 @@ fun MainPage() {
         restore = { restored -> restored.toList() },
     )
 
+    var audioEnabled by rememberSaveable { mutableStateOf(initialSettings.audioEnabled) }
+    var audioCodec by rememberSaveable { mutableStateOf(initialSettings.audioCodec) }
+    var videoCodec by rememberSaveable { mutableStateOf(initialSettings.videoCodec) }
     var themeBaseIndex by rememberSaveable { mutableIntStateOf(initialSettings.themeBaseIndex) }
     var monetEnabled by rememberSaveable { mutableStateOf(initialSettings.monetEnabled) }
     var fullscreenDebugInfoEnabled by rememberSaveable { mutableStateOf(initialSettings.fullscreenDebugInfoEnabled) }
-    var showFullscreenVirtualButtons by rememberSaveable {
-        mutableStateOf(initialSettings.showFullscreenVirtualButtons)
-    }
-    var keepScreenOnWhenStreamingEnabled by rememberSaveable {
-        mutableStateOf(initialSettings.keepScreenOnWhenStreamingEnabled)
-    }
+    var showFullscreenVirtualButtons by rememberSaveable { mutableStateOf(initialSettings.showFullscreenVirtualButtons) }
+    var keepScreenOnWhenStreamingEnabled by rememberSaveable { mutableStateOf(initialSettings.keepScreenOnWhenStreamingEnabled) }
+    var devicePreviewCardHeightDp by rememberSaveable { mutableIntStateOf(initialSettings.devicePreviewCardHeightDp) }
     var virtualButtonsOutside by rememberSaveable(stateSaver = stringListSaver) {
         mutableStateOf(VirtualButtonActions.parseStoredIds(initialSettings.virtualButtonsOutside))
     }
     var virtualButtonsInMore by rememberSaveable(stateSaver = stringListSaver) {
         mutableStateOf(VirtualButtonActions.parseStoredIds(initialSettings.virtualButtonsInMore))
     }
-    var devicePreviewCardHeightDp by rememberSaveable { mutableIntStateOf(initialSettings.devicePreviewCardHeightDp) }
     var customServerUri by rememberSaveable { mutableStateOf(initialSettings.customServerUri) }
     var serverRemotePath by rememberSaveable { mutableStateOf(initialSettings.serverRemotePath) }
-    var videoCodec by rememberSaveable { mutableStateOf(initialSettings.videoCodec) }
-    var audioEnabled by rememberSaveable { mutableStateOf(initialSettings.audioEnabled) }
-    var audioCodec by rememberSaveable { mutableStateOf(initialSettings.audioCodec) }
     var adbKeyName by rememberSaveable { mutableStateOf(initialSettings.adbKeyName) }
     var noControl by rememberSaveable { mutableStateOf(initialDeviceSettings.noControl) }
     var videoEncoder by rememberSaveable { mutableStateOf(initialDeviceSettings.videoEncoder) }
@@ -145,8 +144,8 @@ fun MainPage() {
     var cameraFacingPreset by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraFacingPreset) }
     var cameraSizePreset by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraSizePreset) }
     var cameraSizeCustom by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraSizeCustom) }
-    var cameraArInput by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraArInput) }
-    var cameraFpsInput by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraFpsInput) }
+    var cameraArInput by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraAr) }
+    var cameraFpsInput by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraFps) }
     var cameraHighSpeed by rememberSaveable { mutableStateOf(initialDeviceSettings.cameraHighSpeed) }
     var noAudioPlayback by rememberSaveable { mutableStateOf(initialDeviceSettings.noAudioPlayback) }
     var noVideo by rememberSaveable { mutableStateOf(initialDeviceSettings.noVideo) }
@@ -178,47 +177,48 @@ fun MainPage() {
     val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
 
     LaunchedEffect(
+        audioEnabled,
+        audioCodec,
+        videoCodec,
         themeBaseIndex,
         monetEnabled,
         fullscreenDebugInfoEnabled,
         showFullscreenVirtualButtons,
         keepScreenOnWhenStreamingEnabled,
+        devicePreviewCardHeightDp,
         virtualButtonsOutside,
         virtualButtonsInMore,
-        devicePreviewCardHeightDp,
         customServerUri,
         serverRemotePath,
-        videoCodec,
-        audioEnabled,
-        audioCodec,
         adbKeyName,
     ) {
         saveMainSettings(
             context,
             MainSettings(
+                audioEnabled = audioEnabled,
+                audioCodec = audioCodec,
+                videoCodec = videoCodec,
                 themeBaseIndex = themeBaseIndex,
                 monetEnabled = monetEnabled,
                 fullscreenDebugInfoEnabled = fullscreenDebugInfoEnabled,
                 showFullscreenVirtualButtons = showFullscreenVirtualButtons,
                 keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
+                devicePreviewCardHeightDp = devicePreviewCardHeightDp,
                 virtualButtonsOutside = VirtualButtonActions.encodeStoredIds(virtualButtonsOutside),
                 virtualButtonsInMore = VirtualButtonActions.encodeStoredIds(virtualButtonsInMore),
-                devicePreviewCardHeightDp = devicePreviewCardHeightDp,
                 customServerUri = customServerUri,
                 serverRemotePath = serverRemotePath,
-                videoCodec = videoCodec,
-                audioEnabled = audioEnabled,
-                audioCodec = audioCodec,
                 adbKeyName = adbKeyName,
             ),
         )
     }
 
     LaunchedEffect(adbKeyName) {
-        nativeCore.setAdbKeyName(adbKeyName.ifBlank { AppDefaults.DefaultAdbKeyName })
+        nativeCore.setAdbKeyName(adbKeyName.ifBlank { AppDefaults.ADB_KEY_NAME })
     }
 
-    val canNavigateBack = rootBackStack.size > 1 || pagerState.currentPage != MainTabDestination.Device.ordinal
+    val canNavigateBack =
+        rootBackStack.size > 1 || pagerState.currentPage != MainTabDestination.Device.ordinal
 
     fun popRoot() {
         if (rootBackStack.size > 1) {
@@ -234,8 +234,8 @@ fun MainPage() {
                 pagerState.animateScrollToPage(
                     page = MainTabDestination.Device.ordinal,
                     animationSpec = spring(
-                        dampingRatio = UiMotion.PageSwitchDampingRatio,
-                        stiffness = UiMotion.PageSwitchStiffness,
+                        dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
+                        stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
                     ),
                 )
             }
@@ -251,403 +251,424 @@ fun MainPage() {
         }
     }
 
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val picker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            if (uri == null) return@rememberLauncherForActivityResult
+            runCatching {
+                context.contentResolver.takePersistableUriPermission(
+                    uri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            }
+            customServerUri = uri.toString()
         }
-        customServerUri = uri.toString()
-    }
 
     val rootEntryProvider = entryProvider<NavKey> {
-            entry(RootScreen.Home) {
-                Scaffold(
-                    bottomBar = {
-                        NavigationBar {
-                            tabs.forEach { tab ->
-                                NavigationBarItem(
-                                    selected = currentTab == tab,
-                                    onClick = {
-                                        scope.launch {
-                                            pagerState.animateScrollToPage(
-                                                page = tab.ordinal,
-                                                animationSpec = spring(
-                                                    dampingRatio = UiMotion.PageSwitchDampingRatio,
-                                                    stiffness = UiMotion.PageSwitchStiffness,
-                                                ),
+        entry(RootScreen.Home) {
+            Scaffold(
+                bottomBar = {
+                    NavigationBar {
+                        tabs.forEach { tab ->
+                            NavigationBarItem(
+                                selected = currentTab == tab,
+                                onClick = {
+                                    scope.launch {
+                                        pagerState.animateScrollToPage(
+                                            page = tab.ordinal,
+                                            animationSpec = spring(
+                                                dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
+                                                stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
+                                            ),
+                                        )
+                                    }
+                                },
+                                icon = tab.icon,
+                                label = tab.label,
+                            )
+                        }
+                    }
+                },
+                snackbarHost = { SnackbarHost(snackHostState) },
+            ) { contentPadding ->
+                HorizontalPager(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = contentPadding.calculateBottomPadding()),
+                    state = pagerState,
+                    beyondViewportPageCount = 1,
+                ) { page ->
+                    val tab = tabs[page]
+                    saveableStateHolder.SaveableStateProvider(tab.name) {
+                        when (tab) {
+                            MainTabDestination.Device -> Scaffold(
+                                topBar = {
+                                    TopAppBar(
+                                        title = tab.title,
+                                        actions = {
+                                            IconButton(
+                                                onClick = { showDeviceMenu = true },
+                                                holdDownState = showDeviceMenu,
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.MoreVert,
+                                                    contentDescription = "更多"
+                                                )
+                                            }
+                                            DeviceMenuPopup(
+                                                show = showDeviceMenu,
+                                                canClearLogs = canClearLogs,
+                                                onDismissRequest = { showDeviceMenu = false },
+                                                onReorderDevices = {
+                                                    openReorderDevicesAction?.invoke()
+                                                    showDeviceMenu = false
+                                                },
+                                                onOpenVirtualButtonOrder = {
+                                                    rootBackStack.add(RootScreen.VirtualButtonOrder)
+                                                    showDeviceMenu = false
+                                                },
+                                                onClearLogs = {
+                                                    clearLogsAction?.invoke()
+                                                    showDeviceMenu = false
+                                                },
                                             )
+                                        },
+                                        scrollBehavior = deviceScrollBehavior,
+                                    )
+                                },
+                            ) { pagePadding ->
+                                DeviceTabScreen(
+                                    contentPadding = pagePadding,
+                                    nativeCore = nativeCore,
+                                    snack = snackHostState,
+                                    scrollBehavior = deviceScrollBehavior,
+                                    keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
+                                    virtualButtonsOutside = virtualButtonsOutside,
+                                    virtualButtonsInMore = virtualButtonsInMore,
+                                    customServerUri = customServerUri,
+                                    serverRemotePath = serverRemotePath,
+                                    onServerRemotePathChange = { serverRemotePath = it },
+                                    videoCodec = videoCodec,
+                                    onVideoCodecChange = { videoCodec = it },
+                                    audioEnabled = audioEnabled,
+                                    onAudioEnabledChange = { audioEnabled = it },
+                                    audioCodec = audioCodec,
+                                    onAudioCodecChange = { audioCodec = it },
+                                    noControl = noControl,
+                                    onNoControlChange = {
+                                        noControl = it
+                                        if (it) {
+                                            turnScreenOff = false
                                         }
                                     },
-                                    icon = tab.icon,
-                                    label = tab.label,
+                                    videoEncoder = videoEncoder,
+                                    onVideoEncoderChange = { videoEncoder = it },
+                                    videoCodecOptions = videoCodecOptions,
+                                    onVideoCodecOptionsChange = { videoCodecOptions = it },
+                                    audioEncoder = audioEncoder,
+                                    onAudioEncoderChange = { audioEncoder = it },
+                                    audioCodecOptions = audioCodecOptions,
+                                    onAudioCodecOptionsChange = { audioCodecOptions = it },
+                                    audioDup = audioDup,
+                                    onAudioDupChange = { audioDup = it },
+                                    audioSourcePreset = audioSourcePreset,
+                                    onAudioSourcePresetChange = { audioSourcePreset = it },
+                                    audioSourceCustom = audioSourceCustom,
+                                    onAudioSourceCustomChange = { audioSourceCustom = it },
+                                    videoSourcePreset = videoSourcePreset,
+                                    onVideoSourcePresetChange = { videoSourcePreset = it },
+                                    cameraIdInput = cameraIdInput,
+                                    onCameraIdInputChange = { cameraIdInput = it },
+                                    cameraFacingPreset = cameraFacingPreset,
+                                    onCameraFacingPresetChange = { cameraFacingPreset = it },
+                                    cameraSizePreset = cameraSizePreset,
+                                    onCameraSizePresetChange = { cameraSizePreset = it },
+                                    cameraSizeCustom = cameraSizeCustom,
+                                    onCameraSizeCustomChange = { cameraSizeCustom = it },
+                                    cameraArInput = cameraArInput,
+                                    onCameraArInputChange = { cameraArInput = it },
+                                    cameraFpsInput = cameraFpsInput,
+                                    onCameraFpsInputChange = { cameraFpsInput = it },
+                                    cameraHighSpeed = cameraHighSpeed,
+                                    onCameraHighSpeedChange = { cameraHighSpeed = it },
+                                    noAudioPlayback = noAudioPlayback,
+                                    onNoAudioPlaybackChange = { noAudioPlayback = it },
+                                    noVideo = noVideo,
+                                    requireAudio = requireAudio,
+                                    onRequireAudioChange = { requireAudio = it },
+                                    turnScreenOff = turnScreenOff,
+                                    onTurnScreenOffChange = { turnScreenOff = it },
+                                    maxSizeInput = maxSizeInput,
+                                    onMaxSizeInputChange = { maxSizeInput = it },
+                                    maxFpsInput = maxFpsInput,
+                                    onMaxFpsInputChange = { maxFpsInput = it },
+                                    newDisplayWidth = newDisplayWidth,
+                                    onNewDisplayWidthChange = { newDisplayWidth = it },
+                                    newDisplayHeight = newDisplayHeight,
+                                    onNewDisplayHeightChange = { newDisplayHeight = it },
+                                    newDisplayDpi = newDisplayDpi,
+                                    onNewDisplayDpiChange = { newDisplayDpi = it },
+                                    displayIdInput = displayIdInput,
+                                    onDisplayIdInputChange = { displayIdInput = it },
+                                    cropWidth = cropWidth,
+                                    onCropWidthChange = { cropWidth = it },
+                                    cropHeight = cropHeight,
+                                    onCropHeightChange = { cropHeight = it },
+                                    cropX = cropX,
+                                    onCropXChange = { cropX = it },
+                                    cropY = cropY,
+                                    onCropYChange = { cropY = it },
+                                    videoEncoderOptions = videoEncoderOptions,
+                                    onVideoEncoderOptionsChange = {
+                                        videoEncoderOptions.clear()
+                                        videoEncoderOptions.addAll(it)
+                                    },
+                                    onVideoEncoderTypeMapChange = {
+                                        videoEncoderTypeMap.clear()
+                                        videoEncoderTypeMap.putAll(it)
+                                    },
+                                    audioEncoderOptions = audioEncoderOptions,
+                                    onAudioEncoderOptionsChange = {
+                                        audioEncoderOptions.clear()
+                                        audioEncoderOptions.addAll(it)
+                                    },
+                                    onAudioEncoderTypeMapChange = {
+                                        audioEncoderTypeMap.clear()
+                                        audioEncoderTypeMap.putAll(it)
+                                    },
+                                    cameraSizeOptions = cameraSizeOptions,
+                                    onCameraSizeOptionsChange = {
+                                        cameraSizeOptions.clear()
+                                        cameraSizeOptions.addAll(it)
+                                    },
+                                    onSessionStartedChange = { sessionStarted = it },
+                                    onRefreshEncodersActionChange = { refreshEncodersAction = it },
+                                    onRefreshCameraSizesActionChange = {
+                                        refreshCameraSizesAction = it
+                                    },
+                                    onClearLogsActionChange = { clearLogsAction = it },
+                                    onCanClearLogsChange = { canClearLogs = it },
+                                    onOpenReorderDevicesActionChange = {
+                                        openReorderDevicesAction = it
+                                    },
+                                    onOpenAdvancedPage = { rootBackStack.add(RootScreen.Advanced) },
+                                    onOpenFullscreenPage = { session ->
+                                        rootBackStack.add(
+                                            RootScreen.Fullscreen(
+                                                launch = FullscreenControlLaunch(
+                                                    deviceName = session.deviceName,
+                                                    width = session.width,
+                                                    height = session.height,
+                                                    codec = session.codec,
+                                                ),
+                                            ),
+                                        )
+                                    },
+                                    previewCardHeightDp = devicePreviewCardHeightDp,
                                 )
                             }
-                        }
-                    },
-                    snackbarHost = { SnackbarHost(snackHostState) },
-                ) { contentPadding ->
-                    HorizontalPager(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(bottom = contentPadding.calculateBottomPadding()),
-                        state = pagerState,
-                        beyondViewportPageCount = 1,
-                    ) { page ->
-                        val tab = tabs[page]
-                        saveableStateHolder.SaveableStateProvider(tab.name) {
-                            when (tab) {
-                                MainTabDestination.Device -> Scaffold(
-                                    topBar = {
-                                        TopAppBar(
-                                            title = tab.title,
-                                            actions = {
-                                                IconButton(
-                                                    onClick = { showDeviceMenu = true },
-                                                    holdDownState = showDeviceMenu,
-                                                ) {
-                                                    Icon(Icons.Default.MoreVert, contentDescription = "更多")
-                                                }
-                                                DeviceMenuPopup(
-                                                    show = showDeviceMenu,
-                                                    canClearLogs = canClearLogs,
-                                                    onDismissRequest = { showDeviceMenu = false },
-                                                    onReorderDevices = {
-                                                        openReorderDevicesAction?.invoke()
-                                                        showDeviceMenu = false
-                                                    },
-                                                    onOpenVirtualButtonOrder = {
-                                                        rootBackStack.add(RootScreen.VirtualButtonOrder)
-                                                        showDeviceMenu = false
-                                                    },
-                                                    onClearLogs = {
-                                                        clearLogsAction?.invoke()
-                                                        showDeviceMenu = false
-                                                    },
-                                                )
-                                            },
-                                            scrollBehavior = deviceScrollBehavior,
-                                        )
-                                    },
-                                ) { pagePadding ->
-                                    DeviceTabScreen(
-                                        contentPadding = pagePadding,
-                                        nativeCore = nativeCore,
-                                        snack = snackHostState,
-                                        scrollBehavior = deviceScrollBehavior,
-                                        keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
-                                        virtualButtonsOutside = virtualButtonsOutside,
-                                        virtualButtonsInMore = virtualButtonsInMore,
-                                        customServerUri = customServerUri,
-                                        serverRemotePath = serverRemotePath,
-                                        onServerRemotePathChange = { serverRemotePath = it },
-                                        videoCodec = videoCodec,
-                                        onVideoCodecChange = { videoCodec = it },
-                                        audioEnabled = audioEnabled,
-                                        onAudioEnabledChange = { audioEnabled = it },
-                                        audioCodec = audioCodec,
-                                        onAudioCodecChange = { audioCodec = it },
-                                        noControl = noControl,
-                                        onNoControlChange = {
-                                            noControl = it
-                                            if (it) {
-                                                turnScreenOff = false
-                                            }
-                                        },
-                                        videoEncoder = videoEncoder,
-                                        onVideoEncoderChange = { videoEncoder = it },
-                                        videoCodecOptions = videoCodecOptions,
-                                        onVideoCodecOptionsChange = { videoCodecOptions = it },
-                                        audioEncoder = audioEncoder,
-                                        onAudioEncoderChange = { audioEncoder = it },
-                                        audioCodecOptions = audioCodecOptions,
-                                        onAudioCodecOptionsChange = { audioCodecOptions = it },
-                                        audioDup = audioDup,
-                                        onAudioDupChange = { audioDup = it },
-                                        audioSourcePreset = audioSourcePreset,
-                                        onAudioSourcePresetChange = { audioSourcePreset = it },
-                                        audioSourceCustom = audioSourceCustom,
-                                        onAudioSourceCustomChange = { audioSourceCustom = it },
-                                        videoSourcePreset = videoSourcePreset,
-                                        onVideoSourcePresetChange = { videoSourcePreset = it },
-                                        cameraIdInput = cameraIdInput,
-                                        onCameraIdInputChange = { cameraIdInput = it },
-                                        cameraFacingPreset = cameraFacingPreset,
-                                        onCameraFacingPresetChange = { cameraFacingPreset = it },
-                                        cameraSizePreset = cameraSizePreset,
-                                        onCameraSizePresetChange = { cameraSizePreset = it },
-                                        cameraSizeCustom = cameraSizeCustom,
-                                        onCameraSizeCustomChange = { cameraSizeCustom = it },
-                                        cameraArInput = cameraArInput,
-                                        onCameraArInputChange = { cameraArInput = it },
-                                        cameraFpsInput = cameraFpsInput,
-                                        onCameraFpsInputChange = { cameraFpsInput = it },
-                                        cameraHighSpeed = cameraHighSpeed,
-                                        onCameraHighSpeedChange = { cameraHighSpeed = it },
-                                        noAudioPlayback = noAudioPlayback,
-                                        onNoAudioPlaybackChange = { noAudioPlayback = it },
-                                        noVideo = noVideo,
-                                        requireAudio = requireAudio,
-                                        onRequireAudioChange = { requireAudio = it },
-                                        turnScreenOff = turnScreenOff,
-                                        onTurnScreenOffChange = { turnScreenOff = it },
-                                        maxSizeInput = maxSizeInput,
-                                        onMaxSizeInputChange = { maxSizeInput = it },
-                                        maxFpsInput = maxFpsInput,
-                                        onMaxFpsInputChange = { maxFpsInput = it },
-                                        newDisplayWidth = newDisplayWidth,
-                                        onNewDisplayWidthChange = { newDisplayWidth = it },
-                                        newDisplayHeight = newDisplayHeight,
-                                        onNewDisplayHeightChange = { newDisplayHeight = it },
-                                        newDisplayDpi = newDisplayDpi,
-                                        onNewDisplayDpiChange = { newDisplayDpi = it },
-                                        displayIdInput = displayIdInput,
-                                        onDisplayIdInputChange = { displayIdInput = it },
-                                        cropWidth = cropWidth,
-                                        onCropWidthChange = { cropWidth = it },
-                                        cropHeight = cropHeight,
-                                        onCropHeightChange = { cropHeight = it },
-                                        cropX = cropX,
-                                        onCropXChange = { cropX = it },
-                                        cropY = cropY,
-                                        onCropYChange = { cropY = it },
-                                        videoEncoderOptions = videoEncoderOptions,
-                                        onVideoEncoderOptionsChange = {
-                                            videoEncoderOptions.clear()
-                                            videoEncoderOptions.addAll(it)
-                                        },
-                                        onVideoEncoderTypeMapChange = {
-                                            videoEncoderTypeMap.clear()
-                                            videoEncoderTypeMap.putAll(it)
-                                        },
-                                        audioEncoderOptions = audioEncoderOptions,
-                                        onAudioEncoderOptionsChange = {
-                                            audioEncoderOptions.clear()
-                                            audioEncoderOptions.addAll(it)
-                                        },
-                                        onAudioEncoderTypeMapChange = {
-                                            audioEncoderTypeMap.clear()
-                                            audioEncoderTypeMap.putAll(it)
-                                        },
-                                        cameraSizeOptions = cameraSizeOptions,
-                                        onCameraSizeOptionsChange = {
-                                            cameraSizeOptions.clear()
-                                            cameraSizeOptions.addAll(it)
-                                        },
-                                        onSessionStartedChange = { sessionStarted = it },
-                                        onRefreshEncodersActionChange = { refreshEncodersAction = it },
-                                        onRefreshCameraSizesActionChange = { refreshCameraSizesAction = it },
-                                        onClearLogsActionChange = { clearLogsAction = it },
-                                        onCanClearLogsChange = { canClearLogs = it },
-                                        onOpenReorderDevicesActionChange = { openReorderDevicesAction = it },
-                                        onOpenAdvancedPage = { rootBackStack.add(RootScreen.Advanced) },
-                                        onOpenFullscreenPage = { session ->
-                                            rootBackStack.add(
-                                                RootScreen.Fullscreen(
-                                                    launch = FullscreenControlLaunch(
-                                                        deviceName = session.deviceName,
-                                                        width = session.width,
-                                                        height = session.height,
-                                                        codec = session.codec,
-                                                    ),
-                                                ),
-                                            )
-                                        },
-                                        previewCardHeightDp = devicePreviewCardHeightDp,
-                                    )
-                                }
 
-                                MainTabDestination.Settings -> Scaffold(
-                                    topBar = {
-                                        TopAppBar(
-                                            title = tab.title,
-                                            scrollBehavior = settingsScrollBehavior,
-                                        )
-                                    },
-                                ) { pagePadding ->
-                                    SettingsScreen(
-                                        contentPadding = pagePadding,
-                                        themeBaseIndex = themeBaseIndex,
-                                        onThemeBaseIndexChange = { themeBaseIndex = it },
-                                        monetEnabled = monetEnabled,
-                                        onMonetEnabledChange = { monetEnabled = it },
-                                        fullscreenDebugInfoEnabled = fullscreenDebugInfoEnabled,
-                                        onFullscreenDebugInfoEnabledChange = { fullscreenDebugInfoEnabled = it },
-                                        showFullscreenVirtualButtons = showFullscreenVirtualButtons,
-                                        onShowFullscreenVirtualButtonsChange = { showFullscreenVirtualButtons = it },
-                                        keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
-                                        onKeepScreenOnWhenStreamingEnabledChange = {
-                                            keepScreenOnWhenStreamingEnabled = it
-                                        },
-                                        onOpenReorderDevices = { openReorderDevicesAction?.invoke() },
-                                        onOpenVirtualButtonOrder = { rootBackStack.add(RootScreen.VirtualButtonOrder) },
-                                        devicePreviewCardHeightDp = devicePreviewCardHeightDp,
-                                        onDevicePreviewCardHeightDpChange = {
-                                            devicePreviewCardHeightDp = it.coerceAtLeast(120)
-                                        },
-                                        customServerUri = customServerUri,
-                                        onPickServer = {
-                                            picker.launch(arrayOf("application/java-archive", "application/octet-stream", "*/*"))
-                                        },
-                                        onClearServer = { customServerUri = null },
-                                        serverRemotePath = serverRemotePath,
-                                        onServerRemotePathChange = { serverRemotePath = it },
-                                        adbKeyName = adbKeyName,
-                                        onAdbKeyNameChange = { adbKeyName = it },
+                            MainTabDestination.Settings -> Scaffold(
+                                topBar = {
+                                    TopAppBar(
+                                        title = tab.title,
                                         scrollBehavior = settingsScrollBehavior,
                                     )
-                                }
+                                },
+                            ) { pagePadding ->
+                                SettingsScreen(
+                                    contentPadding = pagePadding,
+                                    themeBaseIndex = themeBaseIndex,
+                                    onThemeBaseIndexChange = { themeBaseIndex = it },
+                                    monetEnabled = monetEnabled,
+                                    onMonetEnabledChange = { monetEnabled = it },
+                                    fullscreenDebugInfoEnabled = fullscreenDebugInfoEnabled,
+                                    onFullscreenDebugInfoEnabledChange = {
+                                        fullscreenDebugInfoEnabled = it
+                                    },
+                                    keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
+                                    onKeepScreenOnWhenStreamingEnabledChange = {
+                                        keepScreenOnWhenStreamingEnabled = it
+                                    },
+                                    devicePreviewCardHeightDp = devicePreviewCardHeightDp,
+                                    onDevicePreviewCardHeightDpChange = {
+                                        devicePreviewCardHeightDp = it.coerceAtLeast(120)
+                                    },
+                                    customServerUri = customServerUri,
+                                    onPickServer = {
+                                        picker.launch(
+                                            arrayOf(
+                                                "application/java-archive",
+                                                "application/octet-stream",
+                                                "*/*"
+                                            )
+                                        )
+                                    },
+                                    onClearServer = { customServerUri = null },
+                                    serverRemotePath = serverRemotePath,
+                                    onServerRemotePathChange = { serverRemotePath = it },
+                                    adbKeyName = adbKeyName,
+                                    onAdbKeyNameChange = { adbKeyName = it },
+                                    scrollBehavior = settingsScrollBehavior,
+                                )
                             }
                         }
                     }
                 }
             }
+        }
 
-            entry(RootScreen.Advanced) {
-                val videoEncoderDropdownItems = listOf("默认") + videoEncoderOptions
-                val audioEncoderDropdownItems = listOf("默认") + audioEncoderOptions
-                val videoEncoderIndex = (videoEncoderOptions.indexOf(videoEncoder) + 1).coerceAtLeast(0)
-                val audioEncoderIndex = (audioEncoderOptions.indexOf(audioEncoder) + 1).coerceAtLeast(0)
+        entry(RootScreen.Advanced) {
+            val videoEncoderDropdownItems = listOf("默认") + videoEncoderOptions
+            val audioEncoderDropdownItems = listOf("默认") + audioEncoderOptions
+            val videoEncoderIndex = (videoEncoderOptions.indexOf(videoEncoder) + 1).coerceAtLeast(0)
+            val audioEncoderIndex = (audioEncoderOptions.indexOf(audioEncoder) + 1).coerceAtLeast(0)
 
-                Scaffold(
-                    topBar = {
-                        TopAppBar(
-                            title = "高级参数",
-                            navigationIcon = {
-                                IconButton(onClick = { popRoot() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                                }
-                            },
-                            scrollBehavior = advancedScrollBehavior,
-                        )
-                    },
-                    snackbarHost = { SnackbarHost(snackHostState) },
-                ) { pagePadding ->
-                    AdvancedConfigPage(
-                        contentPadding = pagePadding,
-                        scrollBehavior = advancedScrollBehavior,
-                        sessionStarted = sessionStarted,
-                        snackbarHostState = snackHostState,
-                        audioEnabled = audioEnabled,
-                        noControl = noControl,
-                        onNoControlChange = {
-                            noControl = it
-                            if (it) {
-                                turnScreenOff = false
+            Scaffold(
+                topBar = {
+                    TopAppBar(
+                        title = "高级参数",
+                        navigationIcon = {
+                            IconButton(onClick = { popRoot() }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "返回"
+                                )
                             }
                         },
-                        audioDup = audioDup,
-                        onAudioDupChange = { audioDup = it },
-                        audioSourcePreset = audioSourcePreset,
-                        onAudioSourcePresetChange = { audioSourcePreset = it },
-                        audioSourceCustom = audioSourceCustom,
-                        onAudioSourceCustomChange = { audioSourceCustom = it },
-                        videoSourcePreset = videoSourcePreset,
-                        onVideoSourcePresetChange = { videoSourcePreset = it },
-                        cameraIdInput = cameraIdInput,
-                        onCameraIdInputChange = { cameraIdInput = it },
-                        cameraFacingPreset = cameraFacingPreset,
-                        onCameraFacingPresetChange = { cameraFacingPreset = it },
-                        cameraSizePreset = cameraSizePreset,
-                        onCameraSizePresetChange = { cameraSizePreset = it },
-                        cameraSizeCustom = cameraSizeCustom,
-                        onCameraSizeCustomChange = { cameraSizeCustom = it },
-                        cameraSizeDropdownItems = listOf("默认") + cameraSizeOptions + listOf("自定义"),
-                        cameraSizeIndex = when (cameraSizePreset) {
-                            "custom" -> cameraSizeOptions.size + 1
-                            in cameraSizeOptions -> cameraSizeOptions.indexOf(cameraSizePreset) + 1
-                            else -> 0
-                        },
-                        cameraArInput = cameraArInput,
-                        onCameraArInputChange = { cameraArInput = it },
-                        cameraFpsInput = cameraFpsInput,
-                        onCameraFpsInputChange = { cameraFpsInput = it },
-                        cameraHighSpeed = cameraHighSpeed,
-                        onCameraHighSpeedChange = { cameraHighSpeed = it },
-                        noAudioPlayback = noAudioPlayback,
-                        onNoAudioPlaybackChange = { noAudioPlayback = it },
-                        noVideo = noVideo,
-                        onNoVideoChange = { noVideo = it },
-                        requireAudio = requireAudio,
-                        onRequireAudioChange = { requireAudio = it },
-                        turnScreenOff = turnScreenOff,
-                        onTurnScreenOffChange = { turnScreenOff = it },
-                        maxSizeInput = maxSizeInput,
-                        onMaxSizeInputChange = { maxSizeInput = it },
-                        maxFpsInput = maxFpsInput,
-                        onMaxFpsInputChange = { maxFpsInput = it },
-                        videoEncoderDropdownItems = videoEncoderDropdownItems,
-                        videoEncoderTypeMap = videoEncoderTypeMap,
-                        videoEncoderIndex = videoEncoderIndex,
-                        onVideoEncoderChange = { videoEncoder = it },
-                        videoCodecOptions = videoCodecOptions,
-                        onVideoCodecOptionsChange = { videoCodecOptions = it },
-                        audioEncoderDropdownItems = audioEncoderDropdownItems,
-                        audioEncoderTypeMap = audioEncoderTypeMap,
-                        audioEncoderIndex = audioEncoderIndex,
-                        onAudioEncoderChange = { audioEncoder = it },
-                        audioCodecOptions = audioCodecOptions,
-                        onAudioCodecOptionsChange = { audioCodecOptions = it },
-                        onRefreshEncoders = { refreshEncodersAction?.invoke() },
-                        onRefreshCameraSizes = { refreshCameraSizesAction?.invoke() },
-                        newDisplayWidth = newDisplayWidth,
-                        onNewDisplayWidthChange = { newDisplayWidth = it },
-                        newDisplayHeight = newDisplayHeight,
-                        onNewDisplayHeightChange = { newDisplayHeight = it },
-                        newDisplayDpi = newDisplayDpi,
-                        onNewDisplayDpiChange = { newDisplayDpi = it },
-                        displayIdInput = displayIdInput,
-                        onDisplayIdInputChange = { displayIdInput = it },
-                        cropWidth = cropWidth,
-                        onCropWidthChange = { cropWidth = it },
-                        cropHeight = cropHeight,
-                        onCropHeightChange = { cropHeight = it },
-                        cropX = cropX,
-                        onCropXChange = { cropX = it },
-                        cropY = cropY,
-                        onCropYChange = { cropY = it },
-                    )
-                }
-            }
-
-            entry(RootScreen.VirtualButtonOrder) {
-                Scaffold(
-                    modifier = Modifier.nestedScroll(advancedScrollBehavior.nestedScrollConnection),
-                    topBar = {
-                        TopAppBar(
-                            title = "虚拟按钮排序",
-                            navigationIcon = {
-                                IconButton(onClick = { popRoot() }) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                                }
-                            },
-                            scrollBehavior = advancedScrollBehavior,
-                        )
-                    },
-                ) { pagePadding ->
-                    VirtualButtonOrderPage(
-                        contentPadding = pagePadding,
                         scrollBehavior = advancedScrollBehavior,
-                        outsideIds = virtualButtonsOutside,
-                        moreIds = virtualButtonsInMore,
-                        onLayoutChange = { outside, more ->
-                            virtualButtonsOutside = outside
-                            virtualButtonsInMore = more
-                        },
                     )
-                }
-            }
-
-            entry<RootScreen.Fullscreen> { screen ->
-                FullscreenControlPage(
-                    launch = screen.launch,
-                    nativeCore = nativeCore,
-                    virtualButtonsOutside = virtualButtonsOutside,
-                    virtualButtonsInMore = virtualButtonsInMore,
-                    showDebugInfo = fullscreenDebugInfoEnabled,
-                    showVirtualButtons = showFullscreenVirtualButtons,
-                    onDismiss = { popRoot() },
+                },
+                snackbarHost = { SnackbarHost(snackHostState) },
+            ) { pagePadding ->
+                AdvancedConfigPage(
+                    contentPadding = pagePadding,
+                    scrollBehavior = advancedScrollBehavior,
+                    sessionStarted = sessionStarted,
+                    snackbarHostState = snackHostState,
+                    audioEnabled = audioEnabled,
+                    noControl = noControl,
+                    onNoControlChange = {
+                        noControl = it
+                        if (it) {
+                            turnScreenOff = false
+                        }
+                    },
+                    audioDup = audioDup,
+                    onAudioDupChange = { audioDup = it },
+                    audioSourcePreset = audioSourcePreset,
+                    onAudioSourcePresetChange = { audioSourcePreset = it },
+                    audioSourceCustom = audioSourceCustom,
+                    onAudioSourceCustomChange = { audioSourceCustom = it },
+                    videoSourcePreset = videoSourcePreset,
+                    onVideoSourcePresetChange = { videoSourcePreset = it },
+                    cameraIdInput = cameraIdInput,
+                    onCameraIdInputChange = { cameraIdInput = it },
+                    cameraFacingPreset = cameraFacingPreset,
+                    onCameraFacingPresetChange = { cameraFacingPreset = it },
+                    cameraSizePreset = cameraSizePreset,
+                    onCameraSizePresetChange = { cameraSizePreset = it },
+                    cameraSizeCustom = cameraSizeCustom,
+                    onCameraSizeCustomChange = { cameraSizeCustom = it },
+                    cameraSizeDropdownItems = listOf("默认") + cameraSizeOptions + listOf("自定义"),
+                    cameraSizeIndex = when (cameraSizePreset) {
+                        "custom" -> cameraSizeOptions.size + 1
+                        in cameraSizeOptions -> cameraSizeOptions.indexOf(cameraSizePreset) + 1
+                        else -> 0
+                    },
+                    cameraArInput = cameraArInput,
+                    onCameraArInputChange = { cameraArInput = it },
+                    cameraFpsInput = cameraFpsInput,
+                    onCameraFpsInputChange = { cameraFpsInput = it },
+                    cameraHighSpeed = cameraHighSpeed,
+                    onCameraHighSpeedChange = { cameraHighSpeed = it },
+                    noAudioPlayback = noAudioPlayback,
+                    onNoAudioPlaybackChange = { noAudioPlayback = it },
+                    noVideo = noVideo,
+                    onNoVideoChange = { noVideo = it },
+                    requireAudio = requireAudio,
+                    onRequireAudioChange = { requireAudio = it },
+                    turnScreenOff = turnScreenOff,
+                    onTurnScreenOffChange = { turnScreenOff = it },
+                    maxSizeInput = maxSizeInput,
+                    onMaxSizeInputChange = { maxSizeInput = it },
+                    maxFpsInput = maxFpsInput,
+                    onMaxFpsInputChange = { maxFpsInput = it },
+                    videoEncoderDropdownItems = videoEncoderDropdownItems,
+                    videoEncoderTypeMap = videoEncoderTypeMap,
+                    videoEncoderIndex = videoEncoderIndex,
+                    onVideoEncoderChange = { videoEncoder = it },
+                    videoCodecOptions = videoCodecOptions,
+                    onVideoCodecOptionsChange = { videoCodecOptions = it },
+                    audioEncoderDropdownItems = audioEncoderDropdownItems,
+                    audioEncoderTypeMap = audioEncoderTypeMap,
+                    audioEncoderIndex = audioEncoderIndex,
+                    onAudioEncoderChange = { audioEncoder = it },
+                    audioCodecOptions = audioCodecOptions,
+                    onAudioCodecOptionsChange = { audioCodecOptions = it },
+                    onRefreshEncoders = { refreshEncodersAction?.invoke() },
+                    onRefreshCameraSizes = { refreshCameraSizesAction?.invoke() },
+                    newDisplayWidth = newDisplayWidth,
+                    onNewDisplayWidthChange = { newDisplayWidth = it },
+                    newDisplayHeight = newDisplayHeight,
+                    onNewDisplayHeightChange = { newDisplayHeight = it },
+                    newDisplayDpi = newDisplayDpi,
+                    onNewDisplayDpiChange = { newDisplayDpi = it },
+                    displayIdInput = displayIdInput,
+                    onDisplayIdInputChange = { displayIdInput = it },
+                    cropWidth = cropWidth,
+                    onCropWidthChange = { cropWidth = it },
+                    cropHeight = cropHeight,
+                    onCropHeightChange = { cropHeight = it },
+                    cropX = cropX,
+                    onCropXChange = { cropX = it },
+                    cropY = cropY,
+                    onCropYChange = { cropY = it },
                 )
             }
+        }
+
+        entry(RootScreen.VirtualButtonOrder) {
+            Scaffold(
+                modifier = Modifier.nestedScroll(advancedScrollBehavior.nestedScrollConnection),
+                topBar = {
+                    TopAppBar(
+                        title = "虚拟按钮排序",
+                        navigationIcon = {
+                            IconButton(onClick = { popRoot() }) {
+                                Icon(
+                                    Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "返回"
+                                )
+                            }
+                        },
+                        scrollBehavior = advancedScrollBehavior,
+                    )
+                },
+            ) { pagePadding ->
+                VirtualButtonOrderPage(
+                    contentPadding = pagePadding,
+                    scrollBehavior = advancedScrollBehavior,
+                    outsideIds = virtualButtonsOutside,
+                    moreIds = virtualButtonsInMore,
+                    onLayoutChange = { outside, more ->
+                        virtualButtonsOutside = outside
+                        virtualButtonsInMore = more
+                    },
+                )
+            }
+        }
+
+        entry<RootScreen.Fullscreen> { screen ->
+            FullscreenControlPage(
+                launch = screen.launch,
+                nativeCore = nativeCore,
+                virtualButtonsOutside = virtualButtonsOutside,
+                virtualButtonsInMore = virtualButtonsInMore,
+                showDebugInfo = fullscreenDebugInfoEnabled,
+                showVirtualButtons = showFullscreenVirtualButtons,
+                onDismiss = { popRoot() },
+            )
+        }
     }
 
     val rootEntries = rememberDecoratedNavEntries(
@@ -724,7 +745,8 @@ private fun DeviceMenuPopupItem(
     }
 
     val additionalTopPadding = if (index == 0) UiSpacing.PopupHorizontal else UiSpacing.PageItem
-    val additionalBottomPadding = if (index == optionSize - 1) UiSpacing.PopupHorizontal else UiSpacing.PageItem
+    val additionalBottomPadding =
+        if (index == optionSize - 1) UiSpacing.PopupHorizontal else UiSpacing.PageItem
     Text(
         text = text,
         fontSize = MiuixTheme.textStyles.body1.fontSize,

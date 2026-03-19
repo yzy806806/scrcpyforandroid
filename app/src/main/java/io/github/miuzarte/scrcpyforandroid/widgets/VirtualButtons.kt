@@ -19,9 +19,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.PowerSettingsNew
-import androidx.compose.material.icons.filled.VolumeDown
-import androidx.compose.material.icons.filled.VolumeOff
-import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -50,36 +47,76 @@ enum class VirtualButtonAction(
     val icon: ImageVector,
     val keycode: Int?,
 ) {
-    MORE("more", "更多", Icons.Default.MoreVert, null),
-    HOME("home", "主页", Icons.Default.Home, UiAndroidKeycodes.HOME),
-    BACK("back", "返回", Icons.AutoMirrored.Filled.ArrowBack, UiAndroidKeycodes.BACK),
-    APP_SWITCH("app_switch", "多任务", Icons.Default.Apps, UiAndroidKeycodes.APP_SWITCH),
-    MENU("menu", "菜单", Icons.Default.Menu, UiAndroidKeycodes.MENU),
-    NOTIFICATION("notification", "通知栏", Icons.Default.Notifications, UiAndroidKeycodes.NOTIFICATION),
-    VOLUME_UP("volume_up", "音量+", Icons.AutoMirrored.Filled.VolumeUp, UiAndroidKeycodes.VOLUME_UP),
-    VOLUME_DOWN("volume_down", "音量-", Icons.AutoMirrored.Filled.VolumeDown, UiAndroidKeycodes.VOLUME_DOWN),
-    VOLUME_MUTE("volume_mute", "静音", Icons.AutoMirrored.Filled.VolumeOff, UiAndroidKeycodes.VOLUME_MUTE),
-    POWER("power", "锁屏", Icons.Default.PowerSettingsNew, UiAndroidKeycodes.POWER),
-    SCREENSHOT("screenshot", "截图", Icons.Default.PhotoCamera, UiAndroidKeycodes.SYSRQ),
+    MORE(
+        "more",
+        "更多",
+        Icons.Default.MoreVert,
+        null
+    ),
+    HOME(
+        "home",
+        "主页",
+        Icons.Default.Home,
+        UiAndroidKeycodes.HOME
+    ),
+    BACK(
+        "back",
+        "返回",
+        Icons.AutoMirrored.Filled.ArrowBack,
+        UiAndroidKeycodes.BACK
+    ),
+    APP_SWITCH(
+        "app_switch",
+        "多任务",
+        Icons.Default.Apps,
+        UiAndroidKeycodes.APP_SWITCH
+    ),
+    MENU(
+        "menu",
+        "菜单",
+        Icons.Default.Menu,
+        UiAndroidKeycodes.MENU
+    ),
+    NOTIFICATION(
+        "notification",
+        "通知栏",
+        Icons.Default.Notifications,
+        UiAndroidKeycodes.NOTIFICATION
+    ),
+    VOLUME_UP(
+        "volume_up",
+        "音量+",
+        Icons.AutoMirrored.Filled.VolumeUp,
+        UiAndroidKeycodes.VOLUME_UP
+    ),
+    VOLUME_DOWN(
+        "volume_down",
+        "音量-",
+        Icons.AutoMirrored.Filled.VolumeDown,
+        UiAndroidKeycodes.VOLUME_DOWN
+    ),
+    VOLUME_MUTE(
+        "volume_mute",
+        "静音",
+        Icons.AutoMirrored.Filled.VolumeOff,
+        UiAndroidKeycodes.VOLUME_MUTE
+    ),
+    POWER(
+        "power",
+        "锁屏",
+        Icons.Default.PowerSettingsNew,
+        UiAndroidKeycodes.POWER
+    ),
+    SCREENSHOT(
+        "screenshot",
+        "截图",
+        Icons.Default.PhotoCamera,
+        UiAndroidKeycodes.SYSRQ
+    ),
 }
 
 object VirtualButtonActions {
     val all = VirtualButtonAction.entries
-    val defaultOutsideIds = listOf(
-        VirtualButtonAction.MORE.id,
-        VirtualButtonAction.HOME.id,
-        VirtualButtonAction.BACK.id,
-    )
-    val defaultMoreIds = listOf(
-        VirtualButtonAction.APP_SWITCH.id,
-        VirtualButtonAction.MENU.id,
-        VirtualButtonAction.NOTIFICATION.id,
-        VirtualButtonAction.VOLUME_UP.id,
-        VirtualButtonAction.VOLUME_DOWN.id,
-        VirtualButtonAction.VOLUME_MUTE.id,
-        VirtualButtonAction.POWER.id,
-        VirtualButtonAction.SCREENSHOT.id,
-    )
 
     private val byId = all.associateBy { it.id }
 

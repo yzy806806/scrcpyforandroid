@@ -1,7 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -12,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalFocusManager
@@ -22,11 +22,10 @@ import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
-import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
@@ -34,6 +33,7 @@ import top.yukonga.miuix.kmp.extra.SuperArrow
 import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperSpinner
 import top.yukonga.miuix.kmp.extra.SuperSwitch
+import kotlin.math.roundToInt
 
 private val AUDIO_SOURCE_OPTIONS = listOf(
     "output" to "output",
@@ -142,15 +142,20 @@ internal fun AdvancedConfigPage(
 ) {
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
-    val maxSizePresetIndex = presetIndexFromInputForAdvancedPage(maxSizeInput, ScrcpyPresets.MaxSize)
+    val maxSizePresetIndex =
+        presetIndexFromInputForAdvancedPage(maxSizeInput, ScrcpyPresets.MaxSize)
     val maxFpsPresetIndex = presetIndexFromInputForAdvancedPage(maxFpsInput, ScrcpyPresets.MaxFPS)
     val audioSourceItems = AUDIO_SOURCE_OPTIONS.map { it.second }
-    val audioSourceIndex = AUDIO_SOURCE_OPTIONS.indexOfFirst { it.first == audioSourcePreset }.let { if (it >= 0) it else 0 }
+    val audioSourceIndex = AUDIO_SOURCE_OPTIONS.indexOfFirst { it.first == audioSourcePreset }
+        .let { if (it >= 0) it else 0 }
     val videoSourceItems = VIDEO_SOURCE_OPTIONS.map { it.second }
-    val videoSourceIndex = VIDEO_SOURCE_OPTIONS.indexOfFirst { it.first == videoSourcePreset }.let { if (it >= 0) it else 0 }
+    val videoSourceIndex = VIDEO_SOURCE_OPTIONS.indexOfFirst { it.first == videoSourcePreset }
+        .let { if (it >= 0) it else 0 }
     val cameraFacingItems = CAMERA_FACING_OPTIONS.map { it.second }
-    val cameraFacingIndex = CAMERA_FACING_OPTIONS.indexOfFirst { it.first == cameraFacingPreset }.let { if (it >= 0) it else 0 }
-    val cameraFpsPresetIndex = presetIndexFromInputForAdvancedPage(cameraFpsInput, CAMERA_FPS_PRESETS)
+    val cameraFacingIndex = CAMERA_FACING_OPTIONS.indexOfFirst { it.first == cameraFacingPreset }
+        .let { if (it >= 0) it else 0 }
+    val cameraFpsPresetIndex =
+        presetIndexFromInputForAdvancedPage(cameraFpsInput, CAMERA_FPS_PRESETS)
     val videoEncoderEntries = videoEncoderDropdownItems.map { encoderName ->
         if (encoderName == "默认") {
             SpinnerEntry(title = encoderName)
@@ -269,7 +274,10 @@ internal fun AdvancedConfigPage(
                         title = "摄像头分辨率",
                         summary = "--camera-size",
                         items = cameraSizeDropdownItems,
-                        selectedIndex = cameraSizeIndex.coerceIn(0, (cameraSizeDropdownItems.size - 1).coerceAtLeast(0)),
+                        selectedIndex = cameraSizeIndex.coerceIn(
+                            0,
+                            (cameraSizeDropdownItems.size - 1).coerceAtLeast(0)
+                        ),
                         onSelectedIndexChange = { index ->
                             onCameraSizePresetChange(
                                 when (index) {

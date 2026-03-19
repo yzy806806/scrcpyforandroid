@@ -41,23 +41,33 @@ internal class DirectAdbTransport(private val context: Context) {
     val privateKey: PrivateKey get() = keys.first
     val publicKeyX509: ByteArray get() = keys.second
 
-    @Volatile var keyName: String = AppDefaults.DefaultAdbKeyName
+    @Volatile
+    var keyName: String = AppDefaults.ADB_KEY_NAME
 
     fun connect(host: String, port: Int): DirectAdbConnection {
         Log.i(TAG, "connect(): opening direct adbd transport to $host:$port")
-        val conn = DirectAdbConnection(host, port, privateKey, publicKeyX509, keyName.ifBlank { AppDefaults.DefaultAdbKeyName })
+        val conn = DirectAdbConnection(
+            host,
+            port,
+            privateKey,
+            publicKeyX509,
+            keyName.ifBlank { AppDefaults.ADB_KEY_NAME })
         conn.handshake()
         Log.i(TAG, "connect(): handshake success for $host:$port")
         return conn
     }
 
     private fun loadOrCreate(): Pair<PrivateKey, ByteArray> {
-        val prefs = context.getSharedPreferences(AppPreferenceKeys.NativeAdbKeyPrefsName, Context.MODE_PRIVATE)
-        val privB64 = prefs.getString(AppPreferenceKeys.NativeAdbPrivateKey, null)
+        val prefs = context.getSharedPreferences(
+            AppPreferenceKeys.NATIVE_ADB_KEY_PREFS_NAME,
+            Context.MODE_PRIVATE
+        )
+        val privB64 = prefs.getString(AppPreferenceKeys.NATIVE_ADB_PRIVATE_KEY, null)
         if (privB64 != null) {
             try {
                 val kf = KeyFactory.getInstance("RSA")
-                val priv = kf.generatePrivate(PKCS8EncodedKeySpec(Base64.decode(privB64, Base64.DEFAULT)))
+                val priv =
+                    kf.generatePrivate(PKCS8EncodedKeySpec(Base64.decode(privB64, Base64.DEFAULT)))
                 val pub = derivePublicX509(priv)
                 Log.i(TAG, "loadOrCreate(): loaded persisted RSA key pair, fp=${fingerprint(pub)}")
                 return Pair(priv, pub)
@@ -68,8 +78,16 @@ internal class DirectAdbTransport(private val context: Context) {
         val kpg = KeyPairGenerator.getInstance("RSA")
         kpg.initialize(2048)
         val kp = kpg.generateKeyPair()
-        prefs.edit { putString(AppPreferenceKeys.NativeAdbPrivateKey, Base64.encodeToString(kp.private.encoded, Base64.NO_WRAP)) }
-        Log.i(TAG, "loadOrCreate(): generated new RSA key pair, fp=${fingerprint(kp.public.encoded)}")
+        prefs.edit {
+            putString(
+                AppPreferenceKeys.NATIVE_ADB_PRIVATE_KEY,
+                Base64.encodeToString(kp.private.encoded, Base64.NO_WRAP)
+            )
+        }
+        Log.i(
+            TAG,
+            "loadOrCreate(): generated new RSA key pair, fp=${fingerprint(kp.public.encoded)}"
+        )
         return Pair(kp.private, kp.public.encoded)
     }
 
@@ -96,7 +114,7 @@ internal class DirectAdbConnection(
     val port: Int,
     private val privateKey: PrivateKey,
     private val publicKeyX509: ByteArray,
-    private val keyName: String = AppDefaults.DefaultAdbKeyName,
+    private val keyName: String = AppDefaults.ADB_KEY_NAME,
 ) : AutoCloseable {
 
     private val sha1DigestInfoPrefix = byteArrayOf(
@@ -122,7 +140,9 @@ internal class DirectAdbConnection(
     private lateinit var rawOut: OutputStream
     private val nextLocalId = AtomicInteger(1)
     private val streams = ConcurrentHashMap<Int, AdbSocketStream>()
-    @Volatile private var closed = false
+
+    @Volatile
+    private var closed = false
     private var readerThread: Thread? = null
 
     companion object {
@@ -171,9 +191,17 @@ internal class DirectAdbConnection(
                             throw IOException("ADB: connection rejected. Please accept the authorisation dialog on the target device.")
                         }
                     }
-                    else -> throw IOException("ADB: unexpected message 0x${afterSign.command.toString(16)} after AUTH_SIGNATURE")
+
+                    else -> throw IOException(
+                        "ADB: unexpected message 0x${
+                            afterSign.command.toString(
+                                16
+                            )
+                        } after AUTH_SIGNATURE"
+                    )
                 }
             }
+
             else -> throw IOException("ADB: unexpected initial message 0x${first.command.toString(16)}")
         }
 
@@ -262,6 +290,7 @@ internal class DirectAdbConnection(
                             sendMsg(A_CLSE, 0, msg.arg0)
                         }
                     }
+
                     A_CLSE -> streams.remove(msg.arg1)?.forceClose()
                     A_OPEN -> sendMsg(A_CLSE, 0, msg.arg0)
                 }
@@ -275,7 +304,12 @@ internal class DirectAdbConnection(
     }
 
     @Synchronized
-    private fun sendMsg(command: Int, arg0: Int = 0, arg1: Int = 0, data: ByteArray = ByteArray(0)) {
+    private fun sendMsg(
+        command: Int,
+        arg0: Int = 0,
+        arg1: Int = 0,
+        data: ByteArray = ByteArray(0)
+    ) {
         val crc = data.fold(0L) { acc, b -> acc + (b.toLong() and 0xFF) }.toInt()
         val header = ByteBuffer.allocate(24).order(ByteOrder.LITTLE_ENDIAN)
             .putInt(command).putInt(arg0).putInt(arg1)
@@ -296,7 +330,8 @@ internal class DirectAdbConnection(
         val dataLen = buf.int
         buf.int
         buf.int
-        val data = if (dataLen > 0) ByteArray(dataLen).also { rawIn.readExact(it) } else ByteArray(0)
+        val data =
+            if (dataLen > 0) ByteArray(dataLen).also { rawIn.readExact(it) } else ByteArray(0)
         return AdbMsg(command, arg0, arg1, data)
     }
 
@@ -391,12 +426,16 @@ internal class AdbSocketStream(
         private const val A_CLSE = 0x45534c43
     }
 
-    @Volatile var remoteId: Int = 0
-    @Volatile var closed: Boolean = false
+    @Volatile
+    var remoteId: Int = 0
+
+    @Volatile
+    var closed: Boolean = false
 
     private val latch = CountDownLatch(1)
     private val latchOk = AtomicBoolean(false)
     private val queue = LinkedBlockingQueue<Any>()
+
     private object EndOfStreamMarker
 
     val inputStream: InputStream = InStream()
@@ -476,6 +515,7 @@ internal class AdbSocketStream(
             if (len == 0) return
             sender(A_WRTE, localId, remoteId, b.copyOfRange(off, off + len))
         }
+
         override fun flush() {}
     }
 }

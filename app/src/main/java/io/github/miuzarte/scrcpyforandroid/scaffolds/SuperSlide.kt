@@ -58,7 +58,8 @@ fun SuperSlide(
         holdDownState = holdArrow,
         endActions = {
             val isZeroState = value == 0f && zeroStateText != null
-            val valueText = if (isZeroState) zeroStateText else (displayText ?: displayFormatter(value))
+            val valueText =
+                if (isZeroState) zeroStateText else (displayText ?: displayFormatter(value))
             val shouldShowUnit = unit.isNotBlank() && (!isZeroState || showUnitWhenZeroState)
             val text = if (shouldShowUnit) "$valueText $unit" else valueText
             Text(

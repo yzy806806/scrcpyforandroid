@@ -12,8 +12,13 @@ internal data class ConnectedDeviceInfo(
     val sdkInt: Int,
 )
 
-internal fun fetchConnectedDeviceInfo(nativeCore: NativeCoreFacade, host: String, port: Int): ConnectedDeviceInfo {
-    fun prop(name: String): String = runCatching { nativeCore.adbShell("getprop $name").trim() }.getOrDefault("")
+internal fun fetchConnectedDeviceInfo(
+    nativeCore: NativeCoreFacade,
+    host: String,
+    port: Int
+): ConnectedDeviceInfo {
+    fun prop(name: String): String =
+        runCatching { nativeCore.adbShell("getprop $name").trim() }.getOrDefault("")
 
     val model = prop("ro.product.model")
     val serial = prop("ro.serialno")

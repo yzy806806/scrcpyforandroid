@@ -13,7 +13,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -32,11 +31,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddLink
 import androidx.compose.material.icons.filled.Fullscreen
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.rounded.CheckCircleOutline
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.Wifi
@@ -63,7 +59,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -96,7 +91,7 @@ import kotlin.math.roundToInt
 private val VIDEO_CODEC_OPTIONS = listOf(
     "h264" to "H.264",
     "h265" to "H.265",
-    "av1"  to "AV1",
+    "av1" to "AV1",
 )
 
 private val AUDIO_CODEC_OPTIONS = listOf(
@@ -266,9 +261,13 @@ internal fun PreviewCard(
                 }
                 val containerAspect = maxWidth.value / maxHeight.value
                 val fittedModifier = if (sessionAspect > containerAspect) {
-                    Modifier.fillMaxWidth().aspectRatio(sessionAspect)
+                    Modifier
+                        .fillMaxWidth()
+                        .aspectRatio(sessionAspect)
                 } else {
-                    Modifier.fillMaxHeight().aspectRatio(sessionAspect)
+                    Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(sessionAspect)
                 }
 
                 Box(
@@ -358,10 +357,13 @@ internal fun ConfigPanel(
     sessionStarted: Boolean,
 ) {
     val videoCodecItems = remember { VIDEO_CODEC_OPTIONS.map { it.second } }
-    val videoCodecIndex = VIDEO_CODEC_OPTIONS.indexOfFirst { it.first == videoCodec }.coerceAtLeast(0)
+    val videoCodecIndex =
+        VIDEO_CODEC_OPTIONS.indexOfFirst { it.first == videoCodec }.coerceAtLeast(0)
     val audioCodecItems = remember { AUDIO_CODEC_OPTIONS.map { it.second } }
-    val audioCodecIndex = AUDIO_CODEC_OPTIONS.indexOfFirst { it.first == audioCodec }.coerceAtLeast(0)
-    val audioBitRatePresetIndex = presetIndexFromInput(audioBitRateKbps.toString(), ScrcpyPresets.AudioBitRate)
+    val audioCodecIndex =
+        AUDIO_CODEC_OPTIONS.indexOfFirst { it.first == audioCodec }.coerceAtLeast(0)
+    val audioBitRatePresetIndex =
+        presetIndexFromInput(audioBitRateKbps.toString(), ScrcpyPresets.AudioBitRate)
 
     SectionSmallTitle(text = "Scrcpy")
     Card {
@@ -433,6 +435,7 @@ internal fun ConfigPanel(
                             dotUsed = true
                             true
                         }
+
                         else -> false
                     }
                 }
@@ -506,7 +509,9 @@ private fun PairingDialog(
                 onValueChange = { host = it },
                 label = "IP 地址",
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(bottom = UiSpacing.CardContent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = UiSpacing.CardContent),
             )
             TextField(
                 value = port,
@@ -514,14 +519,18 @@ private fun PairingDialog(
                 label = "端口",
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth().padding(bottom = UiSpacing.CardContent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = UiSpacing.CardContent),
             )
             TextField(
                 value = code,
                 onValueChange = { code = it },
                 label = "WLAN 配对码",
                 singleLine = true,
-                modifier = Modifier.fillMaxWidth().padding(bottom = UiSpacing.Large),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = UiSpacing.Large),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.PopupHorizontal)) {
                 TextButton(
@@ -599,8 +608,10 @@ fun FullscreenControlScreen(
                 }
 
                 fun mapToDevice(rawX: Float, rawY: Float): Pair<Int, Int> {
-                    val x = ((rawX / touchAreaSize.width) * session.width).roundToInt().coerceIn(0, (session.width - 1).coerceAtLeast(0))
-                    val y = ((rawY / touchAreaSize.height) * session.height).roundToInt().coerceIn(0, (session.height - 1).coerceAtLeast(0))
+                    val x = ((rawX / touchAreaSize.width) * session.width).roundToInt()
+                        .coerceIn(0, (session.width - 1).coerceAtLeast(0))
+                    val y = ((rawY / touchAreaSize.height) * session.height).roundToInt()
+                        .coerceIn(0, (session.height - 1).coerceAtLeast(0))
                     return x to y
                 }
 
@@ -612,7 +623,14 @@ fun FullscreenControlScreen(
                         val py = event.getY(i)
                         activePointerPositions[pointerId] = Offset(px, py)
                         val (x, y) = mapToDevice(px, py)
-                        onInjectTouch(UiMotionActions.MOVE, pointerId.toLong(), x, y, event.getPressure(i).coerceIn(0f, 1f), 1)
+                        onInjectTouch(
+                            UiMotionActions.MOVE,
+                            pointerId.toLong(),
+                            x,
+                            y,
+                            event.getPressure(i).coerceIn(0f, 1f),
+                            1
+                        )
                     }
                 }
 
@@ -626,7 +644,14 @@ fun FullscreenControlScreen(
                         activePointerIds += pointerId
                         activePointerPositions[pointerId] = Offset(event.x, event.y)
                         activeTouchCount = activePointerIds.size
-                        onInjectTouch(UiMotionActions.DOWN, pointerId.toLong(), x, y, event.getPressure(0).coerceIn(0f, 1f), 1)
+                        onInjectTouch(
+                            UiMotionActions.DOWN,
+                            pointerId.toLong(),
+                            x,
+                            y,
+                            event.getPressure(0).coerceIn(0f, 1f),
+                            1
+                        )
                     }
 
                     MotionEvent.ACTION_POINTER_DOWN -> {
@@ -638,7 +663,14 @@ fun FullscreenControlScreen(
                         activePointerIds += pointerId
                         activePointerPositions[pointerId] = Offset(px, py)
                         activeTouchCount = activePointerIds.size
-                        onInjectTouch(UiMotionActions.POINTER_DOWN, pointerId.toLong(), x, y, event.getPressure(index).coerceIn(0f, 1f), 1)
+                        onInjectTouch(
+                            UiMotionActions.POINTER_DOWN,
+                            pointerId.toLong(),
+                            x,
+                            y,
+                            event.getPressure(index).coerceIn(0f, 1f),
+                            1
+                        )
                         syncActivePointersFromEvent()
                     }
 
@@ -650,7 +682,14 @@ fun FullscreenControlScreen(
                             val py = event.getY(i)
                             activePointerPositions[pointerId] = Offset(px, py)
                             val (x, y) = mapToDevice(px, py)
-                            onInjectTouch(UiMotionActions.MOVE, pointerId.toLong(), x, y, event.getPressure(i).coerceIn(0f, 1f), 1)
+                            onInjectTouch(
+                                UiMotionActions.MOVE,
+                                pointerId.toLong(),
+                                x,
+                                y,
+                                event.getPressure(i).coerceIn(0f, 1f),
+                                1
+                            )
                         }
                     }
 
@@ -698,9 +737,13 @@ fun FullscreenControlScreen(
         }
         val containerAspect = maxWidth.value / maxHeight.value
         val fittedModifier = if (sessionAspect > containerAspect) {
-            Modifier.fillMaxWidth().aspectRatio(sessionAspect)
+            Modifier
+                .fillMaxWidth()
+                .aspectRatio(sessionAspect)
         } else {
-            Modifier.fillMaxHeight().aspectRatio(sessionAspect)
+            Modifier
+                .fillMaxHeight()
+                .aspectRatio(sessionAspect)
         }
 
         Box(
@@ -780,13 +823,21 @@ private fun ScrcpyVideoSurface(
         factory = { context ->
             TextureView(context).apply {
                 surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(surfaceTexture: SurfaceTexture, width: Int, height: Int) {
+                    override fun onSurfaceTextureAvailable(
+                        surfaceTexture: SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) {
                         currentSurface?.release() // Release stale surface if any
                         @SuppressLint("Recycle")
                         currentSurface = Surface(surfaceTexture)
                     }
 
-                    override fun onSurfaceTextureSizeChanged(surfaceTexture: SurfaceTexture, width: Int, height: Int) = Unit
+                    override fun onSurfaceTextureSizeChanged(
+                        surfaceTexture: SurfaceTexture,
+                        width: Int,
+                        height: Int
+                    ) = Unit
 
                     override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
                         val released = currentSurface
@@ -820,7 +871,7 @@ internal fun DeviceTile(
     Card(
         colors = CardDefaults.defaultColors(
             color = if (device.online) MiuixTheme.colorScheme.surfaceContainer
-                    else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
         ),
         pressFeedbackType = PressFeedbackType.Sink,
         onClick = haptics.press,
@@ -1016,7 +1067,9 @@ internal fun DeviceEditorScreen(
                     .padding(top = UiSpacing.CardContent),
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(UiSpacing.CardContent),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(UiSpacing.CardContent),
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
             ) {
                 TextButton(
@@ -1032,7 +1085,7 @@ internal fun DeviceEditorScreen(
                 TextButton(
                     text = "保存",
                     onClick = {
-                        val p = port.toIntOrNull() ?: AppDefaults.DefaultAdbPort
+                        val p = port.toIntOrNull() ?: AppDefaults.ADB_PORT
                         val h = host.trim()
                         if (h.isNotBlank()) {
                             onSave(

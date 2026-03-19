@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
@@ -54,7 +53,11 @@ internal fun VirtualButtonOrderPage(
         onLayoutChange(outsideState.toList(), moreState.toList())
     }
 
-    fun reorderInside(list: androidx.compose.runtime.snapshots.SnapshotStateList<String>, itemId: String, deltaY: Float) {
+    fun reorderInside(
+        list: androidx.compose.runtime.snapshots.SnapshotStateList<String>,
+        itemId: String,
+        deltaY: Float
+    ) {
         val fromIndex = list.indexOf(itemId)
         if (fromIndex < 0) return
 
@@ -88,7 +91,8 @@ internal fun VirtualButtonOrderPage(
     }
 
     fun handleOutsideDrop(payload: SortDropPayload) {
-        val transfer = payload.transferDirection == SortTransferDirection.TO_RIGHT && payload.deltaX >= LIST_TRANSFER_STEP_PX
+        val transfer =
+            payload.transferDirection == SortTransferDirection.TO_RIGHT && payload.deltaX >= LIST_TRANSFER_STEP_PX
         if (transfer) {
             if (payload.itemId == VirtualButtonAction.MORE.id) return
             transferToOther(outsideState, moreState, payload.itemId, payload.deltaY)
@@ -98,7 +102,8 @@ internal fun VirtualButtonOrderPage(
     }
 
     fun handleMoreDrop(payload: SortDropPayload) {
-        val transfer = payload.transferDirection == SortTransferDirection.TO_LEFT && payload.deltaX <= -LIST_TRANSFER_STEP_PX
+        val transfer =
+            payload.transferDirection == SortTransferDirection.TO_LEFT && payload.deltaX <= -LIST_TRANSFER_STEP_PX
         if (transfer) {
             transferToOther(moreState, outsideState, payload.itemId, payload.deltaY)
         } else {

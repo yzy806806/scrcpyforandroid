@@ -2,8 +2,8 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.app.Activity
 import android.content.pm.ActivityInfo
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
@@ -21,8 +21,8 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.ScrcpySessionInfo
-import io.github.miuzarte.scrcpyforandroid.widgets.FullscreenControlScreen
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.widgets.FullscreenControlScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
 import top.yukonga.miuix.kmp.basic.Scaffold
@@ -56,7 +56,9 @@ fun FullscreenControlPage(
             moreActions = virtualButtonLayout.second,
         )
     }
-    val initialOrientation = remember(activity) { activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    val initialOrientation = remember(activity) {
+        activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
     var session by remember(launch) {
         mutableStateOf(
             ScrcpySessionInfo(
@@ -88,12 +90,15 @@ fun FullscreenControlPage(
             WindowCompat.setDecorFitsSystemWindows(window, false)
             val controller = WindowInsetsControllerCompat(window, window.decorView)
             controller.hide(WindowInsetsCompat.Type.systemBars())
-            controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         }
         onDispose {
             val restoreWindow = activity?.window
             if (restoreWindow != null) {
-                WindowInsetsControllerCompat(restoreWindow, restoreWindow.decorView).show(WindowInsetsCompat.Type.systemBars())
+                WindowInsetsControllerCompat(restoreWindow, restoreWindow.decorView).show(
+                    WindowInsetsCompat.Type.systemBars()
+                )
                 WindowCompat.setDecorFitsSystemWindows(restoreWindow, true)
             }
         }

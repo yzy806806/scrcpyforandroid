@@ -5,56 +5,48 @@ import android.app.Activity
 import android.util.Log
 import android.view.WindowManager
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DragIndicator
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.ScrcpySessionInfo
 import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
-import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
+import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.services.DevicePageSettings
-import io.github.miuzarte.scrcpyforandroid.services.loadQuickDevices
+import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
+import io.github.miuzarte.scrcpyforandroid.services.loadQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.parseQuickTarget
-import io.github.miuzarte.scrcpyforandroid.services.saveQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.saveDevicePageSettings
+import io.github.miuzarte.scrcpyforandroid.services.saveQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.updateQuickDeviceNameIfEmpty
 import io.github.miuzarte.scrcpyforandroid.services.upsertQuickDevice
-import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.widgets.ConfigPanel
-import io.github.miuzarte.scrcpyforandroid.widgets.PairingCard
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceEditorScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceTile
 import io.github.miuzarte.scrcpyforandroid.widgets.LogsPanel
+import io.github.miuzarte.scrcpyforandroid.widgets.PairingCard
 import io.github.miuzarte.scrcpyforandroid.widgets.PreviewCard
 import io.github.miuzarte.scrcpyforandroid.widgets.QuickConnectCard
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
@@ -66,9 +58,6 @@ import io.github.miuzarte.scrcpyforandroid.widgets.StatusCard
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonCard
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
@@ -77,11 +66,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet
-import top.yukonga.miuix.kmp.theme.MiuixTheme
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val ADB_CONNECT_TIMEOUT_MS = 3_000L
@@ -90,38 +78,40 @@ private const val ADB_KEEPALIVE_TIMEOUT_MS = 2_000L
 private const val DEVICE_SHORTCUT_SEPARATOR = "\u001F"
 private const val LOG_TAG = "DevicePage"
 
-private val DeviceShortcutStateListSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<DeviceShortcut>, String>(
-    save = { list ->
-        list.map { item ->
-            listOf(
-                item.id,
-                item.name,
-                item.host,
-                item.port.toString(),
-                if (item.online) "1" else "0",
-            ).joinToString(DEVICE_SHORTCUT_SEPARATOR)
-        }
-    },
-    restore = { saved ->
-        saved.mapNotNull { line ->
-            val parts = line.split(DEVICE_SHORTCUT_SEPARATOR)
-            if (parts.size != 5) return@mapNotNull null
-            val port = parts[3].toIntOrNull() ?: return@mapNotNull null
-            DeviceShortcut(
-                id = parts[0],
-                name = parts[1],
-                host = parts[2],
-                port = port,
-                online = parts[4] == "1",
-            )
-        }.toMutableStateList()
-    },
-)
+private val DeviceShortcutStateListSaver =
+    listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<DeviceShortcut>, String>(
+        save = { list ->
+            list.map { item ->
+                listOf(
+                    item.id,
+                    item.name,
+                    item.host,
+                    item.port.toString(),
+                    if (item.online) "1" else "0",
+                ).joinToString(DEVICE_SHORTCUT_SEPARATOR)
+            }
+        },
+        restore = { saved ->
+            saved.mapNotNull { line ->
+                val parts = line.split(DEVICE_SHORTCUT_SEPARATOR)
+                if (parts.size != 5) return@mapNotNull null
+                val port = parts[3].toIntOrNull() ?: return@mapNotNull null
+                DeviceShortcut(
+                    id = parts[0],
+                    name = parts[1],
+                    host = parts[2],
+                    port = port,
+                    online = parts[4] == "1",
+                )
+            }.toMutableStateList()
+        },
+    )
 
-private val StringStateListSaver = listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<String>, String>(
-    save = { it.toList() },
-    restore = { it.toMutableStateList() },
-)
+private val StringStateListSaver =
+    listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<String>, String>(
+        save = { it.toList() },
+        restore = { it.toMutableStateList() },
+    )
 
 @Composable
 fun DeviceTabScreen(
@@ -231,7 +221,7 @@ fun DeviceTabScreen(
     var statusLine by rememberSaveable { mutableStateOf("未连接") }
     var adbConnected by rememberSaveable { mutableStateOf(false) }
     var currentTargetHost by rememberSaveable { mutableStateOf("") }
-    var currentTargetPort by rememberSaveable { mutableIntStateOf(AppDefaults.DefaultAdbPort) }
+    var currentTargetPort by rememberSaveable { mutableIntStateOf(AppDefaults.ADB_PORT) }
     var connectedDeviceLabel by rememberSaveable { mutableStateOf("未连接") }
     var sessionInfoWidth by rememberSaveable { mutableIntStateOf(0) }
     var sessionInfoHeight by rememberSaveable { mutableIntStateOf(0) }
@@ -241,7 +231,13 @@ fun DeviceTabScreen(
     var sessionInfo by remember {
         mutableStateOf<ScrcpySessionInfo?>(null)
     }
-    LaunchedEffect(sessionInfoWidth, sessionInfoHeight, sessionInfoDeviceName, sessionInfoCodec, sessionInfoControlEnabled) {
+    LaunchedEffect(
+        sessionInfoWidth,
+        sessionInfoHeight,
+        sessionInfoDeviceName,
+        sessionInfoCodec,
+        sessionInfoControlEnabled
+    ) {
         sessionInfo = if (sessionInfoDeviceName.isNotBlank()) {
             ScrcpySessionInfo(
                 width = sessionInfoWidth,
@@ -261,18 +257,22 @@ fun DeviceTabScreen(
     var adbConnecting by rememberSaveable { mutableStateOf(false) }
 
     var connectHost by rememberSaveable { mutableStateOf("") }
-    var connectPort by rememberSaveable { mutableStateOf(AppDefaults.DefaultAdbPort.toString()) }
+    var connectPort by rememberSaveable { mutableStateOf(AppDefaults.ADB_PORT.toString()) }
     var quickConnectInput by rememberSaveable { mutableStateOf(initialSettings.quickConnectInput) }
     var audioForwardingSupported by rememberSaveable { mutableStateOf(true) }
     var cameraMirroringSupported by rememberSaveable { mutableStateOf(true) }
 
-    var bitRateMbps by rememberSaveable { mutableFloatStateOf(initialSettings.bitRateMbps) }
-    var bitRateInput by rememberSaveable { mutableStateOf(initialSettings.bitRateInput) }
+    var bitRateMbps by rememberSaveable { mutableFloatStateOf(initialSettings.videoBitRateMbps) }
+    var bitRateInput by rememberSaveable { mutableStateOf(initialSettings.videoBitRateInput) }
     var audioBitRateKbps by rememberSaveable { mutableIntStateOf(initialSettings.audioBitRateKbps) }
-    val currentTarget = if (currentTargetHost.isNotBlank()) ConnectionTarget(currentTargetHost, currentTargetPort) else null
+    val currentTarget = if (currentTargetHost.isNotBlank()) ConnectionTarget(
+        currentTargetHost,
+        currentTargetPort
+    ) else null
 
     val eventLog = rememberSaveable(saver = StringStateListSaver) { mutableStateListOf() }
-    val quickDevices = rememberSaveable(saver = DeviceShortcutStateListSaver) { mutableStateListOf() }
+    val quickDevices =
+        rememberSaveable(saver = DeviceShortcutStateListSaver) { mutableStateListOf() }
 
     LaunchedEffect(eventLog.size) {
         onCanClearLogsChange(eventLog.isNotEmpty())
@@ -282,13 +282,25 @@ fun DeviceTabScreen(
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         val line = "[$timestamp] $message"
         eventLog.add(0, line)
-        if (eventLog.size > AppDefaults.MaxEventLogLines) {
-            eventLog.removeRange(AppDefaults.MaxEventLogLines, eventLog.size)
+        if (eventLog.size > AppDefaults.EVENT_LOG_LINES) {
+            eventLog.removeRange(AppDefaults.EVENT_LOG_LINES, eventLog.size)
         }
         when (level) {
-            Log.ERROR -> if (error != null) Log.e(LOG_TAG, message, error) else Log.e(LOG_TAG, message)
-            Log.WARN -> if (error != null) Log.w(LOG_TAG, message, error) else Log.w(LOG_TAG, message)
-            Log.DEBUG -> if (error != null) Log.d(LOG_TAG, message, error) else Log.d(LOG_TAG, message)
+            Log.ERROR -> if (error != null) Log.e(LOG_TAG, message, error) else Log.e(
+                LOG_TAG,
+                message
+            )
+
+            Log.WARN -> if (error != null) Log.w(LOG_TAG, message, error) else Log.w(
+                LOG_TAG,
+                message
+            )
+
+            Log.DEBUG -> if (error != null) Log.d(LOG_TAG, message, error) else Log.d(
+                LOG_TAG,
+                message
+            )
+
             else -> if (error != null) Log.i(LOG_TAG, message, error) else Log.i(LOG_TAG, message)
         }
     }
@@ -298,13 +310,19 @@ fun DeviceTabScreen(
         audioForwardingSupported = audioSupported
         if (!audioSupported && audioEnabled) {
             onAudioEnabledChange(false)
-            logEvent("设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持音频转发，已自动关闭", Log.WARN)
+            logEvent(
+                "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持音频转发，已自动关闭",
+                Log.WARN
+            )
         }
         val cameraSupported = sdkInt !in 0..<31
         cameraMirroringSupported = cameraSupported
         if (!cameraSupported && videoSourcePreset == "camera") {
             onVideoSourcePresetChange("display")
-            logEvent("设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持 camera mirroring，已切换为 display", Log.WARN)
+            logEvent(
+                "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持 camera mirroring，已切换为 display",
+                Log.WARN
+            )
         }
     }
 
@@ -377,7 +395,7 @@ fun DeviceTabScreen(
 
     fun refreshEncoderLists() {
         if (!adbConnected) return
-        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.DefaultServerRemotePath }
+        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.SERVER_REMOTE_PATH }
         runCatching {
             nativeCore.scrcpyListEncoders(
                 customServerUri = customServerUri,
@@ -413,7 +431,7 @@ fun DeviceTabScreen(
 
     fun refreshCameraSizeLists() {
         if (!adbConnected) return
-        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.DefaultServerRemotePath }
+        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.SERVER_REMOTE_PATH }
         runCatching {
             nativeCore.scrcpyListCameraSizes(
                 customServerUri = customServerUri,
@@ -470,20 +488,14 @@ fun DeviceTabScreen(
 
     LaunchedEffect(
         quickConnectInput,
+        audioBitRateKbps,
         bitRateMbps,
         bitRateInput,
-        audioBitRateKbps,
-        maxSizeInput,
-        maxFpsInput,
+        turnScreenOff,
         noControl,
-        videoEncoder,
-        videoCodecOptions,
-        audioEncoder,
-        audioCodecOptions,
-        audioDup,
-        audioSourcePreset,
-        audioSourceCustom,
+        noVideo,
         videoSourcePreset,
+        displayIdInput,
         cameraIdInput,
         cameraFacingPreset,
         cameraSizePreset,
@@ -491,14 +503,20 @@ fun DeviceTabScreen(
         cameraArInput,
         cameraFpsInput,
         cameraHighSpeed,
+        audioSourcePreset,
+        audioSourceCustom,
+        audioDup,
         noAudioPlayback,
-        noVideo,
         requireAudio,
-        turnScreenOff,
+        maxSizeInput,
+        maxFpsInput,
+        videoEncoder,
+        videoCodecOptions,
+        audioEncoder,
+        audioCodecOptions,
         newDisplayWidth,
         newDisplayHeight,
         newDisplayDpi,
-        displayIdInput,
         cropWidth,
         cropHeight,
         cropX,
@@ -508,35 +526,36 @@ fun DeviceTabScreen(
             context,
             DevicePageSettings(
                 quickConnectInput = quickConnectInput,
-                bitRateMbps = bitRateMbps,
-                bitRateInput = bitRateInput,
                 audioBitRateKbps = audioBitRateKbps,
-                maxSizeInput = maxSizeInput,
-                maxFpsInput = maxFpsInput,
+                audioBitRateInput = audioBitRateKbps.toString(),
+                videoBitRateMbps = bitRateMbps,
+                videoBitRateInput = bitRateInput,
+                turnScreenOff = turnScreenOff,
                 noControl = noControl,
-                videoEncoder = videoEncoder,
-                videoCodecOptions = videoCodecOptions,
-                audioEncoder = audioEncoder,
-                audioCodecOptions = audioCodecOptions,
-                audioDup = audioDup,
-                audioSourcePreset = audioSourcePreset,
-                audioSourceCustom = audioSourceCustom,
+                noVideo = noVideo,
                 videoSourcePreset = videoSourcePreset,
+                displayIdInput = displayIdInput,
                 cameraIdInput = cameraIdInput,
                 cameraFacingPreset = cameraFacingPreset,
                 cameraSizePreset = cameraSizePreset,
                 cameraSizeCustom = cameraSizeCustom,
-                cameraArInput = cameraArInput,
-                cameraFpsInput = cameraFpsInput,
+                cameraAr = cameraArInput,
+                cameraFps = cameraFpsInput,
                 cameraHighSpeed = cameraHighSpeed,
+                audioSourcePreset = audioSourcePreset,
+                audioSourceCustom = audioSourceCustom,
+                audioDup = audioDup,
                 noAudioPlayback = noAudioPlayback,
-                noVideo = noVideo,
                 requireAudio = requireAudio,
-                turnScreenOff = turnScreenOff,
+                maxSizeInput = maxSizeInput,
+                maxFpsInput = maxFpsInput,
+                videoEncoder = videoEncoder,
+                videoCodecOptions = videoCodecOptions,
+                audioEncoder = audioEncoder,
+                audioCodecOptions = audioCodecOptions,
                 newDisplayWidth = newDisplayWidth,
                 newDisplayHeight = newDisplayHeight,
                 newDisplayDpi = newDisplayDpi,
-                displayIdInput = displayIdInput,
                 cropWidth = cropWidth,
                 cropHeight = cropHeight,
                 cropX = cropX,
@@ -747,7 +766,8 @@ fun DeviceTabScreen(
         itemsIndexed(quickDevices, key = { _, device -> device.id }) { _, device ->
             val host = device.host
             val port = device.port
-            val isConnectedTarget = adbConnected && currentTarget?.host == host && currentTarget.port == port
+            val isConnectedTarget =
+                adbConnected && currentTarget?.host == host && currentTarget.port == port
 
             DeviceTile(
                 device = device,
@@ -768,7 +788,7 @@ fun DeviceTabScreen(
                             nativeCore.adbDisconnect()
                             adbConnected = false
                             currentTargetHost = ""
-                            currentTargetPort = AppDefaults.DefaultAdbPort
+                            currentTargetPort = AppDefaults.ADB_PORT
                             audioForwardingSupported = true
                             cameraMirroringSupported = true
                             sessionInfo = null
@@ -809,7 +829,13 @@ fun DeviceTabScreen(
                 enabled = !adbConnecting,
                 onAddDevice = {
                     val target = parseQuickTarget(quickConnectInput) ?: return@QuickConnectCard
-                    upsertQuickDevice(context, quickDevices, target.host, target.port, online = false)
+                    upsertQuickDevice(
+                        context,
+                        quickDevices,
+                        target.host,
+                        target.port,
+                        online = false
+                    )
                     scope.launch {
                         snack.showSnackbar("已添加设备: ${target.host}:${target.port}")
                     }
@@ -840,10 +866,13 @@ fun DeviceTabScreen(
                     runBusy("执行配对") {
                         val ok = nativeCore.adbPair(
                             host.trim(),
-                            port.toIntOrNull() ?: AppDefaults.DefaultAdbPort,
+                            port.toIntOrNull() ?: AppDefaults.ADB_PORT,
                             code.trim(),
                         )
-                        logEvent(if (ok) "配对成功" else "配对失败", if (ok) Log.INFO else Log.ERROR)
+                        logEvent(
+                            if (ok) "配对成功" else "配对失败",
+                            if (ok) Log.INFO else Log.ERROR
+                        )
                         scope.launch {
                             snack.showSnackbar(if (ok) "配对成功" else "配对失败")
                         }

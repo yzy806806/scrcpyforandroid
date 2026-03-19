@@ -1,75 +1,79 @@
 package io.github.miuzarte.scrcpyforandroid.constants
 
 object AppDefaults {
-    const val MaxEventLogLines = 512
-    const val DefaultAdbPort = 5555
+    const val EVENT_LOG_LINES = 512
+    const val ADB_PORT = 5555
 
     // Devices
-    const val DefaultQuickConnectInput = ""
+    const val QUICK_CONNECT_INPUT = ""
 
-    const val DefaultPairHost = ""
-    const val DefaultServerRemotePathInput = ""
-    const val DefaultAdbKeyNameInput = ""
-    const val DefaultPairPort = ""
-    const val DefaultPairCode = ""
+    const val PAIR_HOST = ""
+    const val PAIR_PORT = ""
+    const val PAIR_CODE = ""
 
-    const val DefaultAudioEnabled = true
-    const val DefaultAudioCodec = "opus"
-    const val DefaultAudioBitRateKbps = 128
-    const val DefaultVideoCodec = "h264"
-    const val DefaultBitRateMbps = 8f
-    const val DefaultBitRateInput = "8.0"
+    const val AUDIO_ENABLED = true
+    const val AUDIO_CODEC = "opus"
+    const val AUDIO_BIT_RATE_KBPS = 128
+    const val AUDIO_BIT_RATE_INPUT = "128"
+    const val VIDEO_CODEC = "h264"
+    const val VIDEO_BIT_RATE_MBPS = 8f
+    const val VIDEO_BIT_RATE_INPUT = "8.0"
 
-    const val DefaultTurnScreenOff = false
-    const val DefaultNoControl = false
-    const val DefaultNoVideo = false
+    const val TURN_SCREEN_OFF = false
+    const val NO_CONTROL = false
+    const val NO_VIDEO = false
 
-    const val DefaultVideoSourcePreset = "display"
-    const val DefaultDisplayIdInput = ""
+    const val VIDEO_SOURCE_PRESET = "display"
+    const val DISPLAY_ID = ""
 
-    const val DefaultCameraIdInput = ""
-    const val DefaultCameraFacingPreset = ""
-    const val DefaultCameraSizePreset = ""
-    const val DefaultCameraSizeCustom = ""
-    const val DefaultCameraArInput = ""
-    const val DefaultCameraFpsInput = ""
-    const val DefaultCameraHighSpeed = false
+    const val CAMERA_ID = ""
+    const val CAMERA_FACING_PRESET = ""
+    const val CAMERA_SIZE_PRESET = ""
+    const val CAMERA_SIZE_CUSTOM = ""
+    const val CAMERA_AR = ""
+    const val CAMERA_FPS = ""
+    const val CAMERA_HIGH_SPEED = false
 
-    const val DefaultAudioSourcePreset = "output"
-    const val DefaultAudioSourceCustom = ""
-    const val DefaultAudioDup = false
-    const val DefaultNoAudioPlayback = false
-    const val DefaultRequireAudio = false
+    const val AUDIO_SOURCE_PRESET = "output"
+    const val AUDIO_SOURCE_CUSTOM = ""
+    const val AUDIO_DUP = false
+    const val NO_AUDIO_PLAYBACK = false
+    const val REQUIRE_AUDIO = false
 
-    const val DefaultMaxSizeInput = ""
-    const val DefaultMaxFpsInput = ""
+    const val MAX_SIZE_INPUT = ""
+    const val MAX_FPS_INPUT = ""
 
-    const val DefaultVideoEncoder = ""
-    const val DefaultVideoCodecOptions = ""
-    const val DefaultAudioEncoder = ""
-    const val DefaultAudioCodecOptions = ""
+    const val VIDEO_ENCODER = ""
+    const val VIDEO_CODEC_OPTION = ""
+    const val AUDIO_ENCODER = ""
+    const val AUDIO_CODEC_OPTION = ""
 
-    const val DefaultNewDisplayWidth = ""
-    const val DefaultNewDisplayHeight = ""
-    const val DefaultNewDisplayDpi = ""
+    const val NEW_DISPLAY_WIDTH = ""
+    const val NEW_DISPLAY_HEIGHT = ""
+    const val NEW_DISPLAY_DPI = ""
 
-    const val DefaultCropWidth = ""
-    const val DefaultCropHeight = ""
-    const val DefaultCropX = ""
-    const val DefaultCropY = ""
+    const val CROP_WIDTH = ""
+    const val CROP_HEIGHT = ""
+    const val CROP_X = ""
+    const val CROP_Y = ""
 
     // Settings
-    const val DefaultThemeBaseIndex = 0
-    const val DefaultMonetEnabled = false
+    const val THEME_BASE_INDEX = 0
+    const val MONET = false
 
-    const val DefaultFullscreenDebugInfoEnabled = false
-    const val DefaultShowFullscreenVirtualButtons = true
-    const val DefaultDevicePreviewCardHeightDp = 320
-    const val DefaultKeepScreenOnWhenStreamingEnabled = false
-    const val DefaultVirtualButtonsOutside = "more,home,back"
-    const val DefaultVirtualButtonsInMore = "app_switch,menu,notification,volume_up,volume_down,volume_mute,power,screenshot"
+    const val FULLSCREEN_DEBUG_INFO = false
+    const val SHOW_FULLSCREEN_VIRTUAL_BUTTONS = true
+    const val KEEP_SCREEN_ON_WHEN_STREAMING = false
+    const val DEVICE_PREVIEW_CARD_HEIGHT_DP = 320
+    const val VIRTUAL_BUTTONS_OUTSIDE = "more,home,back"
+    const val VIRTUAL_BUTTONS_IN_MORE =
+        "app_switch,menu,notification,volume_up,volume_down,volume_mute,power,screenshot"
 
-    const val DefaultServerRemotePath = "/data/local/tmp/scrcpy-server.jar"
+    const val CUSTOM_SERVER_URI = ""
 
-    const val DefaultAdbKeyName = "scrcpy"
+    const val SERVER_REMOTE_PATH = "/data/local/tmp/scrcpy-server.jar"
+    const val SERVER_REMOTE_PATH_INPUT = ""
+
+    const val ADB_KEY_NAME = "scrcpy"
+    const val ADB_KEY_NAME_INPUT = ""
 }

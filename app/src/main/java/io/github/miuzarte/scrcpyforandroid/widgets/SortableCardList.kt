@@ -110,7 +110,10 @@ fun SortableCardList(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = UiSpacing.CardContent, vertical = UiSpacing.FieldLabelBottom),
+                            .padding(
+                                horizontal = UiSpacing.CardContent,
+                                vertical = UiSpacing.FieldLabelBottom
+                            ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Column(modifier = Modifier.weight(1f)) {

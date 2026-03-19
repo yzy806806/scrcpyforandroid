@@ -15,8 +15,8 @@ import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import java.util.ArrayDeque
-import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.Executors
 
@@ -34,7 +34,8 @@ class NativeCoreFacade(private val appContext: Context) {
     private val bootstrapLock = Any()
     private val bootstrapPackets = ArrayDeque<CachedPacket>()
     private var packetCount: Long = 0
-    @Volatile private var audioPlayer: ScrcpyAudioPlayer? = null
+    @Volatile
+    private var audioPlayer: ScrcpyAudioPlayer? = null
 
     @Volatile
     private var currentSessionInfo: ScrcpySessionInfo? = null
@@ -72,7 +73,10 @@ class NativeCoreFacade(private val appContext: Context) {
         val currentId = surfaceIdentityMap[tag]
         val requestId = surface?.let { System.identityHashCode(it) }
         if (requestId != null && currentId != null && requestId != currentId) {
-            Log.i(TAG, "unregisterVideoSurface(): skip stale request tag=$tag requestSurfaceId=$requestId currentSurfaceId=$currentId")
+            Log.i(
+                TAG,
+                "unregisterVideoSurface(): skip stale request tag=$tag requestSurfaceId=$requestId currentSurfaceId=$currentId"
+            )
             return
         }
         Log.i(TAG, "unregisterVideoSurface(): tag=$tag surfaceId=$requestId")
@@ -178,7 +182,12 @@ class NativeCoreFacade(private val appContext: Context) {
             audioPlayer?.release()
             audioPlayer = null
             if (info.audioCodecId != 0 && !request.noAudioPlayback) {
-                Log.i(TAG, "scrcpyStart(): create audio player codecId=0x${info.audioCodecId.toUInt().toString(16)}")
+                Log.i(
+                    TAG,
+                    "scrcpyStart(): create audio player codecId=0x${
+                        info.audioCodecId.toUInt().toString(16)
+                    }"
+                )
                 val player = ScrcpyAudioPlayer(info.audioCodecId)
                 audioPlayer = player
                 sessionManager.attachAudioConsumer { packet ->
@@ -208,7 +217,11 @@ class NativeCoreFacade(private val appContext: Context) {
         return true
     }
 
-    fun scrcpyListEncoders(customServerUri: String?, remotePath: String, serverVersion: String = "3.3.4"): ScrcpyEncoderLists {
+    fun scrcpyListEncoders(
+        customServerUri: String?,
+        remotePath: String,
+        serverVersion: String = "3.3.4"
+    ): ScrcpyEncoderLists {
         return ioCall {
             val serverJar = if (customServerUri.isNullOrBlank()) {
                 extractAssetToCache(DEFAULT_SERVER_ASSET)
@@ -232,7 +245,11 @@ class NativeCoreFacade(private val appContext: Context) {
         }
     }
 
-    fun scrcpyListCameraSizes(customServerUri: String?, remotePath: String, serverVersion: String = "3.3.4"): ScrcpyCameraSizeLists {
+    fun scrcpyListCameraSizes(
+        customServerUri: String?,
+        remotePath: String,
+        serverVersion: String = "3.3.4"
+    ): ScrcpyCameraSizeLists {
         return ioCall {
             val serverJar = if (customServerUri.isNullOrBlank()) {
                 extractAssetToCache(DEFAULT_SERVER_ASSET)
@@ -307,7 +324,17 @@ class NativeCoreFacade(private val appContext: Context) {
         buttons: Int = 0,
     ) {
         ioExecute {
-            runCatching { sessionManager.injectScroll(x, y, screenWidth, screenHeight, hScroll, vScroll, buttons) }
+            runCatching {
+                sessionManager.injectScroll(
+                    x,
+                    y,
+                    screenWidth,
+                    screenHeight,
+                    hScroll,
+                    vScroll,
+                    buttons
+                )
+            }
         }
     }
 
@@ -475,10 +502,13 @@ class NativeCoreFacade(private val appContext: Context) {
         val mime = when (session.codec.lowercase()) {
             "h264" -> "video/avc"
             "h265" -> "video/hevc"
-            "av1"  -> "video/av01"
+            "av1" -> "video/av01"
             else -> "video/avc"
         }
-        Log.i(TAG, "createOrReplaceDecoder(): tag=$tag codec=$mime size=${session.width}x${session.height}")
+        Log.i(
+            TAG,
+            "createOrReplaceDecoder(): tag=$tag codec=$mime size=${session.width}x${session.height}"
+        )
         val decoder = AnnexBDecoder(
             width = session.width,
             height = session.height,
@@ -489,7 +519,10 @@ class NativeCoreFacade(private val appContext: Context) {
                 if (current == null || (current.width == width && current.height == height)) {
                     return@AnnexBDecoder
                 }
-                Log.i(TAG, "videoSizeChanged(): ${current.width}x${current.height} -> ${width}x${height}")
+                Log.i(
+                    TAG,
+                    "videoSizeChanged(): ${current.width}x${current.height} -> ${width}x${height}"
+                )
                 currentSessionInfo = current.copy(width = width, height = height)
                 mainHandler.post {
                     videoSizeListeners.forEach { listener ->
@@ -542,14 +575,22 @@ class NativeCoreFacade(private val appContext: Context) {
             cacheBootstrapPacket(packet)
             packetCount += 1
             if (packetCount == 1L || packetCount % 120L == 0L) {
-                Log.i(TAG, "videoFeed(): packets=$packetCount key=${packet.isKeyFrame} cfg=${packet.isConfig} decoders=${decoderMap.size}")
+                Log.i(
+                    TAG,
+                    "videoFeed(): packets=$packetCount key=${packet.isKeyFrame} cfg=${packet.isConfig} decoders=${decoderMap.size}"
+                )
             }
             decoderMap.forEach { (tag, decoder) ->
                 if (!surfaceIdentityMap.containsKey(tag)) {
                     return@forEach
                 }
                 runCatching {
-                    decoder.feedAnnexB(packet.data, packet.ptsUs, packet.isKeyFrame, packet.isConfig)
+                    decoder.feedAnnexB(
+                        packet.data,
+                        packet.ptsUs,
+                        packet.isKeyFrame,
+                        packet.isConfig
+                    )
                 }
             }
         }
@@ -634,21 +675,3 @@ data class ScrcpySessionInfo(
     val codec: String,
     val controlEnabled: Boolean,
 )
-
-object AndroidKeycodes {
-    const val HOME = 3
-    const val BACK = 4
-    const val POWER = 26
-    const val APP_SWITCH = 187
-    const val VOLUME_UP = 24
-    const val VOLUME_DOWN = 25
-}
-
-object MotionActions {
-    const val DOWN = 0
-    const val UP = 1
-    const val MOVE = 2
-    const val CANCEL = 3
-    const val POINTER_DOWN = 5
-    const val POINTER_UP = 6
-}
