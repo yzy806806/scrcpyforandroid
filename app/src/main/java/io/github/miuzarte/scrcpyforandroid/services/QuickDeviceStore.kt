@@ -110,3 +110,28 @@ internal fun updateQuickDeviceNameIfEmpty(
         saveQuickDevices(context, quickDevices)
     }
 }
+
+internal fun replaceQuickDevicePort(
+    context: Context,
+    quickDevices: MutableList<DeviceShortcut>,
+    host: String,
+    oldPort: Int,
+    newPort: Int,
+    online: Boolean,
+) {
+    val idx = quickDevices.indexOfFirst { it.host == host && it.port == oldPort }
+    if (idx < 0) return
+
+    val old = quickDevices[idx]
+    val updated = old.copy(
+        id = "$host:$newPort",
+        port = newPort,
+        online = online,
+    )
+
+    quickDevices[idx] = updated
+    val dedup = quickDevices.distinctBy { it.id }
+    quickDevices.clear()
+    quickDevices.addAll(dedup)
+    saveQuickDevices(context, quickDevices)
+}

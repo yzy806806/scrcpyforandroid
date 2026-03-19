@@ -129,9 +129,11 @@ internal fun StatusCardLayout(
             }
         }
 
-        Column(modifier = Modifier
-            .weight(1f)
-            .fillMaxHeight()) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+        ) {
             StatusMetricCard(
                 spec = spec.firstSmall,
                 modifier = Modifier

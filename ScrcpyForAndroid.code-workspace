@@ -1,19 +1,28 @@
 {
 	"folders": [
 		{
+			"name": "ScrcpyForAndroid",
 			"path": "."
 		},
 		{
+			"name": "scrcpy",
 			"path": "../scrcpy"
 		},
 		{
+			"name": "miuix",
 			"path": "../miuix"
 		},
 		{
-			"path": "../adblib"
+			"name": "shizuku",
+			"path": "../shizuku"
 		},
 		{
+			"name": "KernelSU",
 			"path": "../KernelSU"
+		},
+		{
+			"name": "adblib",
+			"path": "../adblib"
 		}
 	],
 }

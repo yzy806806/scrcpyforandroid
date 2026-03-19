@@ -38,6 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.parseQuickTarget
+import io.github.miuzarte.scrcpyforandroid.services.replaceQuickDevicePort
 import io.github.miuzarte.scrcpyforandroid.services.saveDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.saveQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.updateQuickDeviceNameIfEmpty
@@ -67,14 +68,19 @@ import kotlinx.coroutines.withTimeout
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet
+import java.net.InetSocketAddress
+import java.net.Socket
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
 
 private const val ADB_CONNECT_TIMEOUT_MS = 3_000L
-private const val ADB_KEEPALIVE_INTERVAL_MS = 15_000L
-private const val ADB_KEEPALIVE_TIMEOUT_MS = 2_000L
+private const val ADB_KEEPALIVE_INTERVAL_MS = 3_000L
+private const val ADB_KEEPALIVE_TIMEOUT_MS = 1_500L
+private const val ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS = 1_200L
+private const val ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS = 1_500L
+private const val ADB_TCP_PROBE_TIMEOUT_MS = 600
 private const val DEVICE_SHORTCUT_SEPARATOR = "\u001F"
 private const val LOG_TAG = "DevicePage"
 
@@ -207,6 +213,9 @@ fun DeviceTabScreen(
     onOpenReorderDevicesActionChange: ((() -> Unit)?) -> Unit,
     onOpenAdvancedPage: () -> Unit,
     onOpenFullscreenPage: (ScrcpySessionInfo) -> Unit,
+    adbPairingAutoDiscoverOnDialogOpen: Boolean,
+    adbAutoReconnectPairedDevice: Boolean,
+    adbMdnsLanDiscoveryEnabled: Boolean,
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
@@ -273,6 +282,7 @@ fun DeviceTabScreen(
     val eventLog = rememberSaveable(saver = StringStateListSaver) { mutableStateListOf() }
     val quickDevices =
         rememberSaveable(saver = DeviceShortcutStateListSaver) { mutableStateListOf() }
+    val sessionReconnectBlacklistHosts = remember { mutableSetOf<String>() }
 
     LaunchedEffect(eventLog.size) {
         onCanClearLogsChange(eventLog.isNotEmpty())
@@ -346,6 +356,17 @@ fun DeviceTabScreen(
                     true
                 }.getOrElse { false }
             }
+        }
+    }
+
+    suspend fun probeTcpReachable(host: String, port: Int): Boolean {
+        return withContext(Dispatchers.IO) {
+            runCatching {
+                Socket().use { socket ->
+                    socket.connect(InetSocketAddress(host, port), ADB_TCP_PROBE_TIMEOUT_MS)
+                    true
+                }
+            }.getOrDefault(false)
         }
     }
 
@@ -606,6 +627,7 @@ fun DeviceTabScreen(
                     snack.showSnackbar("ADB 自动重连成功")
                 }
             } else {
+                runCatching { nativeCore.adbDisconnect() }
                 statusLine = "ADB 连接断开"
                 connectedDeviceLabel = "未连接"
                 sessionInfo = null
@@ -615,6 +637,115 @@ fun DeviceTabScreen(
                 }
                 break
             }
+        }
+    }
+
+    LaunchedEffect(adbConnected, adbAutoReconnectPairedDevice, adbMdnsLanDiscoveryEnabled) {
+        if (adbConnected || !adbAutoReconnectPairedDevice) return@LaunchedEffect
+
+        val quickConnectTriedOnce = mutableSetOf<String>()
+        while (!adbConnected && adbAutoReconnectPairedDevice) {
+            if (busy || adbConnecting || sessionInfo != null) {
+                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
+                continue
+            }
+
+            val quickCandidates = quickDevices.toList()
+            if (quickCandidates.isNotEmpty()) {
+                for (target in quickCandidates) {
+                    if (adbConnected || adbConnecting) break
+                    if (sessionReconnectBlacklistHosts.contains(target.host)) continue
+                    val targetKey = "${target.host}:${target.port}"
+                    if (quickConnectTriedOnce.contains(targetKey)) continue
+
+                    val portReachable = probeTcpReachable(target.host, target.port)
+                    if (!portReachable) continue
+
+                    quickConnectTriedOnce += targetKey
+                    runAdbConnect("快速设备端口可达，尝试连接一次") {
+                        val ok = connectWithTimeout(target.host, target.port)
+                        adbConnected = ok
+                        upsertQuickDevice(
+                            context,
+                            quickDevices,
+                            target.host,
+                            target.port,
+                            ok
+                        )
+                        if (ok) {
+                            handleAdbConnected(target.host, target.port)
+                            logEvent("ADB 快速探测连接成功: ${target.host}:${target.port}")
+                        }
+                    }
+                }
+                if (adbConnected) break
+            }
+
+            val discovered = withContext(Dispatchers.IO) {
+                nativeCore.adbDiscoverConnectService(
+                    timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
+                    includeLanDevices = adbMdnsLanDiscoveryEnabled,
+                )
+            }
+
+            if (discovered == null) {
+                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
+                continue
+            }
+
+            val (discoveredHost, discoveredPort) = discovered
+            if (sessionReconnectBlacklistHosts.contains(discoveredHost)) {
+                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
+                continue
+            }
+            val knownDevice = quickDevices.firstOrNull { it.host == discoveredHost }
+            if (knownDevice == null) {
+                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
+                continue
+            }
+            val portToReplace = quickDevices.firstOrNull {
+                it.host == discoveredHost &&
+                        it.port != AppDefaults.ADB_PORT &&
+                        it.port != discoveredPort
+            }?.port
+            if (portToReplace != null) {
+                replaceQuickDevicePort(
+                    context = context,
+                    quickDevices = quickDevices,
+                    host = discoveredHost,
+                    oldPort = portToReplace,
+                    newPort = discoveredPort,
+                    online = false,
+                )
+                logEvent(
+                    "mDNS 发现新端口，已更新快速设备: $discoveredHost:$portToReplace -> $discoveredHost:$discoveredPort"
+                )
+            }
+
+            if (adbConnected || adbConnecting) {
+                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
+                continue
+            }
+
+            runAdbConnect("自动重连 ADB") {
+                val ok = connectWithTimeout(discoveredHost, discoveredPort)
+                adbConnected = ok
+                upsertQuickDevice(
+                    context,
+                    quickDevices,
+                    discoveredHost,
+                    discoveredPort,
+                    ok
+                )
+                if (ok) {
+                    handleAdbConnected(discoveredHost, discoveredPort)
+                    logEvent("ADB 自动重连成功: $discoveredHost:$discoveredPort")
+                } else {
+                    logEvent("ADB 自动重连失败: $discoveredHost:$discoveredPort", Log.WARN)
+                }
+            }
+
+            delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
         }
     }
 
@@ -786,6 +917,7 @@ fun DeviceTabScreen(
                         activeDeviceActionId = device.id
                         runBusy("断开 ADB", onFinished = { activeDeviceActionId = null }) {
                             nativeCore.adbDisconnect()
+                            sessionReconnectBlacklistHosts += host
                             adbConnected = false
                             currentTargetHost = ""
                             currentTargetPort = AppDefaults.ADB_PORT
@@ -862,12 +994,21 @@ fun DeviceTabScreen(
             // "使用配对码配对设备"
             PairingCard(
                 busy = busy,
+                autoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
+                onDiscoverTarget = {
+                    nativeCore.adbDiscoverPairingService(
+                        includeLanDevices = adbMdnsLanDiscoveryEnabled,
+                    )
+                },
                 onPair = { host, port, code ->
                     runBusy("执行配对") {
+                        val resolvedHost = host.trim()
+                        val resolvedPort = port.toIntOrNull() ?: return@runBusy
+                        val resolvedCode = code.trim()
                         val ok = nativeCore.adbPair(
-                            host.trim(),
-                            port.toIntOrNull() ?: AppDefaults.ADB_PORT,
-                            code.trim(),
+                            resolvedHost,
+                            resolvedPort,
+                            resolvedCode,
                         )
                         logEvent(
                             if (ok) "配对成功" else "配对失败",
@@ -1075,11 +1216,11 @@ fun DeviceTabScreen(
                     )
                 }
             }
+        }
 
-            item {
-                Spacer(Modifier.height(UiSpacing.PageItem))
-                LogsPanel(lines = eventLog)
-            }
+        if (eventLog.isNotEmpty()) item {
+            Spacer(Modifier.height(UiSpacing.PageItem))
+            LogsPanel(lines = eventLog)
         }
 
         // TODO: 放进 [AppPageLazyColumn] 里

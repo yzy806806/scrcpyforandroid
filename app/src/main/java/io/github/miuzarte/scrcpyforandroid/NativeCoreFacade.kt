@@ -34,6 +34,7 @@ class NativeCoreFacade(private val appContext: Context) {
     private val bootstrapLock = Any()
     private val bootstrapPackets = ArrayDeque<CachedPacket>()
     private var packetCount: Long = 0
+
     @Volatile
     private var audioPlayer: ScrcpyAudioPlayer? = null
 
@@ -89,6 +90,20 @@ class NativeCoreFacade(private val appContext: Context) {
 
     fun adbPair(host: String, port: Int, pairingCode: String): Boolean {
         return ioCall { adbService.pair(host, port, pairingCode) }
+    }
+
+    fun adbDiscoverPairingService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true,
+    ): Pair<String, Int>? {
+        return ioCall { adbService.discoverPairingService(timeoutMs, includeLanDevices) }
+    }
+
+    fun adbDiscoverConnectService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true,
+    ): Pair<String, Int>? {
+        return ioCall { adbService.discoverConnectService(timeoutMs, includeLanDevices) }
     }
 
     fun adbConnect(host: String, port: Int): Boolean = ioCall { adbService.connect(host, port) }

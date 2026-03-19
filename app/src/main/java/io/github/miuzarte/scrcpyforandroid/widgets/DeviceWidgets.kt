@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,6 +71,9 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
@@ -205,6 +209,8 @@ internal fun StatusCard(
 @Composable
 internal fun PairingCard(
     busy: Boolean,
+    autoDiscoverOnDialogOpen: Boolean,
+    onDiscoverTarget: (() -> Pair<String, Int>?)? = null,
     onPair: (host: String, port: String, code: String) -> Unit,
 ) {
     val showPairDialog = remember { mutableStateOf(false) }
@@ -225,6 +231,8 @@ internal fun PairingCard(
     PairingDialog(
         showDialog = showPairDialog.value,
         enabled = !busy,
+        autoDiscoverOnDialogOpen = autoDiscoverOnDialogOpen,
+        onDiscoverTarget = onDiscoverTarget,
         onDismissRequest = { showPairDialog.value = false },
         onDismissFinished = { holdDownState.value = false },
         onConfirm = { host, port, code ->
@@ -480,6 +488,8 @@ internal fun ConfigPanel(
 private fun PairingDialog(
     showDialog: Boolean,
     enabled: Boolean,
+    autoDiscoverOnDialogOpen: Boolean,
+    onDiscoverTarget: (() -> Pair<String, Int>?)?,
     onDismissRequest: () -> Unit,
     onDismissFinished: () -> Unit,
     onConfirm: (host: String, port: String, code: String) -> Unit,
@@ -487,11 +497,31 @@ private fun PairingDialog(
     var host by rememberSaveable(showDialog) { mutableStateOf("") }
     var port by rememberSaveable(showDialog) { mutableStateOf("") }
     var code by rememberSaveable(showDialog) { mutableStateOf("") }
+    var discoveringPort by rememberSaveable(showDialog) { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    suspend fun doDiscover() {
+        if (onDiscoverTarget == null || discoveringPort || !enabled) return
+        discoveringPort = true
+        val found = withContext(Dispatchers.IO) { onDiscoverTarget.invoke() }
+        if (found != null) {
+            host = found.first
+            port = found.second.toString()
+        }
+        discoveringPort = false
+    }
+
+    LaunchedEffect(showDialog, autoDiscoverOnDialogOpen, onDiscoverTarget, enabled) {
+        if (showDialog && autoDiscoverOnDialogOpen && onDiscoverTarget != null && !discoveringPort) {
+            doDiscover()
+        }
+    }
 
     fun clearInputs() {
         host = ""
         port = ""
         code = ""
+        discoveringPort = false
     }
 
     SuperDialog(
@@ -530,9 +560,30 @@ private fun PairingDialog(
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = UiSpacing.Large),
+                    .padding(bottom = UiSpacing.CardContent),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.PopupHorizontal)) {
+
+            TextButton(
+                text = if (discoveringPort) "发现中..." else "自动发现",
+                onClick = {
+                    if (onDiscoverTarget == null || discoveringPort || !enabled) return@TextButton
+                    scope.launch {
+                        doDiscover()
+                    }
+                },
+                enabled = enabled && onDiscoverTarget != null && !discoveringPort,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        top = UiSpacing.Medium,
+                        bottom = UiSpacing.CardContent,
+                    ),
+            )
+            Row(
+                modifier = Modifier
+                    .padding(bottom = UiSpacing.PopupHorizontal),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.PopupHorizontal),
+            ) {
                 TextButton(
                     text = "取消",
                     onClick = {
@@ -544,10 +595,13 @@ private fun PairingDialog(
                 TextButton(
                     text = "配对",
                     onClick = {
-                        onConfirm(host.trim(), port.trim().ifBlank { "37099" }, code.trim())
+                        onConfirm(host.trim(), port.trim(), code.trim())
                         clearInputs()
                     },
-                    enabled = enabled && host.isNotBlank() && code.isNotBlank(),
+                    enabled = enabled &&
+                            host.trim().isNotBlank() &&
+                            port.trim().isNotBlank() &&
+                            code.trim().isNotBlank(),
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
@@ -570,9 +624,7 @@ private fun formatBitRate(value: Float): String = String.format("%.1f", value)
 
 @Composable
 internal fun LogsPanel(lines: List<String>) {
-    Card(
-        pressFeedbackType = PressFeedbackType.Sink,
-    ) {
+    Card {
         TextField(
             value = lines.joinToString(separator = "\n"),
             onValueChange = {},

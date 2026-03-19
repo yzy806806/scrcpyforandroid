@@ -7,10 +7,13 @@ import java.nio.file.Path
 class NativeAdbService(appContext: Context) {
 
     private val transport = DirectAdbTransport(appContext)
+
     @Volatile
     private var connection: DirectAdbConnection? = null
+
     @Volatile
     private var connectedHost: String? = null
+
     @Volatile
     private var connectedPort: Int? = null
 
@@ -22,9 +25,44 @@ class NativeAdbService(appContext: Context) {
 
     @Synchronized
     fun pair(host: String, port: Int, pairingCode: String): Boolean {
-        throw UnsupportedOperationException(
-            "Wireless pairing is not yet implemented. Please enable TCP ADB via USB first.",
-        )
+        val h = host.trim()
+        val code = pairingCode.trim()
+        require(h.isNotBlank()) { "host is blank" }
+        require(code.isNotBlank()) { "pairing code is blank" }
+        Log.i(TAG, "pair(): host=$h port=$port")
+        return try {
+            transport.pair(h, port, code)
+        } catch (e: Exception) {
+            Log.e(TAG, "pair(): failed host=$h port=$port", e)
+            val detail = e.message ?: "${e.javaClass.simpleName} (no message)"
+            throw IllegalStateException("ADB pair failed for $h:$port -> $detail", e)
+        }
+    }
+
+    @Synchronized
+    fun discoverPairingService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true
+    ): Pair<String, Int>? {
+        return try {
+            transport.discoverPairingService(timeoutMs, includeLanDevices)
+        } catch (e: Exception) {
+            Log.w(TAG, "discoverPairingService(): failed", e)
+            null
+        }
+    }
+
+    @Synchronized
+    fun discoverConnectService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true
+    ): Pair<String, Int>? {
+        return try {
+            transport.discoverConnectService(timeoutMs, includeLanDevices)
+        } catch (e: Exception) {
+            Log.w(TAG, "discoverConnectService(): failed", e)
+            null
+        }
     }
 
     @Synchronized

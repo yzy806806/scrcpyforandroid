@@ -24,6 +24,7 @@ class ScrcpyAudioPlayer(private val codecId: Int) {
 
     @Volatile
     private var prepared = false
+
     @Volatile
     private var released = false
     private var packetCount = 0L

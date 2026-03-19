@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
 import android.content.Context
+import android.os.Build
 import android.util.Base64
 import android.util.Log
 import androidx.core.content.edit
@@ -32,6 +33,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import javax.net.ssl.SSLSocket
 import kotlin.concurrent.thread
 
 internal class DirectAdbTransport(private val context: Context) {
@@ -55,6 +57,41 @@ internal class DirectAdbTransport(private val context: Context) {
         conn.handshake()
         Log.i(TAG, "connect(): handshake success for $host:$port")
         return conn
+    }
+
+    fun pair(host: String, port: Int, pairingCode: String): Boolean {
+        val targetHost = host.trim()
+        val targetCode = pairingCode.trim()
+        require(targetHost.isNotBlank()) { "host is blank" }
+        require(targetCode.isNotBlank()) { "pairing code is blank" }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
+            throw UnsupportedOperationException("ADB pairing requires Android 11+")
+        }
+
+        val pairingKey = AdbPairingKey(
+            privateKey = privateKey,
+            alias = keyName.ifBlank { AppDefaults.ADB_KEY_NAME },
+        )
+        return DirectAdbPairingClient(targetHost, port, targetCode, pairingKey).use {
+            it.start()
+        }
+    }
+
+    fun discoverPairingService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true
+    ): Pair<String, Int>? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return AdbMdnsDiscoverer(context).discoverPairingService(timeoutMs, includeLanDevices)
+    }
+
+    fun discoverConnectService(
+        timeoutMs: Long = 12_000,
+        includeLanDevices: Boolean = true
+    ): Pair<String, Int>? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
+        return AdbMdnsDiscoverer(context).discoverConnectService(timeoutMs, includeLanDevices)
     }
 
     private fun loadOrCreate(): Pair<PrivateKey, ByteArray> {
@@ -104,6 +141,41 @@ internal class DirectAdbTransport(private val context: Context) {
         return digest.joinToString(":") { b -> "%02x".format(b) }
     }
 
+    private fun encodeAdbPublicKey(modulus: BigInteger, exponent: Int): ByteArray {
+        val words = 64
+        val bytes = 256
+        val two32 = BigInteger.ONE.shiftLeft(32)
+        val mask32 = two32.subtract(BigInteger.ONE)
+
+        fun toBigEndianPadded(n: BigInteger): ByteArray {
+            val raw = n.toByteArray()
+            val arr = ByteArray(bytes)
+            val src = if (raw[0] == 0.toByte()) raw.copyOfRange(1, raw.size) else raw
+            src.copyInto(arr, destinationOffset = bytes - src.size)
+            return arr
+        }
+
+        val modBE = toBigEndianPadded(modulus)
+        val n0 = modulus.and(mask32)
+        val n0inv = n0.modInverse(two32).negate().mod(two32).toInt()
+        val r = BigInteger.ONE.shiftLeft(bytes * 8)
+        val rrBE = toBigEndianPadded(r.multiply(r).mod(modulus))
+
+        val buf = ByteBuffer.allocate(4 + 4 + bytes + bytes + 4).order(ByteOrder.LITTLE_ENDIAN)
+        buf.putInt(words)
+        buf.putInt(n0inv)
+        for (i in words - 1 downTo 0) {
+            val o = i * 4
+            buf.put(modBE[o + 3]); buf.put(modBE[o + 2]); buf.put(modBE[o + 1]); buf.put(modBE[o])
+        }
+        for (i in words - 1 downTo 0) {
+            val o = i * 4
+            buf.put(rrBE[o + 3]); buf.put(rrBE[o + 2]); buf.put(rrBE[o + 1]); buf.put(rrBE[o])
+        }
+        buf.putInt(exponent)
+        return buf.array()
+    }
+
     companion object {
         private const val TAG = "DirectAdbTransport"
     }
@@ -138,6 +210,7 @@ internal class DirectAdbConnection(
     private val socket = Socket()
     private lateinit var rawIn: BufferedInputStream
     private lateinit var rawOut: OutputStream
+    private var tlsSocket: SSLSocket? = null
     private val nextLocalId = AtomicInteger(1)
     private val streams = ConcurrentHashMap<Int, AdbSocketStream>()
 
@@ -149,10 +222,12 @@ internal class DirectAdbConnection(
         private const val TAG = "DirectAdbConnection"
         private const val A_CNXN = 0x4e584e43
         private const val A_AUTH = 0x48545541
+        private const val A_STLS = 0x534c5453
         private const val A_OPEN = 0x4e45504f
         private const val A_OKAY = 0x59414b4f
         private const val A_CLSE = 0x45534c43
         private const val A_WRTE = 0x45545257
+        private const val STLS_VERSION = 0x01000000
         private const val AUTH_TOKEN = 1
         private const val AUTH_SIGNATURE = 2
         private const val AUTH_RSAPUBLICKEY = 3
@@ -170,7 +245,13 @@ internal class DirectAdbConnection(
 
         sendMsg(A_CNXN, VERSION, MAX_PAYLOAD, "host::\u0000".toByteArray(Charsets.UTF_8))
 
-        val first = recvMsg()
+        var first = recvMsg()
+        if (first.command == A_STLS) {
+            sendMsg(A_STLS, STLS_VERSION, 0)
+            upgradeToTls()
+            first = recvMsg()
+        }
+
         when (first.command) {
             A_CNXN -> Unit
             A_AUTH -> {
@@ -207,6 +288,19 @@ internal class DirectAdbConnection(
 
         socket.soTimeout = 0
         readerThread = thread(isDaemon = true, name = "adb-reader-$host:$port") { readLoop() }
+    }
+
+    private fun upgradeToTls() {
+        val pairingKey = AdbPairingKey(
+            privateKey = privateKey,
+            alias = keyName,
+        )
+        val sslSocket = pairingKey.sslContext.socketFactory
+            .createSocket(socket, host, port, true) as SSLSocket
+        sslSocket.startHandshake()
+        tlsSocket = sslSocket
+        rawIn = BufferedInputStream(sslSocket.inputStream, 65_536)
+        rawOut = sslSocket.outputStream
     }
 
     fun openStream(service: String): AdbSocketStream {
@@ -270,6 +364,7 @@ internal class DirectAdbConnection(
             closed = true
             streams.values.forEach { runCatching { it.forceClose() } }
             streams.clear()
+            runCatching { tlsSocket?.close() }
             runCatching { socket.close() }
             runCatching { readerThread?.interrupt() }
         }

@@ -131,6 +131,15 @@ fun MainPage() {
     var customServerUri by rememberSaveable { mutableStateOf(initialSettings.customServerUri) }
     var serverRemotePath by rememberSaveable { mutableStateOf(initialSettings.serverRemotePath) }
     var adbKeyName by rememberSaveable { mutableStateOf(initialSettings.adbKeyName) }
+    var adbPairingAutoDiscoverOnDialogOpen by rememberSaveable {
+        mutableStateOf(initialSettings.adbPairingAutoDiscoverOnDialogOpen)
+    }
+    var adbAutoReconnectPairedDevice by rememberSaveable {
+        mutableStateOf(initialSettings.adbAutoReconnectPairedDevice)
+    }
+    var adbMdnsLanDiscoveryEnabled by rememberSaveable {
+        mutableStateOf(initialSettings.adbMdnsLanDiscoveryEnabled)
+    }
     var noControl by rememberSaveable { mutableStateOf(initialDeviceSettings.noControl) }
     var videoEncoder by rememberSaveable { mutableStateOf(initialDeviceSettings.videoEncoder) }
     var videoCodecOptions by rememberSaveable { mutableStateOf(initialDeviceSettings.videoCodecOptions) }
@@ -191,6 +200,9 @@ fun MainPage() {
         customServerUri,
         serverRemotePath,
         adbKeyName,
+        adbPairingAutoDiscoverOnDialogOpen,
+        adbAutoReconnectPairedDevice,
+        adbMdnsLanDiscoveryEnabled,
     ) {
         saveMainSettings(
             context,
@@ -209,6 +221,9 @@ fun MainPage() {
                 customServerUri = customServerUri,
                 serverRemotePath = serverRemotePath,
                 adbKeyName = adbKeyName,
+                adbPairingAutoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
+                adbAutoReconnectPairedDevice = adbAutoReconnectPairedDevice,
+                adbMdnsLanDiscoveryEnabled = adbMdnsLanDiscoveryEnabled,
             ),
         )
     }
@@ -464,6 +479,9 @@ fun MainPage() {
                                         )
                                     },
                                     previewCardHeightDp = devicePreviewCardHeightDp,
+                                    adbPairingAutoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
+                                    adbAutoReconnectPairedDevice = adbAutoReconnectPairedDevice,
+                                    adbMdnsLanDiscoveryEnabled = adbMdnsLanDiscoveryEnabled,
                                 )
                             }
 
@@ -508,6 +526,14 @@ fun MainPage() {
                                     onServerRemotePathChange = { serverRemotePath = it },
                                     adbKeyName = adbKeyName,
                                     onAdbKeyNameChange = { adbKeyName = it },
+                                    adbPairingAutoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
+                                    onAdbPairingAutoDiscoverOnDialogOpenChange = {
+                                        adbPairingAutoDiscoverOnDialogOpen = it
+                                    },
+                                    adbAutoReconnectPairedDevice = adbAutoReconnectPairedDevice,
+                                    onAdbAutoReconnectPairedDeviceChange = {
+                                        adbAutoReconnectPairedDevice = it
+                                    },
                                     scrollBehavior = settingsScrollBehavior,
                                 )
                             }

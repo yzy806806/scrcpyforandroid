@@ -20,6 +20,10 @@ internal data class MainSettings(
     val customServerUri: String? = AppDefaults.CUSTOM_SERVER_URI,
     val serverRemotePath: String = AppDefaults.SERVER_REMOTE_PATH_INPUT,
     val adbKeyName: String = AppDefaults.ADB_KEY_NAME_INPUT,
+    val adbPairingAutoDiscoverOnDialogOpen: Boolean =
+        AppDefaults.ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN,
+    val adbAutoReconnectPairedDevice: Boolean = AppDefaults.ADB_AUTO_RECONNECT_PAIRED_DEVICE,
+    val adbMdnsLanDiscoveryEnabled: Boolean = AppDefaults.ADB_MDNS_LAN_DISCOVERY,
 )
 
 internal data class DevicePageSettings(
@@ -125,6 +129,18 @@ internal fun loadMainSettings(context: Context): MainSettings {
             AppPreferenceKeys.ADB_KEY_NAME,
             AppDefaults.ADB_KEY_NAME_INPUT,
         ).orEmpty(),
+        adbPairingAutoDiscoverOnDialogOpen = prefs.getBoolean(
+            AppPreferenceKeys.ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN,
+            AppDefaults.ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN,
+        ),
+        adbAutoReconnectPairedDevice = prefs.getBoolean(
+            AppPreferenceKeys.ADB_AUTO_RECONNECT_PAIRED_DEVICE,
+            AppDefaults.ADB_AUTO_RECONNECT_PAIRED_DEVICE,
+        ),
+        adbMdnsLanDiscoveryEnabled = prefs.getBoolean(
+            AppPreferenceKeys.ADB_MDNS_LAN_DISCOVERY,
+            AppDefaults.ADB_MDNS_LAN_DISCOVERY,
+        ),
     )
 }
 
@@ -188,6 +204,18 @@ internal fun saveMainSettings(context: Context, settings: MainSettings) {
             .putString(
                 AppPreferenceKeys.ADB_KEY_NAME,
                 settings.adbKeyName,
+            )
+            .putBoolean(
+                AppPreferenceKeys.ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN,
+                settings.adbPairingAutoDiscoverOnDialogOpen,
+            )
+            .putBoolean(
+                AppPreferenceKeys.ADB_AUTO_RECONNECT_PAIRED_DEVICE,
+                settings.adbAutoReconnectPairedDevice,
+            )
+            .putBoolean(
+                AppPreferenceKeys.ADB_MDNS_LAN_DISCOVERY,
+                settings.adbMdnsLanDiscoveryEnabled,
             )
     }
 }

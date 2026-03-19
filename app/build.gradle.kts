@@ -23,8 +23,14 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 36
-        versionCode = 2
-        versionName = "0.0.2"
+        versionCode = 3
+        versionName = "0.0.3"
+
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DANDROID_STL=none")
+            }
+        }
 
         ndk {
             abiFilters.clear()
@@ -59,7 +65,15 @@ android {
     }
     buildFeatures {
         compose = true
+        prefab = true
     }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/jni/CMakeLists.txt")
+        }
+    }
+
     buildToolsVersion = "36.0.0"
     ndkVersion = "28.2.13676358"
 }
@@ -78,6 +92,10 @@ dependencies {
     implementation(libs.miuix)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.navigation3.ui)
+    implementation("io.github.vvb2060.ndk:boringssl:20250114")
+    implementation("org.lsposed.libcxx:libcxx:27.0.12077973")
+    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
+    implementation("org.conscrypt:conscrypt-android:2.5.2")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

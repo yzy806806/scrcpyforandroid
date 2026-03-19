@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -71,6 +72,10 @@ fun SettingsScreen(
     onServerRemotePathChange: (String) -> Unit,
     adbKeyName: String,
     onAdbKeyNameChange: (String) -> Unit,
+    adbPairingAutoDiscoverOnDialogOpen: Boolean,
+    onAdbPairingAutoDiscoverOnDialogOpenChange: (Boolean) -> Unit,
+    adbAutoReconnectPairedDevice: Boolean,
+    onAdbAutoReconnectPairedDeviceChange: (Boolean) -> Unit,
     scrollBehavior: ScrollBehavior,
 ) {
     val baseModeItems = THEME_BASE_OPTIONS.map { it.label }
@@ -206,7 +211,22 @@ fun SettingsScreen(
                         .padding(horizontal = UiSpacing.CardContent)
                         .padding(bottom = UiSpacing.CardContent),
                 )
+                SuperSwitch(
+                    title = "配对时自动启用发现服务",
+                    summary = "打开配对弹窗后自动搜索可用配对端口",
+                    checked = adbPairingAutoDiscoverOnDialogOpen,
+                    onCheckedChange = onAdbPairingAutoDiscoverOnDialogOpenChange,
+                )
+                SuperSwitch(
+                    title = "自动重连已配对设备",
+                    summary = "自动发现开启无线调试的设备，更新快速设备的随机端口并尝试连接（效果比较随缘）",
+                    checked = adbAutoReconnectPairedDevice,
+                    onCheckedChange = onAdbAutoReconnectPairedDeviceChange,
+                )
             }
         }
+
+        // TODO: 放进 [AppPageLazyColumn] 里
+        item { Spacer(Modifier.height(UiSpacing.BottomContent)) }
     }
 }

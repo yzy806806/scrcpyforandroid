@@ -76,4 +76,7 @@ object AppDefaults {
 
     const val ADB_KEY_NAME = "scrcpy"
     const val ADB_KEY_NAME_INPUT = ""
+    const val ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN = true
+    const val ADB_AUTO_RECONNECT_PAIRED_DEVICE = true
+    const val ADB_MDNS_LAN_DISCOVERY = true
 }
