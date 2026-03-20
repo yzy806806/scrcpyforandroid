@@ -10,6 +10,10 @@
   <img src="https://github.com/user-attachments/assets/64e24f71-0326-407a-a527-070586bbec9a" height="320" alt="Screenshot 1" />
   <img src="https://github.com/user-attachments/assets/74170ada-6dee-4ec7-ab24-c5ef2a231a47" height="320" alt="Screenshot 2" />
   <img src="https://github.com/user-attachments/assets/6301f2fb-624b-4209-b548-6f37b9bcedc8" height="320" alt="Screenshot 3" />
+  <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="320" alt="Screenshot 4" />
+</p>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="160" alt="Screenshot 5" />
 </p>
 
 ## Features
@@ -21,6 +25,7 @@
 ## 已知问题 / TODO
 
 - 组件排序动画一坨
+- 退出全屏时的横竖屏状态可能不对，断开 scrcpy 重连就好
 
 ## 构建
 
