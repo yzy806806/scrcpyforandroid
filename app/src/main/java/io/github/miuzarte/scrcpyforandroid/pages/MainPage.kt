@@ -19,9 +19,9 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Devices
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -54,7 +54,6 @@ import io.github.miuzarte.scrcpyforandroid.services.MainSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadMainSettings
 import io.github.miuzarte.scrcpyforandroid.services.saveMainSettings
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -82,8 +81,8 @@ private enum class MainTabDestination(
     val label: String,
     val icon: ImageVector,
 ) {
-    Device(title = "设备", label = "设备", icon = Icons.Default.Devices),
-    Settings(title = "设置", label = "设置", icon = Icons.Default.Settings),
+    Device(title = "设备", label = "设备", icon = Icons.Rounded.Devices),
+    Settings(title = "设置", label = "设置", icon = Icons.Rounded.Settings),
 }
 
 private sealed interface RootScreen : NavKey {
@@ -134,14 +133,10 @@ fun MainPage() {
     var monetEnabled by rememberSaveable { mutableStateOf(initialSettings.monetEnabled) }
     var fullscreenDebugInfoEnabled by rememberSaveable { mutableStateOf(initialSettings.fullscreenDebugInfoEnabled) }
     var showFullscreenVirtualButtons by rememberSaveable { mutableStateOf(initialSettings.showFullscreenVirtualButtons) }
+    var showPreviewVirtualButtonText by rememberSaveable { mutableStateOf(initialSettings.showPreviewVirtualButtonText) }
     var keepScreenOnWhenStreamingEnabled by rememberSaveable { mutableStateOf(initialSettings.keepScreenOnWhenStreamingEnabled) }
     var devicePreviewCardHeightDp by rememberSaveable { mutableIntStateOf(initialSettings.devicePreviewCardHeightDp) }
-    var virtualButtonsOutside by rememberSaveable(stateSaver = stringListSaver) {
-        mutableStateOf(VirtualButtonActions.parseStoredIds(initialSettings.virtualButtonsOutside))
-    }
-    var virtualButtonsInMore by rememberSaveable(stateSaver = stringListSaver) {
-        mutableStateOf(VirtualButtonActions.parseStoredIds(initialSettings.virtualButtonsInMore))
-    }
+    var virtualButtonsLayout by rememberSaveable { mutableStateOf(initialSettings.virtualButtonsLayout) }
     var customServerUri by rememberSaveable { mutableStateOf(initialSettings.customServerUri) }
     var serverRemotePath by rememberSaveable { mutableStateOf(initialSettings.serverRemotePath) }
     var adbKeyName by rememberSaveable { mutableStateOf(initialSettings.adbKeyName) }
@@ -241,10 +236,10 @@ fun MainPage() {
         monetEnabled,
         fullscreenDebugInfoEnabled,
         showFullscreenVirtualButtons,
+        showPreviewVirtualButtonText,
         keepScreenOnWhenStreamingEnabled,
         devicePreviewCardHeightDp,
-        virtualButtonsOutside,
-        virtualButtonsInMore,
+        virtualButtonsLayout,
         customServerUri,
         serverRemotePath,
         adbKeyName,
@@ -262,10 +257,10 @@ fun MainPage() {
                 monetEnabled = monetEnabled,
                 fullscreenDebugInfoEnabled = fullscreenDebugInfoEnabled,
                 showFullscreenVirtualButtons = showFullscreenVirtualButtons,
+                showPreviewVirtualButtonText = showPreviewVirtualButtonText,
                 keepScreenOnWhenStreamingEnabled = keepScreenOnWhenStreamingEnabled,
                 devicePreviewCardHeightDp = devicePreviewCardHeightDp,
-                virtualButtonsOutside = VirtualButtonActions.encodeStoredIds(virtualButtonsOutside),
-                virtualButtonsInMore = VirtualButtonActions.encodeStoredIds(virtualButtonsInMore),
+                virtualButtonsLayout = virtualButtonsLayout,
                 customServerUri = customServerUri,
                 serverRemotePath = serverRemotePath,
                 adbKeyName = adbKeyName,
@@ -398,7 +393,7 @@ fun MainPage() {
                                                 holdDownState = showDeviceMenu,
                                             ) {
                                                 Icon(
-                                                    Icons.Default.MoreVert,
+                                                    Icons.Rounded.MoreVert,
                                                     contentDescription = "更多"
                                                 )
                                             }
@@ -429,8 +424,10 @@ fun MainPage() {
                                     nativeCore = nativeCore,
                                     snack = snackHostState,
                                     scrollBehavior = deviceScrollBehavior,
-                                    virtualButtonsOutside = virtualButtonsOutside,
-                                    virtualButtonsInMore = virtualButtonsInMore,
+                                    virtualButtonsLayout = virtualButtonsLayout,
+                                    showPreviewVirtualButtonText = showPreviewVirtualButtonText,
+                                    previewCardHeightDp = devicePreviewCardHeightDp,
+                                    themeBaseIndex = themeBaseIndex,
                                     customServerUri = customServerUri,
                                     serverRemotePath = serverRemotePath,
                                     onServerRemotePathChange = { serverRemotePath = it },
@@ -556,7 +553,6 @@ fun MainPage() {
                                             ),
                                         )
                                     },
-                                    previewCardHeightDp = devicePreviewCardHeightDp,
                                     adbPairingAutoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
                                     adbAutoReconnectPairedDevice = adbAutoReconnectPairedDevice,
                                     adbMdnsLanDiscoveryEnabled = adbMdnsLanDiscoveryEnabled,
@@ -588,6 +584,12 @@ fun MainPage() {
                                     devicePreviewCardHeightDp = devicePreviewCardHeightDp,
                                     onDevicePreviewCardHeightDpChange = {
                                         devicePreviewCardHeightDp = it.coerceAtLeast(120)
+                                    },
+                                    onOpenReorderDevices = {
+                                        openReorderDevicesAction?.invoke()
+                                    },
+                                    onOpenVirtualButtonOrder = {
+                                        rootBackStack.add(RootScreen.VirtualButtonOrder)
                                     },
                                     showFullscreenVirtualButtons = showFullscreenVirtualButtons,
                                     onShowFullscreenVirtualButtonsChange = {
@@ -756,12 +758,12 @@ fun MainPage() {
                 VirtualButtonOrderPage(
                     contentPadding = pagePadding,
                     scrollBehavior = advancedScrollBehavior,
-                    outsideIds = virtualButtonsOutside,
-                    moreIds = virtualButtonsInMore,
-                    onLayoutChange = { outside, more ->
-                        virtualButtonsOutside = outside
-                        virtualButtonsInMore = more
+                    layoutString = virtualButtonsLayout,
+                    onLayoutChange = { layout ->
+                        virtualButtonsLayout = layout
                     },
+                    showPreviewText = showPreviewVirtualButtonText,
+                    onShowPreviewTextChange = { showPreviewVirtualButtonText = it },
                 )
             }
         }
@@ -770,8 +772,7 @@ fun MainPage() {
             FullscreenControlPage(
                 launch = screen.launch,
                 nativeCore = nativeCore,
-                virtualButtonsOutside = virtualButtonsOutside,
-                virtualButtonsInMore = virtualButtonsInMore,
+                virtualButtonsLayout = virtualButtonsLayout,
                 showDebugInfo = fullscreenDebugInfoEnabled,
                 showVirtualButtons = showFullscreenVirtualButtons,
                 onVideoSizeChanged = { width, height ->
@@ -817,7 +818,7 @@ private fun DeviceMenuPopup(
     ) {
         ListPopupColumn {
             DeviceMenuPopupItem(
-                text = "调整设备排序",
+                text = "快速设备排序",
                 optionSize = 3,
                 index = 0,
                 onClick = onReorderDevices,

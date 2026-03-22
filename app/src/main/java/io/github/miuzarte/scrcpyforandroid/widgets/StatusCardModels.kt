@@ -81,7 +81,7 @@ internal fun StatusCardLayout(
                 .fillMaxHeight(),
             colors = defaultColors(color = spec.big.containerColor),
             pressFeedbackType = PressFeedbackType.Tilt,
-            onClick = haptics.press,
+            onClick = haptics.contextClick,
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(
@@ -158,7 +158,7 @@ private fun StatusMetricCard(spec: StatusSmallCardSpec, modifier: Modifier) {
         modifier = modifier,
         insideMargin = PaddingValues(UiSpacing.Large),
         pressFeedbackType = PressFeedbackType.Tilt,
-        onClick = haptics.press,
+        onClick = haptics.contextClick,
     ) {
         Text(
             text = spec.title,

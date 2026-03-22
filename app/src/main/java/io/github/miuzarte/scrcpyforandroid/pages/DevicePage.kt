@@ -5,7 +5,6 @@ import android.util.Log
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -48,11 +47,8 @@ import io.github.miuzarte.scrcpyforandroid.widgets.LogsPanel
 import io.github.miuzarte.scrcpyforandroid.widgets.PairingCard
 import io.github.miuzarte.scrcpyforandroid.widgets.PreviewCard
 import io.github.miuzarte.scrcpyforandroid.widgets.QuickConnectCard
+import io.github.miuzarte.scrcpyforandroid.widgets.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
-import io.github.miuzarte.scrcpyforandroid.widgets.SortDropPayload
-import io.github.miuzarte.scrcpyforandroid.widgets.SortTransferDirection
-import io.github.miuzarte.scrcpyforandroid.widgets.SortableCardItem
-import io.github.miuzarte.scrcpyforandroid.widgets.SortableCardList
 import io.github.miuzarte.scrcpyforandroid.widgets.StatusCard
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
@@ -73,7 +69,6 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.concurrent.Executors
-import kotlin.math.roundToInt
 
 private const val ADB_CONNECT_TIMEOUT_MS = 3_000L
 private const val ADB_KEEPALIVE_INTERVAL_MS = 3_000L
@@ -125,9 +120,10 @@ fun DeviceTabScreen(
     nativeCore: NativeCoreFacade,
     snack: SnackbarHostState,
     scrollBehavior: ScrollBehavior,
-    virtualButtonsOutside: List<String>,
-    virtualButtonsInMore: List<String>,
+    virtualButtonsLayout: String,
+    showPreviewVirtualButtonText: Boolean,
     previewCardHeightDp: Int,
+    themeBaseIndex: Int,
     customServerUri: String?,
     serverRemotePath: String,
     onServerRemotePathChange: (String) -> Unit,
@@ -218,8 +214,8 @@ fun DeviceTabScreen(
 ) {
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
-    val virtualButtonLayout = remember(virtualButtonsOutside, virtualButtonsInMore) {
-        VirtualButtonActions.resolveLayout(virtualButtonsOutside, virtualButtonsInMore)
+    val virtualButtonLayout = remember(virtualButtonsLayout) {
+        VirtualButtonActions.splitLayout(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
     }
     val initialSettings = remember(context) { loadDevicePageSettings(context) }
     val scope = rememberCoroutineScope()
@@ -945,34 +941,33 @@ fun DeviceTabScreen(
 
     SuperBottomSheet(
         show = showReorderSheet,
-        title = "调整设备排序",
+        title = "快速设备排序",
         onDismissRequest = { showReorderSheet = false },
     ) {
-        SortableCardList(
-            title = "设备列表",
-            items = quickDevices.map { device ->
-                SortableCardItem(
-                    id = device.id,
-                    title = device.name.ifBlank { device.host },
-                    subtitle = "${device.host}:${device.port}",
-                )
-            },
-            modifier = Modifier.padding(horizontal = UiSpacing.CardContent),
-            transferDirection = SortTransferDirection.NONE,
-            onLongPressHaptic = { haptics.press() },
-            onDrop = { payload: SortDropPayload ->
-                val fromIndex = quickDevices.indexOfFirst { it.id == payload.itemId }
-                if (fromIndex < 0) return@SortableCardList
-                val steps = (payload.deltaY / 54f).roundToInt()
-                if (steps == 0) return@SortableCardList
-                val toIndex = (fromIndex + steps).coerceIn(0, quickDevices.lastIndex)
-                if (toIndex == fromIndex) return@SortableCardList
-                val moved = quickDevices.removeAt(fromIndex)
-                quickDevices.add(toIndex, moved)
-                saveQuickDevices(context, quickDevices)
-            },
-        )
-        Spacer(Modifier.height(UiSpacing.Large))
+        val list = remember {
+            ReorderableList(
+                {
+                    quickDevices.map { device ->
+                        ReorderableList.Item(
+                            id = device.id,
+                            title = device.name.ifBlank { device.host },
+                            subtitle = "${device.host}:${device.port}",
+                        )
+                    }
+                },
+                onSettle = { fromIndex, toIndex ->
+                    if (fromIndex < 0) return@ReorderableList
+                    val to = toIndex.coerceIn(0, quickDevices.size)
+                    if (fromIndex == to) return@ReorderableList
+
+                    val moved = quickDevices.removeAt(fromIndex)
+                    quickDevices.add(to.coerceIn(0, quickDevices.size), moved)
+                    saveQuickDevices(context, quickDevices)
+                },
+            )
+        }
+        list()
+        Spacer(Modifier.height(UiSpacing.BottomSheetBottom))
     }
 
     fun sendVirtualButtonAction(action: VirtualButtonAction) {
@@ -1022,6 +1017,7 @@ fun DeviceTabScreen(
                 sessionInfo = sessionInfo,
                 busyLabel = null,
                 connectedDeviceLabel = connectedDeviceLabel,
+                themeBaseIndex = themeBaseIndex,
             )
         }
 
@@ -1043,7 +1039,7 @@ fun DeviceTabScreen(
                     }
                 },
                 onAction = {
-                    haptics.press()
+                    haptics.contextClick()
                     if (isConnectedTarget) {
                         activeDeviceActionId = device.id
                         runAdbConnect("断开 ADB", onFinished = { activeDeviceActionId = null }) {
@@ -1114,7 +1110,7 @@ fun DeviceTabScreen(
                     }
                 },
             )
-            SectionSmallTitle(text = "无线配对")
+            SectionSmallTitle("无线配对")
             // "使用配对码配对设备"
             PairingCard(
                 busy = busy,
@@ -1167,7 +1163,7 @@ fun DeviceTabScreen(
                     audioCodec = audioCodec,
                     onAudioCodecChange = onAudioCodecChange,
                     onOpenAdvanced = onOpenAdvancedPage,
-                    onStartStopHaptic = { haptics.press() },
+                    onStartStopHaptic = { haptics.contextClick() },
                     onStart = {
                         runBusy("启动 scrcpy") {
                             if (noVideo && !audioEnabled) {
@@ -1316,17 +1312,13 @@ fun DeviceTabScreen(
                         previewHeightDp = previewCardHeightDp.coerceAtLeast(120),
                         controlsVisible = previewControlsVisible,
                         onTapped = {
-                            previewControlsVisible = true
-                            scope.launch {
-                                delay(2000)
-                                previewControlsVisible = false
-                            }
+                            previewControlsVisible = !previewControlsVisible
                         },
                         onOpenFullscreen = {
                             val info = sessionInfo ?: return@PreviewCard
                             onOpenFullscreenPage(info)
                         },
-                        onOpenFullscreenHaptic = { haptics.press() },
+                        onOpenFullscreenHaptic = { haptics.contextClick() },
                     )
                 }
                 item {
@@ -1334,8 +1326,7 @@ fun DeviceTabScreen(
                         busy = busy,
                         outsideActions = virtualButtonLayout.first,
                         moreActions = virtualButtonLayout.second,
-                        onPressHaptic = { haptics.press() },
-                        onConfirmHaptic = { haptics.confirm() },
+                        showText = showPreviewVirtualButtonText,
                         onAction = ::sendVirtualButtonAction,
                     )
                 }

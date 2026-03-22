@@ -11,9 +11,10 @@
   <img src="https://github.com/user-attachments/assets/74170ada-6dee-4ec7-ab24-c5ef2a231a47" height="320" alt="Screenshot 2" />
   <img src="https://github.com/user-attachments/assets/6301f2fb-624b-4209-b548-6f37b9bcedc8" height="320" alt="Screenshot 3" />
   <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="320" alt="Screenshot 4" />
+  <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="320" alt="Screenshot 5" />
 </p>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="160" alt="Screenshot 5" />
+  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="160" alt="Screenshot 6" />
 </p>
 
 ## Features
@@ -24,10 +25,11 @@
 
 ## 已知问题 / TODO
 
-- 组件排序动画一坨
 - 退出全屏时的横竖屏状态可能不对，断开 scrcpy 重连就好
 - 如果受控机在锁屏时处理网络连接较慢，会导致应用界面无响应过长时间被系统杀掉（点名你米）
-- 虚拟按键的截图实现方式为发送 `keycode 120`，安卓官方的定义为 `System Request / Print Screen key.`，不同的厂商有不同的实现，在某些类原生(`AxionOS`) 上的行为是软重启
+- 虚拟按键的截图实现方式为发送
+`keycode 120`，安卓官方([keycodes.h#349](https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h#349))的定义为
+`System Request / Print Screen key.`，不同的厂商有不同的实现，在某些类原生(`AxionOS`) 上的行为是软重启
 - I18N
 
 ## 建议搭配模块

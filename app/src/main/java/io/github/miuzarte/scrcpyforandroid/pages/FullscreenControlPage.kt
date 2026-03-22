@@ -38,8 +38,7 @@ data class FullscreenControlLaunch(
 fun FullscreenControlPage(
     launch: FullscreenControlLaunch,
     nativeCore: NativeCoreFacade,
-    virtualButtonsOutside: List<String>,
-    virtualButtonsInMore: List<String>,
+    virtualButtonsLayout: String,
     showDebugInfo: Boolean,
     showVirtualButtons: Boolean,
     onVideoSizeChanged: (width: Int, height: Int) -> Unit,
@@ -51,8 +50,8 @@ fun FullscreenControlPage(
     val context = LocalContext.current
     val haptics = rememberAppHaptics()
     val activity = remember(context) { context as? Activity }
-    val virtualButtonLayout = remember(virtualButtonsOutside, virtualButtonsInMore) {
-        VirtualButtonActions.resolveLayout(virtualButtonsOutside, virtualButtonsInMore)
+    val virtualButtonLayout = remember(virtualButtonsLayout) {
+        VirtualButtonActions.splitLayout(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
     }
     val bar = remember(virtualButtonLayout) {
         VirtualButtonBar(
@@ -150,8 +149,6 @@ fun FullscreenControlPage(
             if (showVirtualButtons) {
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
-                    onPressHaptic = { haptics.press() },
-                    onConfirmHaptic = { haptics.confirm() },
                     onAction = { action ->
                         action.keycode?.let(::sendKeycode)
                     },

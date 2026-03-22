@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -22,6 +24,7 @@ fun AppPageLazyColumn(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
     modifier: Modifier = Modifier,
+    state: LazyListState = rememberLazyListState(),
     itemSpacing: Dp = UiSpacing.PageItem,
     horizontalPadding: Dp = UiSpacing.PageHorizontal,
     verticalPadding: Dp = UiSpacing.PageVertical,
@@ -44,6 +47,7 @@ fun AppPageLazyColumn(
             .overScrollVertical()
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .padding(contentPadding),
+        state = state,
         contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = verticalPadding),
         verticalArrangement = Arrangement.spacedBy(itemSpacing),
         content = content,

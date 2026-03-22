@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import android.content.Intent
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -7,11 +8,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.core.net.toUri
 import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
@@ -23,6 +26,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.extra.SuperArrow
 import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperSwitch
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
@@ -66,6 +70,8 @@ fun SettingsScreen(
     devicePreviewCardHeightDp: Int,
     onDevicePreviewCardHeightDpChange: (Int) -> Unit,
     showFullscreenVirtualButtons: Boolean,
+    onOpenReorderDevices: () -> Unit,
+    onOpenVirtualButtonOrder: () -> Unit,
     onShowFullscreenVirtualButtonsChange: (Boolean) -> Unit,
     customServerUri: String?,
     onPickServer: () -> Unit,
@@ -81,6 +87,7 @@ fun SettingsScreen(
     scrollBehavior: ScrollBehavior,
 ) {
     val baseModeItems = THEME_BASE_OPTIONS.map { it.label }
+    val context = LocalContext.current
 
     // 设置
     AppPageLazyColumn(
@@ -88,7 +95,7 @@ fun SettingsScreen(
         scrollBehavior = scrollBehavior,
     ) {
         item {
-            SectionSmallTitle(text = "主题")
+            SectionSmallTitle("主题")
             Card {
                 SuperDropdown(
                     title = "外观模式",
@@ -105,7 +112,7 @@ fun SettingsScreen(
                 )
             }
 
-            SectionSmallTitle(text = "投屏")
+            SectionSmallTitle("投屏")
             Card {
                 SuperSwitch(
                     title = "启用调试信息",
@@ -114,8 +121,8 @@ fun SettingsScreen(
                     onCheckedChange = onFullscreenDebugInfoEnabledChange,
                 )
                 SuperSwitch(
-                    title = "投屏时不允许息屏",
-                    summary = "Scrcpy 启动后保持本机常亮，避免锁屏导致 ADB 断开",
+                    title = "投屏时保持屏幕常亮",
+                    summary = "Scrcpy 启动后保持本机屏幕常亮，避免锁屏导致 ADB 断开",
                     checked = keepScreenOnWhenStreamingEnabled,
                     onCheckedChange = onKeepScreenOnWhenStreamingEnabledChange,
                 )
@@ -140,6 +147,16 @@ fun SettingsScreen(
                             ?.let { onDevicePreviewCardHeightDpChange(it.coerceAtLeast(120)) }
                     },
                 )
+                SuperArrow(
+                    title = "快速设备排序",
+                    summary = "手动排序设备页的快速设备",
+                    onClick = onOpenReorderDevices,
+                )
+                SuperArrow(
+                    title = "虚拟按钮排序",
+                    summary = "手动排序预览/全屏时的虚拟按钮，并选择哪些按钮展示在外",
+                    onClick = onOpenVirtualButtonOrder,
+                )
                 SuperSwitch(
                     title = "全屏显示虚拟按钮",
                     summary = "在全屏控制页底部显示返回键、主页键等虚拟按钮",
@@ -148,7 +165,7 @@ fun SettingsScreen(
                 )
             }
 
-            SectionSmallTitle(text = "scrcpy-server")
+            SectionSmallTitle("scrcpy-server")
             Card {
                 Spacer(modifier = Modifier.padding(top = UiSpacing.CardContent))
                 Text(
@@ -171,10 +188,10 @@ fun SettingsScreen(
                     trailingIcon = {
                         Row(modifier = Modifier.padding(end = UiSpacing.SectionTitleLeadingGap)) {
                             if (customServerUri != null) IconButton(onClick = onClearServer) {
-                                Icon(Icons.Default.Clear, contentDescription = "清空")
+                                Icon(Icons.Rounded.Clear, contentDescription = "清空")
                             }
                             IconButton(onClick = onPickServer) {
-                                Icon(Icons.Default.FolderOpen, contentDescription = "选择文件")
+                                Icon(Icons.Rounded.FileOpen, contentDescription = "选择文件")
                             }
                         }
                     },
@@ -199,7 +216,7 @@ fun SettingsScreen(
                 )
             }
 
-            SectionSmallTitle(text = "ADB")
+            SectionSmallTitle("ADB")
             Card {
                 Text(
                     text = "自定义 ADB 密钥名",
@@ -230,6 +247,21 @@ fun SettingsScreen(
                     summary = "自动发现开启无线调试的设备，更新快速设备的随机端口并尝试连接（效果比较随缘）",
                     checked = adbAutoReconnectPairedDevice,
                     onCheckedChange = onAdbAutoReconnectPairedDeviceChange,
+                )
+            }
+
+            SectionSmallTitle("关于")
+            Card {
+                SuperArrow(
+                    title = "前往仓库",
+                    summary = "github.com/Miuzarte/ScrcpyForAndroid",
+                    onClick = {
+                        val intent = Intent(
+                            Intent.ACTION_VIEW,
+                            "https://github.com/Miuzarte/ScrcpyForAndroid".toUri()
+                        )
+                        context.startActivity(intent)
+                    },
                 )
             }
         }

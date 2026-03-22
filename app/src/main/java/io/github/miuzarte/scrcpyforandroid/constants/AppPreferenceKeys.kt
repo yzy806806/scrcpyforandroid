@@ -67,8 +67,8 @@ object AppPreferenceKeys {
     const val SHOW_FULLSCREEN_VIRTUAL_BUTTONS = "show_fullscreen_virtual_buttons"
     const val KEEP_SCREEN_ON_WHEN_STREAMING = "keep_screen_on_when_streaming"
     const val DEVICE_PREVIEW_CARD_HEIGHT_DP = "device_preview_card_height_dp"
-    const val VIRTUAL_BUTTONS_OUTSIDE = "virtual_buttons_outside"
-    const val VIRTUAL_BUTTONS_IN_MORE = "virtual_buttons_in_more"
+    const val PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT = "preview_virtual_button_show_text"
+    const val VIRTUAL_BUTTONS_LAYOUT = "virtual_buttons_layout"
 
     const val CUSTOM_SERVER_URI = "custom_server_uri"
 

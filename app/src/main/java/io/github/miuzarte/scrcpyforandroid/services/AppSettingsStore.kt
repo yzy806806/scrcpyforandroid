@@ -13,10 +13,10 @@ internal data class MainSettings(
     val monetEnabled: Boolean = AppDefaults.MONET,
     val fullscreenDebugInfoEnabled: Boolean = AppDefaults.FULLSCREEN_DEBUG_INFO,
     val showFullscreenVirtualButtons: Boolean = AppDefaults.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
+    val showPreviewVirtualButtonText: Boolean = AppDefaults.PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT,
     val keepScreenOnWhenStreamingEnabled: Boolean = AppDefaults.KEEP_SCREEN_ON_WHEN_STREAMING,
     val devicePreviewCardHeightDp: Int = AppDefaults.DEVICE_PREVIEW_CARD_HEIGHT_DP,
-    val virtualButtonsOutside: String = AppDefaults.VIRTUAL_BUTTONS_OUTSIDE,
-    val virtualButtonsInMore: String = AppDefaults.VIRTUAL_BUTTONS_IN_MORE,
+    val virtualButtonsLayout: String = AppDefaults.VIRTUAL_BUTTONS_LAYOUT,
     val customServerUri: String? = AppDefaults.CUSTOM_SERVER_URI,
     val serverRemotePath: String = AppDefaults.SERVER_REMOTE_PATH_INPUT,
     val adbKeyName: String = AppDefaults.ADB_KEY_NAME_INPUT,
@@ -101,6 +101,10 @@ internal fun loadMainSettings(context: Context): MainSettings {
             AppPreferenceKeys.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
             AppDefaults.SHOW_FULLSCREEN_VIRTUAL_BUTTONS,
         ),
+        showPreviewVirtualButtonText = prefs.getBoolean(
+            AppPreferenceKeys.PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT,
+            AppDefaults.PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT,
+        ),
         keepScreenOnWhenStreamingEnabled = prefs.getBoolean(
             AppPreferenceKeys.KEEP_SCREEN_ON_WHEN_STREAMING,
             AppDefaults.KEEP_SCREEN_ON_WHEN_STREAMING,
@@ -109,14 +113,10 @@ internal fun loadMainSettings(context: Context): MainSettings {
             AppPreferenceKeys.DEVICE_PREVIEW_CARD_HEIGHT_DP,
             AppDefaults.DEVICE_PREVIEW_CARD_HEIGHT_DP,
         ).coerceAtLeast(120),
-        virtualButtonsOutside = prefs.getString(
-            AppPreferenceKeys.VIRTUAL_BUTTONS_OUTSIDE,
-            AppDefaults.VIRTUAL_BUTTONS_OUTSIDE,
-        ).orEmpty().ifBlank { AppDefaults.VIRTUAL_BUTTONS_OUTSIDE },
-        virtualButtonsInMore = prefs.getString(
-            AppPreferenceKeys.VIRTUAL_BUTTONS_IN_MORE,
-            AppDefaults.VIRTUAL_BUTTONS_IN_MORE,
-        ).orEmpty().ifBlank { AppDefaults.VIRTUAL_BUTTONS_IN_MORE },
+        virtualButtonsLayout = prefs.getString(
+            AppPreferenceKeys.VIRTUAL_BUTTONS_LAYOUT,
+            AppDefaults.VIRTUAL_BUTTONS_LAYOUT,
+        ).orEmpty().ifBlank { AppDefaults.VIRTUAL_BUTTONS_LAYOUT },
         customServerUri = prefs.getString(
             AppPreferenceKeys.CUSTOM_SERVER_URI,
             AppDefaults.CUSTOM_SERVER_URI
@@ -178,6 +178,10 @@ internal fun saveMainSettings(context: Context, settings: MainSettings) {
                 settings.showFullscreenVirtualButtons,
             )
             .putBoolean(
+                AppPreferenceKeys.PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT,
+                settings.showPreviewVirtualButtonText,
+            )
+            .putBoolean(
                 AppPreferenceKeys.KEEP_SCREEN_ON_WHEN_STREAMING,
                 settings.keepScreenOnWhenStreamingEnabled,
             )
@@ -186,12 +190,8 @@ internal fun saveMainSettings(context: Context, settings: MainSettings) {
                 settings.devicePreviewCardHeightDp.coerceAtLeast(120),
             )
             .putString(
-                AppPreferenceKeys.VIRTUAL_BUTTONS_OUTSIDE,
-                settings.virtualButtonsOutside,
-            )
-            .putString(
-                AppPreferenceKeys.VIRTUAL_BUTTONS_IN_MORE,
-                settings.virtualButtonsInMore,
+                AppPreferenceKeys.VIRTUAL_BUTTONS_LAYOUT,
+                settings.virtualButtonsLayout,
             )
             .putString(
                 AppPreferenceKeys.CUSTOM_SERVER_URI,

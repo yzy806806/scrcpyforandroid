@@ -4,21 +4,23 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeOff
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.PhotoCamera
-import androidx.compose.material.icons.filled.PowerSettingsNew
+import androidx.compose.material.icons.automirrored.rounded.VolumeDown
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Menu
+import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.PowerSettingsNew
+import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,15 +30,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiAndroidKeycodes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.ListPopupColumn
 import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
+import top.yukonga.miuix.kmp.basic.SpinnerDefaults
+import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.SpinnerItemImpl
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.extra.SuperListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -50,13 +56,13 @@ enum class VirtualButtonAction(
     MORE(
         "more",
         "更多",
-        Icons.Default.MoreVert,
+        Icons.Rounded.MoreVert,
         null
     ),
     HOME(
         "home",
         "主页",
-        Icons.Default.Home,
+        Icons.Rounded.Home,
         UiAndroidKeycodes.HOME
     ),
     BACK(
@@ -68,97 +74,87 @@ enum class VirtualButtonAction(
     APP_SWITCH(
         "app_switch",
         "多任务",
-        Icons.Default.Apps,
+        Icons.Rounded.Apps,
         UiAndroidKeycodes.APP_SWITCH
     ),
     MENU(
         "menu",
         "菜单",
-        Icons.Default.Menu,
+        Icons.Rounded.Menu,
         UiAndroidKeycodes.MENU
     ),
     NOTIFICATION(
         "notification",
         "通知栏",
-        Icons.Default.Notifications,
+        Icons.Rounded.Notifications,
         UiAndroidKeycodes.NOTIFICATION
     ),
     VOLUME_UP(
         "volume_up",
         "音量+",
-        Icons.AutoMirrored.Filled.VolumeUp,
+        Icons.AutoMirrored.Rounded.VolumeUp,
         UiAndroidKeycodes.VOLUME_UP
     ),
     VOLUME_DOWN(
         "volume_down",
         "音量-",
-        Icons.AutoMirrored.Filled.VolumeDown,
+        Icons.AutoMirrored.Rounded.VolumeDown,
         UiAndroidKeycodes.VOLUME_DOWN
     ),
     VOLUME_MUTE(
         "volume_mute",
         "静音",
-        Icons.AutoMirrored.Filled.VolumeOff,
+        Icons.AutoMirrored.Rounded.VolumeOff,
         UiAndroidKeycodes.VOLUME_MUTE
     ),
     POWER(
         "power",
         "锁屏",
-        Icons.Default.PowerSettingsNew,
+        Icons.Rounded.PowerSettingsNew,
         UiAndroidKeycodes.POWER
     ),
     SCREENSHOT(
         "screenshot",
         "截图",
-        Icons.Default.PhotoCamera,
+        Icons.Rounded.Screenshot,
         UiAndroidKeycodes.SYSRQ
     ),
 }
+
+data class VirtualButtonItem(
+    val action: VirtualButtonAction,
+    val showOutside: Boolean,
+)
 
 object VirtualButtonActions {
     val all = VirtualButtonAction.entries
 
     private val byId = all.associateBy { it.id }
 
-    fun parseStoredIds(raw: String): List<String> {
-        if (raw.isBlank()) return emptyList()
+    fun parseStoredLayout(raw: String): List<VirtualButtonItem> {
+        if (raw.isBlank())
+            return parseStoredLayout(AppDefaults.VIRTUAL_BUTTONS_LAYOUT)
+
         return raw.split(',').mapNotNull { item ->
-            val id = item.trim()
-            id.ifBlank { null }
+            val parts = item.trim().split(':')
+            if (parts.size != 2) return@mapNotNull null
+            val id = parts[0]
+            val showOutside = parts[1] == "1"
+            val action = byId[id] ?: return@mapNotNull null
+            VirtualButtonItem(action, showOutside)
         }
     }
 
-    fun encodeStoredIds(ids: List<String>): String = ids.joinToString(",")
-
-    fun resolveLayout(
-        outsideIds: List<String>,
-        moreIds: List<String>,
-    ): Pair<List<VirtualButtonAction>, List<VirtualButtonAction>> {
-        val outside = mutableListOf<VirtualButtonAction>()
-        val overflow = mutableListOf<VirtualButtonAction>()
-        val used = mutableSetOf<String>()
-
-        outsideIds.forEach { id ->
-            val action = byId[id] ?: return@forEach
-            if (used.add(action.id)) outside.add(action)
+    fun encodeStoredLayout(items: List<VirtualButtonItem>): String {
+        return items.joinToString(",") { item ->
+            "${item.action.id}:${if (item.showOutside) "1" else "0"}"
         }
+    }
 
-        if (used.add(VirtualButtonAction.MORE.id)) {
-            outside.add(VirtualButtonAction.MORE)
-        }
-
-        moreIds.forEach { id ->
-            if (id == VirtualButtonAction.MORE.id) return@forEach
-            val action = byId[id] ?: return@forEach
-            if (used.add(action.id)) overflow.add(action)
-        }
-
-        all.forEach { action ->
-            if (action == VirtualButtonAction.MORE) return@forEach
-            if (used.add(action.id)) overflow.add(action)
-        }
-
-        return outside to overflow
+    fun splitLayout(items: List<VirtualButtonItem>): Pair<List<VirtualButtonAction>, List<VirtualButtonAction>> {
+        val outside = items.filter { it.showOutside }.map { it.action }
+        val more = items.filter { !it.showOutside }.map { it.action }
+        return outside to more
     }
 }
 
@@ -169,11 +165,11 @@ class VirtualButtonBar(
     @Composable
     fun Preview(
         enabled: Boolean,
-        onPressHaptic: () -> Unit,
-        onConfirmHaptic: () -> Unit,
+        showText: Boolean,
         onAction: (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
     ) {
+        val haptics = rememberAppHaptics()
         val activeContainerColor = MiuixTheme.colorScheme.primary
         val disabledContainerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.35f)
         val activeContentColor = MiuixTheme.colorScheme.onPrimary
@@ -188,7 +184,7 @@ class VirtualButtonBar(
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
-                            onPressHaptic()
+                            haptics.contextClick()
                             if (action == VirtualButtonAction.MORE) {
                                 showMorePopup = true
                             } else {
@@ -201,6 +197,7 @@ class VirtualButtonBar(
                             color = activeContainerColor,
                             disabledColor = disabledContainerColor,
                         ),
+                        insideMargin = PaddingValues(0.dp),
                     ) {
                         val contentColor = if (enabled) activeContentColor else disabledContentColor
                         Icon(
@@ -209,15 +206,16 @@ class VirtualButtonBar(
                             modifier = Modifier.size(18.dp),
                             tint = contentColor,
                         )
-                        androidx.compose.foundation.layout.Spacer(Modifier.width(UiSpacing.Small))
-                        Text(action.title, color = contentColor)
+                        if (showText) {
+                            Spacer(Modifier.width(UiSpacing.Small))
+                            Text(action.title, color = contentColor)
+                        }
                     }
                     if (action == VirtualButtonAction.MORE) {
                         MorePopup(
                             show = showMorePopup,
                             moreActions = moreActions,
                             onDismiss = { showMorePopup = false },
-                            onConfirmHaptic = onConfirmHaptic,
                             onAction = {
                                 onAction(it)
                                 showMorePopup = false
@@ -232,11 +230,10 @@ class VirtualButtonBar(
 
     @Composable
     fun Fullscreen(
-        onPressHaptic: () -> Unit,
-        onConfirmHaptic: () -> Unit,
         onAction: (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
     ) {
+        val haptics = rememberAppHaptics()
         var showMorePopup by remember { mutableStateOf(false) }
 
         Row(
@@ -247,7 +244,7 @@ class VirtualButtonBar(
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
-                            onPressHaptic()
+                            haptics.contextClick()
                             if (action == VirtualButtonAction.MORE) {
                                 showMorePopup = true
                             } else {
@@ -270,7 +267,6 @@ class VirtualButtonBar(
                             show = showMorePopup,
                             moreActions = moreActions,
                             onDismiss = { showMorePopup = false },
-                            onConfirmHaptic = onConfirmHaptic,
                             onAction = {
                                 onAction(it)
                                 showMorePopup = false
@@ -288,10 +284,26 @@ class VirtualButtonBar(
         show: Boolean,
         moreActions: List<VirtualButtonAction>,
         onDismiss: () -> Unit,
-        onConfirmHaptic: () -> Unit,
         onAction: (VirtualButtonAction) -> Unit,
         renderInRootScaffold: Boolean,
     ) {
+        val haptics = rememberAppHaptics()
+        val spinnerItems = remember(moreActions) {
+            moreActions.map { action ->
+                SpinnerEntry(
+                    icon = {
+                        Icon(
+                            action.icon,
+                            contentDescription = action.title,
+                            modifier = Modifier
+                                .padding(end = UiSpacing.CardContent),
+                        )
+                    },
+                    title = action.title,
+                )
+            }
+        }
+
         SuperListPopup(
             show = show,
             popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
@@ -301,15 +313,17 @@ class VirtualButtonBar(
             enableWindowDim = false,
         ) {
             ListPopupColumn {
-                moreActions.forEachIndexed { index, action ->
-                    DropdownImpl(
-                        text = action.title,
-                        optionSize = moreActions.size,
+                spinnerItems.forEachIndexed { index, entry ->
+                    SpinnerItemImpl(
+                        entry = entry,
+                        entryCount = spinnerItems.size,
                         isSelected = false,
                         index = index,
-                        onSelectedIndexChange = {
-                            onConfirmHaptic()
-                            onAction(action)
+                        spinnerColors = SpinnerDefaults.spinnerColors(),
+                        dialogMode = false,
+                        onSelectedIndexChange = { selectedIdx ->
+                            haptics.confirm()
+                            onAction(moreActions[selectedIdx])
                         },
                     )
                 }

@@ -30,9 +30,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AddLink
-import androidx.compose.material.icons.filled.Fullscreen
+import androidx.compose.material.icons.rounded.AddLink
 import androidx.compose.material.icons.rounded.CheckCircleOutline
+import androidx.compose.material.icons.rounded.Fullscreen
 import androidx.compose.material.icons.rounded.LinkOff
 import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
@@ -123,18 +123,28 @@ internal fun StatusCard(
     sessionInfo: ScrcpySessionInfo?,
     busyLabel: String?,
     connectedDeviceLabel: String,
+    themeBaseIndex: Int,
 ) {
     val cleanStatusLine = normalizeStatusLine(statusLine)
+
+    // 根据应用主题设置决定是否使用深色模式
+    val isDarkTheme = when (themeBaseIndex) {
+        0 -> isSystemInDarkTheme() // 跟随系统
+        1 -> false // 浅色
+        2 -> true // 深色
+        else -> isSystemInDarkTheme()
+    }
+
     val spec = when {
         streaming && sessionInfo != null -> {
             val streamCardColor = when {
                 isDynamicColor -> MiuixTheme.colorScheme.secondaryContainer
-                isSystemInDarkTheme() -> Color(0xFF1A3825)
+                isDarkTheme -> Color(0xFF1A3825)
                 else -> Color(0xFFDFFAE4)
             }
             val streamTextColor = when {
                 isDynamicColor -> MiuixTheme.colorScheme.onSecondaryContainer
-                isSystemInDarkTheme() -> Color.White
+                isDarkTheme -> Color.White
                 else -> Color(0xFF111111)
             }
             val streamIconColor = if (isDynamicColor) {
@@ -300,12 +310,17 @@ internal fun PreviewCard(
                 ) {
                     Button(
                         onClick = {
-                            onOpenFullscreenHaptic?.invoke()
-                            onOpenFullscreen()
+                            if (alpha > 0.1) {
+                                onOpenFullscreenHaptic?.invoke()
+                                onOpenFullscreen()
+                            }
                         },
                         modifier = Modifier.alpha(alpha),
                     ) {
-                        Icon(Icons.Default.Fullscreen, contentDescription = "全屏")
+                        Icon(
+                            Icons.Rounded.Fullscreen,
+                            contentDescription = "全屏",
+                        )
                         Spacer(Modifier.width(UiSpacing.SectionTitleBottom))
                         Text("全屏")
                     }
@@ -320,8 +335,7 @@ internal fun VirtualButtonCard(
     busy: Boolean,
     outsideActions: List<VirtualButtonAction>,
     moreActions: List<VirtualButtonAction>,
-    onPressHaptic: () -> Unit,
-    onConfirmHaptic: () -> Unit,
+    showText: Boolean,
     onAction: (VirtualButtonAction) -> Unit,
 ) {
     val bar = remember(outsideActions, moreActions) {
@@ -334,8 +348,7 @@ internal fun VirtualButtonCard(
     Card {
         bar.Preview(
             enabled = !busy,
-            onPressHaptic = onPressHaptic,
-            onConfirmHaptic = onConfirmHaptic,
+            showText = showText,
             onAction = onAction,
             modifier = Modifier
                 .fillMaxWidth()
@@ -374,7 +387,7 @@ internal fun ConfigPanel(
     val audioBitRatePresetIndex =
         presetIndexFromInput(audioBitRateKbps.toString(), ScrcpyPresets.AudioBitRate)
 
-    SectionSmallTitle(text = "Scrcpy")
+    SectionSmallTitle("Scrcpy")
     Card {
         SuperSwitch(
             title = "音频转发",
@@ -1021,7 +1034,7 @@ internal fun DeviceTile(
             else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
         ),
         pressFeedbackType = PressFeedbackType.Sink,
-        onClick = haptics.press,
+        onClick = haptics.contextClick,
     ) {
         Row(
             modifier = Modifier
@@ -1109,7 +1122,7 @@ internal fun QuickConnectCard(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Icon(
-                Icons.Default.AddLink,
+                Icons.Rounded.AddLink,
                 contentDescription = "快速连接",
                 tint = MiuixTheme.colorScheme.onPrimaryContainer,
             )
@@ -1180,7 +1193,7 @@ internal fun DeviceEditorScreen(
             .padding(contentPadding)
             .padding(UiSpacing.PageHorizontal),
     ) {
-        SectionSmallTitle(text = "编辑设备")
+        SectionSmallTitle("编辑设备")
         Card {
             TextField(
                 value = name,
