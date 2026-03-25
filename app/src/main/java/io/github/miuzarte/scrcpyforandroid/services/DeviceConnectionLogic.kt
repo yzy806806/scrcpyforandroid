@@ -1,6 +1,8 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
+import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
+import kotlinx.coroutines.runBlocking
 
 internal data class ConnectedDeviceInfo(
     val model: String,
@@ -22,28 +24,21 @@ internal data class ConnectedDeviceInfo(
  * - Returns a lightweight [ConnectedDeviceInfo] structure with commonly-used properties.
  */
 internal fun fetchConnectedDeviceInfo(
-    nativeCore: NativeCoreFacade,
+    adbService: NativeAdbService,
     host: String,
     port: Int
-): ConnectedDeviceInfo {
-    fun prop(name: String): String =
-        runCatching { nativeCore.adbShell("getprop $name").trim() }.getOrDefault("")
+): ConnectedDeviceInfo = runBlocking {
+    suspend fun prop(name: String): String = runCatching {
+        adbService.shell("getprop $name").trim()
+    }.getOrDefault("")
 
-    val model = prop("ro.product.model")
-    val serial = prop("ro.serialno")
-    val manufacturer = prop("ro.product.manufacturer")
-    val brand = prop("ro.product.brand")
-    val device = prop("ro.product.device")
-    val androidRelease = prop("ro.build.version.release")
-    val sdkInt = prop("ro.build.version.sdk").toIntOrNull() ?: -1
-
-    return ConnectedDeviceInfo(
-        model = model.ifBlank { "$host:$port" },
-        serial = serial,
-        manufacturer = manufacturer,
-        brand = brand,
-        device = device,
-        androidRelease = androidRelease,
-        sdkInt = sdkInt,
+    ConnectedDeviceInfo(
+        model = prop("ro.product.model").ifBlank { "$host:$port" },
+        serial = prop("ro.serialno"),
+        manufacturer = prop("ro.product.manufacturer"),
+        brand = prop("ro.product.brand"),
+        device = prop("ro.product.device"),
+        androidRelease = prop("ro.build.version.release"),
+        sdkInt = prop("ro.build.version.sdk").toIntOrNull() ?: -1,
     )
 }

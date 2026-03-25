@@ -548,7 +548,7 @@ internal class DirectAdbConnection(
  * Logical ADB stream abstraction mapped to a local id. Provides blocking
  * `InputStream`/`OutputStream` implementations and lifecycle helpers used by callers.
  */
-internal class AdbSocketStream(
+class AdbSocketStream(
     val localId: Int,
     private val sender: (cmd: Int, arg0: Int, arg1: Int, data: ByteArray) -> Unit,
 ) : Closeable {

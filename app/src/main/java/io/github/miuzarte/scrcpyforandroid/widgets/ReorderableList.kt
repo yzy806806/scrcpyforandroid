@@ -37,7 +37,7 @@ class ReorderableList(
     private val showCheckbox: Boolean = false,
     private val onCheckboxChange: ((String, Boolean) -> Unit)? = null,
 ) {
-    enum class Orientation { Column, Row }
+    enum class Orientation { Column, Row; }
 
     data class Item(
         val id: String,

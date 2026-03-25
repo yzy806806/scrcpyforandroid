@@ -25,6 +25,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -34,6 +35,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiAndroidKeycodes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Icon
@@ -118,7 +120,7 @@ enum class VirtualButtonAction(
         "截图",
         Icons.Rounded.Screenshot,
         UiAndroidKeycodes.SYSRQ
-    ),
+    );
 }
 
 data class VirtualButtonItem(
@@ -230,9 +232,10 @@ class VirtualButtonBar(
 
     @Composable
     fun Fullscreen(
-        onAction: (VirtualButtonAction) -> Unit,
+        onAction: suspend (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
     ) {
+        val scope = rememberCoroutineScope()
         val haptics = rememberAppHaptics()
         var showMorePopup by remember { mutableStateOf(false) }
 
@@ -248,7 +251,9 @@ class VirtualButtonBar(
                             if (action == VirtualButtonAction.MORE) {
                                 showMorePopup = true
                             } else {
-                                onAction(action)
+                                scope.launch {
+                                    onAction(action)
+                                }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -284,9 +289,10 @@ class VirtualButtonBar(
         show: Boolean,
         moreActions: List<VirtualButtonAction>,
         onDismiss: () -> Unit,
-        onAction: (VirtualButtonAction) -> Unit,
+        onAction: suspend (VirtualButtonAction) -> Unit,
         renderInRootScaffold: Boolean,
     ) {
+        val scope = rememberCoroutineScope()
         val haptics = rememberAppHaptics()
         val spinnerItems = remember(moreActions) {
             moreActions.map { action ->
@@ -323,7 +329,9 @@ class VirtualButtonBar(
                         dialogMode = false,
                         onSelectedIndexChange = { selectedIdx ->
                             haptics.confirm()
-                            onAction(moreActions[selectedIdx])
+                            scope.launch {
+                                onAction(moreActions[selectedIdx])
+                            }
                         },
                     )
                 }

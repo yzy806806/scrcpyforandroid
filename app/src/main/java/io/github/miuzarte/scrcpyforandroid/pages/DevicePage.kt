@@ -19,18 +19,29 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
-import io.github.miuzarte.scrcpyforandroid.ScrcpySessionInfo
+import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.ScrcpySessionInfo
 import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
+import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.ListOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
 import io.github.miuzarte.scrcpyforandroid.services.DevicePageSettings
+import io.github.miuzarte.scrcpyforandroid.services.EventLogger
+import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadQuickDevices
@@ -65,9 +76,6 @@ import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.extra.SuperBottomSheet
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 import java.util.concurrent.Executors
 
 private const val ADB_CONNECT_TIMEOUT_MS = 3_000L
@@ -77,10 +85,9 @@ private const val ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS = 1_200L
 private const val ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS = 1_500L
 private const val ADB_TCP_PROBE_TIMEOUT_MS = 600
 private const val DEVICE_SHORTCUT_SEPARATOR = "\u001F"
-private const val LOG_TAG = "DevicePage"
 
 private val DeviceShortcutStateListSaver =
-    listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<DeviceShortcut>, String>(
+    listSaver<SnapshotStateList<DeviceShortcut>, String>(
         save = { list ->
             list.map { item ->
                 listOf(
@@ -109,7 +116,7 @@ private val DeviceShortcutStateListSaver =
     )
 
 private val StringStateListSaver =
-    listSaver<androidx.compose.runtime.snapshots.SnapshotStateList<String>, String>(
+    listSaver<SnapshotStateList<String>, String>(
         save = { it.toList() },
         restore = { it.toMutableStateList() },
     )
@@ -118,15 +125,14 @@ private val StringStateListSaver =
 fun DeviceTabScreen(
     contentPadding: PaddingValues,
     nativeCore: NativeCoreFacade,
+    adbService: NativeAdbService,
+    scrcpy: Scrcpy,
     snack: SnackbarHostState,
     scrollBehavior: ScrollBehavior,
     virtualButtonsLayout: String,
     showPreviewVirtualButtonText: Boolean,
     previewCardHeightDp: Int,
     themeBaseIndex: Int,
-    customServerUri: String?,
-    serverRemotePath: String,
-    onServerRemotePathChange: (String) -> Unit,
     videoCodec: String,
     onVideoCodecChange: (String) -> Unit,
     audioEnabled: Boolean,
@@ -287,40 +293,12 @@ fun DeviceTabScreen(
         currentTargetPort
     ) else null
 
-    val eventLog = rememberSaveable(saver = StringStateListSaver) { mutableStateListOf() }
     val quickDevices =
         rememberSaveable(saver = DeviceShortcutStateListSaver) { mutableStateListOf() }
     val sessionReconnectBlacklistHosts = remember { mutableSetOf<String>() }
 
-    LaunchedEffect(eventLog.size) {
-        onCanClearLogsChange(eventLog.isNotEmpty())
-    }
-
-    fun logEvent(message: String, level: Int = Log.INFO, error: Throwable? = null) {
-        val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
-        val line = "[$timestamp] $message"
-        eventLog.add(0, line)
-        if (eventLog.size > AppDefaults.EVENT_LOG_LINES) {
-            eventLog.removeRange(AppDefaults.EVENT_LOG_LINES, eventLog.size)
-        }
-        when (level) {
-            Log.ERROR -> if (error != null) Log.e(LOG_TAG, message, error) else Log.e(
-                LOG_TAG,
-                message
-            )
-
-            Log.WARN -> if (error != null) Log.w(LOG_TAG, message, error) else Log.w(
-                LOG_TAG,
-                message
-            )
-
-            Log.DEBUG -> if (error != null) Log.d(LOG_TAG, message, error) else Log.d(
-                LOG_TAG,
-                message
-            )
-
-            else -> if (error != null) Log.i(LOG_TAG, message, error) else Log.i(LOG_TAG, message)
-        }
+    LaunchedEffect(EventLogger.eventLog.size) {
+        onCanClearLogsChange(EventLogger.hasLogs())
     }
 
     /**
@@ -352,8 +330,8 @@ fun DeviceTabScreen(
     ) {
         withContext(adbWorkerDispatcher) {
             // Also stops scrcpy.
-            runCatching { nativeCore.scrcpyStop() }
-            runCatching { nativeCore.adbDisconnect() }
+            runCatching { scrcpy.stop() }
+            runCatching { adbService.disconnect() }
         }
         adbConnected = false
         currentTargetHost = ""
@@ -383,7 +361,6 @@ fun DeviceTabScreen(
         if (current.host == newHost && current.port == newPort) return
 
         sessionReconnectBlacklistHosts += current.host
-        logEvent("切换连接目标，先断开当前设备: ${current.host}:${current.port}")
         disconnectAdbConnection(clearQuickOnlineForTarget = current)
     }
 
@@ -420,10 +397,10 @@ fun DeviceTabScreen(
      * - Some adb endpoints can take long to accept TCP connects; the UI should not wait
      *   indefinitely. Use a small, caller-chosen timeout to keep UX snappy.
      */
-    suspend fun connectWithTimeout(host: String, port: Int): Boolean {
+    suspend fun connectWithTimeout(host: String, port: Int) {
         return withContext(adbWorkerDispatcher) {
             withTimeout(ADB_CONNECT_TIMEOUT_MS) {
-                nativeCore.adbConnect(host, port)
+                adbService.connect(host, port)
             }
         }
     }
@@ -444,12 +421,12 @@ fun DeviceTabScreen(
     suspend fun keepAliveCheck(host: String, port: Int): Boolean {
         return withContext(adbWorkerDispatcher) {
             withTimeout(ADB_KEEPALIVE_TIMEOUT_MS) {
-                val connected = nativeCore.adbIsConnected()
+                val connected = adbService.isConnected()
                 if (!connected) {
                     return@withTimeout false
                 }
                 runCatching {
-                    nativeCore.adbShell("echo -n 1")
+                    adbService.shell("echo -n 1")
                     true
                 }.getOrElse { false }
             }
@@ -545,25 +522,21 @@ fun DeviceTabScreen(
         }
     }
 
-    suspend fun runAutoAdbConnect(host: String, port: Int): Boolean {
-        return runCatching {
+    suspend fun runAutoAdbConnect(host: String, port: Int) {
+        runCatching {
             connectWithTimeout(host, port)
         }.getOrElse { error ->
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             logEvent("自动重连失败: $host:$port ($detail)", Log.WARN)
-            false
         }
     }
 
-    fun refreshEncoderLists() {
+    suspend fun refreshEncoderLists() {
         if (!adbConnected) return
-        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.SERVER_REMOTE_PATH }
         runCatching {
-            nativeCore.scrcpyListEncoders(
-                customServerUri = customServerUri,
-                remotePath = remotePath,
-            )
-        }.onSuccess { lists ->
+            scrcpy.listOptions(list = ListOptions.ENCODERS)
+        }.onSuccess { result ->
+            val lists = result as Scrcpy.ListResult.Encoders
             onVideoEncoderOptionsChange(lists.videoEncoders)
             onAudioEncoderOptionsChange(lists.audioEncoders)
             onVideoEncoderTypeMapChange(lists.videoEncoderTypes)
@@ -574,12 +547,15 @@ fun DeviceTabScreen(
             if (audioEncoder.isNotBlank() && audioEncoder !in audioEncoderOptions) {
                 onAudioEncoderChange("")
             }
-            logEvent("编码器列表已刷新: video=${lists.videoEncoders.size} audio=${lists.audioEncoders.size}")
+            EventLogger.logEvent("编码器列表已刷新: video=${lists.videoEncoders.size} audio=${lists.audioEncoders.size}")
             if (lists.videoEncoders.isEmpty() && lists.audioEncoders.isEmpty()) {
-                logEvent("提示: 编码器为空，请检查 server 路径/版本与设备系统日志", Log.WARN)
+                EventLogger.logEvent(
+                    "提示: 编码器为空，请检查 server 路径/版本与设备系统日志",
+                    Log.WARN
+                )
                 val preview = lists.rawOutput.lineSequence().take(20).joinToString(" | ")
                 if (preview.isNotBlank()) {
-                    logEvent("编码器原始输出: $preview", Log.DEBUG)
+                    EventLogger.logEvent("编码器原始输出: $preview", Log.DEBUG)
                 }
             }
         }.onFailure { e ->
@@ -587,41 +563,46 @@ fun DeviceTabScreen(
             onAudioEncoderOptionsChange(emptyList())
             onVideoEncoderTypeMapChange(emptyMap())
             onAudioEncoderTypeMapChange(emptyMap())
-            logEvent("读取编码器列表失败: ${e.message ?: e.javaClass.simpleName}", Log.ERROR, e)
+            EventLogger.logEvent(
+                "读取编码器列表失败: ${e.message ?: e.javaClass.simpleName}",
+                Log.ERROR,
+                e
+            )
         }
     }
 
-    fun refreshCameraSizeLists() {
+    suspend fun refreshCameraSizeLists() {
         if (!adbConnected) return
-        val remotePath = serverRemotePath.trim().ifBlank { AppDefaults.SERVER_REMOTE_PATH }
         runCatching {
-            nativeCore.scrcpyListCameraSizes(
-                customServerUri = customServerUri,
-                remotePath = remotePath,
-            )
-        }.onSuccess { lists ->
+            scrcpy.listOptions(ListOptions.CAMERA_SIZES)
+        }.onSuccess { result ->
+            val lists = result as Scrcpy.ListResult.CameraSizes
             onCameraSizeOptionsChange(lists.sizes)
             if (cameraSizePreset.isNotBlank() && cameraSizePreset != "custom" && cameraSizePreset !in lists.sizes) {
                 onCameraSizePresetChange("")
             }
-            logEvent("camera sizes 已刷新: count=${lists.sizes.size}")
+            EventLogger.logEvent("camera sizes 已刷新: count=${lists.sizes.size}")
             if (lists.sizes.isEmpty()) {
                 val preview = lists.rawOutput.lineSequence().take(20).joinToString(" | ")
                 if (preview.isNotBlank()) {
-                    logEvent("camera sizes 原始输出: $preview", Log.DEBUG)
+                    EventLogger.logEvent("camera sizes 原始输出: $preview", Log.DEBUG)
                 }
             }
         }.onFailure { e ->
             onCameraSizeOptionsChange(emptyList())
-            logEvent("读取 camera sizes 失败: ${e.message ?: e.javaClass.simpleName}", Log.ERROR, e)
+            EventLogger.logEvent(
+                "读取 camera sizes 失败: ${e.message ?: e.javaClass.simpleName}",
+                Log.ERROR,
+                e
+            )
         }
     }
 
-    fun handleAdbConnected(host: String, port: Int) {
+    suspend fun handleAdbConnected(host: String, port: Int) {
         currentTargetHost = host
         currentTargetPort = port
 
-        val info = fetchConnectedDeviceInfo(nativeCore, host, port)
+        val info = fetchConnectedDeviceInfo(adbService, host, port)
         val fullLabel = if (info.serial.isNotBlank()) {
             "${info.model} (${info.serial})"
         } else {
@@ -761,18 +742,18 @@ fun DeviceTabScreen(
             if (alive) continue
 
             logEvent("ADB 长连接中断，尝试自动重连: $host:$port", Log.WARN)
-            val reconnected = runCatching { connectWithTimeout(host, port) }.getOrElse { false }
-            adbConnected = reconnected
-            if (reconnected) {
+            try {
+                connectWithTimeout(host, port)
+                adbConnected = true
                 statusLine = "$host:$port"
                 logEvent("ADB 自动重连成功: $host:$port")
                 scope.launch {
                     snack.showSnackbar("ADB 自动重连成功")
                 }
-            } else {
+            } catch (e: Exception) {
                 disconnectAdbConnection()
                 statusLine = "ADB 连接断开"
-                logEvent("ADB 自动重连失败: $host:$port", Log.ERROR)
+                logEvent("ADB 自动重连失败: $e", Log.ERROR)
                 scope.launch {
                     snack.showSnackbar("ADB 自动重连失败")
                 }
@@ -806,26 +787,27 @@ fun DeviceTabScreen(
                     if (!portReachable) continue
 
                     quickConnectTriedOnce += targetKey
-                    val ok = runAutoAdbConnect(target.host, target.port)
-                    adbConnected = ok
-                    upsertQuickDevice(
-                        context,
-                        quickDevices,
-                        target.host,
-                        target.port,
-                        ok
-                    )
-                    if (ok) {
+                    try {
+                        runAutoAdbConnect(target.host, target.port)
+                        adbConnected = true
+                        upsertQuickDevice(
+                            context,
+                            quickDevices,
+                            target.host,
+                            target.port,
+                            true,
+                        )
                         handleAdbConnected(target.host, target.port)
                         logEvent("ADB 快速探测连接成功: ${target.host}:${target.port}")
-                        break
+                    } catch (_: Exception) {
                     }
+                    break
                 }
                 if (adbConnected) break
             }
 
             val discovered = withContext(Dispatchers.IO) {
-                nativeCore.adbDiscoverConnectService(
+                adbService.discoverConnectService(
                     timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
                     includeLanDevices = adbMdnsLanDiscoveryEnabled,
                 )
@@ -870,20 +852,19 @@ fun DeviceTabScreen(
                 continue
             }
 
-            val ok = runAutoAdbConnect(discoveredHost, discoveredPort)
-            adbConnected = ok
-            upsertQuickDevice(
-                context,
-                quickDevices,
-                discoveredHost,
-                discoveredPort,
-                ok
-            )
-            if (ok) {
+            try {
+                runAutoAdbConnect(discoveredHost, discoveredPort)
+                adbConnected = true
+                upsertQuickDevice(
+                    context,
+                    quickDevices,
+                    discoveredHost,
+                    discoveredPort,
+                    true
+                )
                 handleAdbConnected(discoveredHost, discoveredPort)
                 logEvent("ADB 自动重连成功: $discoveredHost:$discoveredPort")
-            } else {
-                logEvent("ADB 自动重连失败: $discoveredHost:$discoveredPort", Log.WARN)
+            } catch (_: Exception) {
             }
 
             delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
@@ -925,7 +906,7 @@ fun DeviceTabScreen(
             runBusy("刷新 Camera Sizes") { refreshCameraSizeLists() }
         }
         onClearLogsActionChange {
-            eventLog.clear()
+            EventLogger.clearLogs()
         }
         onOpenReorderDevicesActionChange {
             showReorderSheet = true
@@ -973,8 +954,8 @@ fun DeviceTabScreen(
     fun sendVirtualButtonAction(action: VirtualButtonAction) {
         val keycode = action.keycode ?: return
         runBusy("发送 ${action.title}") {
-            nativeCore.scrcpyInjectKeycode(0, keycode)
-            nativeCore.scrcpyInjectKeycode(1, keycode)
+            nativeCore.sessionManager.injectKeycode(0, keycode)
+            nativeCore.sessionManager.injectKeycode(1, keycode)
         }
     }
 
@@ -1024,12 +1005,13 @@ fun DeviceTabScreen(
         itemsIndexed(quickDevices, key = { _, device -> device.id }) { _, device ->
             val host = device.host
             val port = device.port
-            val isConnectedTarget =
-                adbConnected && currentTarget?.host == host && currentTarget.port == port
+            val isConnectedTarget = adbConnected
+                    && currentTarget?.host == host
+                    && currentTarget.port == port
 
             DeviceTile(
                 device = device,
-                actionText = if (isConnectedTarget) "断开" else "连接",
+                actionText = if (!isConnectedTarget) "连接" else "断开",
                 actionEnabled = !busy && !adbConnecting,
                 actionInProgress = adbConnecting && activeDeviceActionId == device.id,
                 onLongPress = { editingDeviceId = device.id },
@@ -1040,7 +1022,24 @@ fun DeviceTabScreen(
                 },
                 onAction = {
                     haptics.contextClick()
-                    if (isConnectedTarget) {
+                    if (!isConnectedTarget) {
+                        activeDeviceActionId = device.id
+                        runAdbConnect("连接 ADB", onFinished = { activeDeviceActionId = null }) {
+                            disconnectCurrentTargetBeforeConnecting(host, port)
+                            try {
+                                connectWithTimeout(host, port)
+                                adbConnected = true
+                                upsertQuickDevice(context, quickDevices, host, port, true)
+                                handleAdbConnected(host, port)
+                            } catch (e: Exception) {
+                                statusLine = "ADB 连接失败"
+                                logEvent("ADB 连接失败: $e", Log.ERROR)
+                                scope.launch {
+                                    snack.showSnackbar("ADB 连接失败")
+                                }
+                            }
+                        }
+                    } else {
                         activeDeviceActionId = device.id
                         runAdbConnect("断开 ADB", onFinished = { activeDeviceActionId = null }) {
                             sessionReconnectBlacklistHosts += host
@@ -1049,23 +1048,6 @@ fun DeviceTabScreen(
                                 logMessage = "ADB 已断开: ${device.name}",
                                 showSnackMessage = "ADB 已断开",
                             )
-                        }
-                    } else {
-                        activeDeviceActionId = device.id
-                        runAdbConnect("连接 ADB", onFinished = { activeDeviceActionId = null }) {
-                            disconnectCurrentTargetBeforeConnecting(host, port)
-                            val ok = connectWithTimeout(host, port)
-                            adbConnected = ok
-                            upsertQuickDevice(context, quickDevices, host, port, ok)
-                            if (ok) {
-                                handleAdbConnected(host, port)
-                            } else {
-                                statusLine = "ADB 连接失败"
-                                logEvent("ADB 连接失败: $host:$port", Log.ERROR)
-                                scope.launch {
-                                    snack.showSnackbar("ADB 连接失败")
-                                }
-                            }
                         }
                     }
                 },
@@ -1093,16 +1075,16 @@ fun DeviceTabScreen(
                 },
                 onConnect = {
                     val target = parseQuickTarget(quickConnectInput) ?: return@QuickConnectCard
-                    runAdbConnect("连接 ADB") {
+                    runAdbConnect("连接 ADB", onFinished = { activeDeviceActionId = null }) {
                         disconnectCurrentTargetBeforeConnecting(target.host, target.port)
-                        val ok = connectWithTimeout(target.host, target.port)
-                        adbConnected = ok
-                        upsertQuickDevice(context, quickDevices, target.host, target.port, ok)
-                        if (ok) {
+                        try {
+                            connectWithTimeout(target.host, target.port)
+                            adbConnected = true
+                            upsertQuickDevice(context, quickDevices, target.host, target.port, true)
                             handleAdbConnected(target.host, target.port)
-                        } else {
+                        } catch (e: Exception) {
                             statusLine = "ADB 连接失败"
-                            logEvent("ADB 连接失败: ${target.host}:${target.port}", Log.ERROR)
+                            logEvent("ADB 连接失败: $e", Log.ERROR)
                             scope.launch {
                                 snack.showSnackbar("ADB 连接失败")
                             }
@@ -1116,7 +1098,7 @@ fun DeviceTabScreen(
                 busy = busy,
                 autoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
                 onDiscoverTarget = {
-                    nativeCore.adbDiscoverPairingService(
+                    adbService.discoverPairingService(
                         includeLanDevices = adbMdnsLanDiscoveryEnabled,
                     )
                 },
@@ -1125,7 +1107,7 @@ fun DeviceTabScreen(
                         val resolvedHost = host.trim()
                         val resolvedPort = port.toIntOrNull() ?: return@runBusy
                         val resolvedCode = code.trim()
-                        val ok = nativeCore.adbPair(
+                        val ok = adbService.pair(
                             resolvedHost,
                             resolvedPort,
                             resolvedCode,
@@ -1222,52 +1204,55 @@ fun DeviceTabScreen(
                                 cropY.filter(Char::isDigit),
                             )
                             val effectiveTurnScreenOff = turnScreenOff && !noControl
-                            val session = nativeCore.scrcpyStart(
-                                NativeCoreFacade.defaultStartRequest(
-                                    customServerUri = customServerUri,
-                                    maxSize = maxSize,
-                                    maxFps = maxFps,
-                                    videoBitRate = bitRateBps,
-                                    remotePath = serverRemotePath.trim(),
-                                    videoCodec = videoCodec,
-                                    audio = audioEnabled,
-                                    audioCodec = audioCodec,
-                                    audioBitRate = audioBitRateBps,
-                                    noControl = noControl,
-                                    videoEncoder = videoEncoder,
-                                    videoCodecOptions = videoCodecOptions,
-                                    audioEncoder = audioEncoder,
-                                    audioCodecOptions = audioCodecOptions,
-                                    audioDup = audioDup,
-                                    audioSource = resolvedAudioSource,
-                                    videoSource = resolvedVideoSource,
-                                    cameraId = resolvedCameraId,
-                                    cameraFacing = resolvedCameraFacing,
-                                    cameraSize = resolvedCameraSize,
-                                    cameraAr = resolvedCameraAr,
-                                    cameraFps = resolvedCameraFps,
-                                    cameraHighSpeed = cameraHighSpeed,
-                                    noAudioPlayback = noAudioPlayback,
-                                    noVideo = noVideo,
-                                    requireAudio = requireAudio,
-                                    turnScreenOff = effectiveTurnScreenOff,
-                                    newDisplay = newDisplayArg,
-                                    displayId = displayId,
-                                    crop = crop,
-                                ),
+
+                            val options = ClientOptions(
+                                crop = crop,
+                                videoCodecOptions = videoCodecOptions,
+                                audioCodecOptions = audioCodecOptions,
+                                videoEncoder = videoEncoder,
+                                audioEncoder = audioEncoder,
+                                cameraId = resolvedCameraId,
+                                cameraSize = resolvedCameraSize,
+                                cameraAr = resolvedCameraAr,
+                                cameraFps = resolvedCameraFps.toUShort(),
+                                videoCodec = Codec.fromString(videoCodec),
+                                audioCodec = Codec.fromString(audioCodec),
+                                videoSource = if (resolvedVideoSource == "camera") VideoSource.CAMERA else VideoSource.DISPLAY,
+                                audioSource = if (resolvedAudioSource.isNotBlank()) AudioSource.fromString(
+                                    resolvedAudioSource
+                                ) else AudioSource.AUTO,
+                                cameraFacing = if (resolvedCameraFacing.isNotBlank()) CameraFacing.fromString(
+                                    resolvedCameraFacing
+                                ) else CameraFacing.ANY,
+                                maxSize = maxSize.toUShort(),
+                                videoBitRate = bitRateBps.toUInt(),
+                                audioBitRate = audioBitRateBps.toUInt(),
+                                maxFps = if (maxFps > 0f) maxFps.toString() else "",
+                                displayId = (displayId ?: 0).toUInt(),
+                                control = !noControl,
+                                video = !noVideo,
+                                audio = audioEnabled,
+                                requireAudio = requireAudio,
+                                audioPlayback = !noAudioPlayback,
+                                turnScreenOff = effectiveTurnScreenOff,
+                                audioDup = audioDup,
+                                newDisplay = newDisplayArg,
+                                cameraHighSpeed = cameraHighSpeed,
                             )
+
+                            // Start scrcpy using Scrcpy class
+                            val session = scrcpy.start(
+                                options = options,
+                            )
+
                             sessionInfo = session
                             statusLine = "scrcpy 运行中"
                             @SuppressLint("DefaultLocale")
                             val videoDetail = if (noVideo) {
                                 "off"
                             } else {
-                                "${session.codec} ${session.width}x${session.height} @${
-                                    String.format(
-                                        "%.1f",
-                                        bitRateMbps
-                                    )
-                                }Mbps"
+                                "${session.codec} ${session.width}x${session.height} " +
+                                        "@${String.format("%.1f", bitRateMbps)}Mbps"
                             }
                             val audioDetail = if (!audioEnabled) {
                                 "off"
@@ -1279,17 +1264,16 @@ fun DeviceTabScreen(
                             scope.launch {
                                 snack.showSnackbar("scrcpy 已启动")
                             }
-                            nativeCore.getLastScrcpyServerCommand()?.let { command ->
+                            scrcpy.getLastServerCommand()?.let { command ->
                                 logEvent("scrcpy-server args: $command")
                             }
                         }
                     },
                     onStop = {
                         runBusy("停止 scrcpy") {
-                            nativeCore.scrcpyStop()
+                            scrcpy.stop()
                             sessionInfo = null
-                            statusLine =
-                                currentTarget?.let { "${it.host}:${it.port}" } ?: "ADB 已连接"
+                            statusLine = "${currentTarget!!.host}:${currentTarget.port}"
                             logEvent("scrcpy 已停止")
                             scope.launch {
                                 snack.showSnackbar("scrcpy 已停止")
@@ -1333,9 +1317,9 @@ fun DeviceTabScreen(
             }
         }
 
-        if (eventLog.isNotEmpty()) item {
+        if (EventLogger.hasLogs()) item {
             Spacer(Modifier.height(UiSpacing.PageItem))
-            LogsPanel(lines = eventLog)
+            LogsPanel(lines = EventLogger.eventLog)
         }
 
         // TODO: 放进 [AppPageLazyColumn] 里

@@ -143,7 +143,7 @@ internal class DirectAdbPairingClient(
         READY,
         EXCHANGING_MSGS,
         EXCHANGING_PEER_INFO,
-        STOPPED,
+        STOPPED;
     }
 
     private lateinit var socket: Socket

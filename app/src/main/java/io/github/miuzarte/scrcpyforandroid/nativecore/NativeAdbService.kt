@@ -2,18 +2,22 @@ package io.github.miuzarte.scrcpyforandroid.nativecore
 
 import android.content.Context
 import android.util.Log
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withTimeout
 import java.nio.file.Path
+import kotlin.time.Duration
 
 /**
  * Higher-level ADB service that wraps `DirectAdbTransport` and provides
- * synchronized connect/disconnect/shell helpers for callers.
+ * coroutine-based connect/disconnect/shell helpers for callers.
  *
- * Methods are synchronized because the underlying transport is single-connection
- * and accessed from the app's serialized IO executor.
+ * Methods use Mutex for thread-safety because the underlying transport is single-connection
+ * and may be accessed from multiple coroutines.
  */
 class NativeAdbService(appContext: Context) {
-
     private val transport = DirectAdbTransport(appContext)
+    private val mutex = Mutex()
 
     @Volatile
     private var connection: DirectAdbConnection? = null
@@ -30,14 +34,13 @@ class NativeAdbService(appContext: Context) {
             transport.keyName = value
         }
 
-    @Synchronized
-    fun pair(host: String, port: Int, pairingCode: String): Boolean {
+    suspend fun pair(host: String, port: Int, pairingCode: String): Boolean = mutex.withLock {
         val h = host.trim()
         val code = pairingCode.trim()
         require(h.isNotBlank()) { "host is blank" }
         require(code.isNotBlank()) { "pairing code is blank" }
         Log.i(TAG, "pair(): host=$h port=$port")
-        return try {
+        return@withLock try {
             transport.pair(h, port, code)
         } catch (e: Exception) {
             Log.e(TAG, "pair(): failed host=$h port=$port", e)
@@ -46,12 +49,11 @@ class NativeAdbService(appContext: Context) {
         }
     }
 
-    @Synchronized
-    fun discoverPairingService(
+    suspend fun discoverPairingService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true
-    ): Pair<String, Int>? {
-        return try {
+    ): Pair<String, Int>? = mutex.withLock {
+        return@withLock try {
             transport.discoverPairingService(timeoutMs, includeLanDevices)
         } catch (e: Exception) {
             Log.w(TAG, "discoverPairingService(): failed", e)
@@ -59,12 +61,11 @@ class NativeAdbService(appContext: Context) {
         }
     }
 
-    @Synchronized
-    fun discoverConnectService(
+    suspend fun discoverConnectService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true
-    ): Pair<String, Int>? {
-        return try {
+    ): Pair<String, Int>? = mutex.withLock {
+        return@withLock try {
             transport.discoverConnectService(timeoutMs, includeLanDevices)
         } catch (e: Exception) {
             Log.w(TAG, "discoverConnectService(): failed", e)
@@ -77,20 +78,27 @@ class NativeAdbService(appContext: Context) {
      * same host:port it is reused; otherwise the previous connection is closed
      * before attempting the new connect.
      */
-    @Synchronized
-    fun connect(host: String, port: Int): Boolean {
+    suspend fun connect(
+        host: String,
+        port: Int,
+        timeout: Duration = Duration.INFINITE,
+    ) = mutex.withLock {
         Log.i(TAG, "connect(): host=$host port=$port")
-        val existing = connection
-        if (existing != null && existing.isAlive() && connectedHost == host && connectedPort == port) {
-            return true
+
+        if (connection != null
+            && connection!!.isAlive()
+            && connectedHost == host
+            && connectedPort == port
+        ) {
+            return@withLock
         }
-        disconnect()
+        disconnectInternal()
+
         try {
-            val conn = transport.connect(host, port)
+            val conn = withTimeout(timeout) { transport.connect(host, port) }
             connection = conn
             connectedHost = host
             connectedPort = port
-            return true
         } catch (e: Exception) {
             Log.e(TAG, "connect(): failed host=$host port=$port", e)
             val detail = e.message ?: "${e.javaClass.simpleName} (no message)"
@@ -101,38 +109,41 @@ class NativeAdbService(appContext: Context) {
     /**
      * Close the current ADB connection immediately.
      */
-    @Synchronized
-    fun disconnect() {
+    suspend fun disconnect() = mutex.withLock {
+        disconnectInternal()
+    }
+
+    suspend fun isConnected(): Boolean = mutex.withLock {
+        connection?.isAlive() == true
+    }
+
+    /**
+     * Execute a shell command on the connected device and return stdout text.
+     */
+    suspend fun shell(command: String): String = mutex.withLock {
+        requireConnection().shell(command)
+    }
+
+    suspend fun openShellStream(command: String): AdbSocketStream = mutex.withLock {
+        requireConnection().openStream("shell:$command")
+    }
+
+    suspend fun push(localPath: Path, remotePath: String) = mutex.withLock {
+        requireConnection().push(localPath.toFile().readBytes(), remotePath)
+    }
+
+    suspend fun openAbstractSocket(name: String): AdbSocketStream = mutex.withLock {
+        requireConnection().openStream("localabstract:$name")
+    }
+
+    suspend fun close() = disconnect()
+
+    private fun disconnectInternal() {
         runCatching { connection?.close() }
         connection = null
         connectedHost = null
         connectedPort = null
     }
-
-    @Synchronized
-    fun isConnected(): Boolean = connection?.isAlive() == true
-
-    /**
-     * Execute a shell command on the connected device and return stdout text.
-     */
-    @Synchronized
-    fun shell(command: String): String = requireConnection().shell(command)
-
-    @Synchronized
-    internal fun openShellStream(command: String): AdbSocketStream =
-        requireConnection().openStream("shell:$command")
-
-    @Synchronized
-    fun push(localPath: Path, remotePath: String) {
-        requireConnection().push(localPath.toFile().readBytes(), remotePath)
-    }
-
-    @Synchronized
-    internal fun openAbstractSocket(name: String): AdbSocketStream =
-        requireConnection().openStream("localabstract:$name")
-
-    @Synchronized
-    fun close() = disconnect()
 
     private fun requireConnection(): DirectAdbConnection {
         return connection?.takeIf { it.isAlive() }

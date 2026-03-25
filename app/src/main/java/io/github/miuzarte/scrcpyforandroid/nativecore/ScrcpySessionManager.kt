@@ -2,6 +2,10 @@ package io.github.miuzarte.scrcpyforandroid.nativecore
 
 import android.util.Log
 import android.view.KeyEvent
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ServerParams
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import java.io.BufferedInputStream
 import java.io.BufferedReader
 import java.io.DataInputStream
@@ -15,6 +19,8 @@ import kotlin.concurrent.thread
 import kotlin.math.roundToInt
 
 class ScrcpySessionManager(private val adbService: NativeAdbService) {
+    private val mutex = Mutex()
+
     @Volatile
     private var activeSession: ActiveSession? = null
 
@@ -45,29 +51,27 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * - Initializes an [ActiveSession] which holds socket streams and reader threads.
      *
      * Threading notes:
-     * - This is synchronized to avoid concurrent starts/stops.
+     * - Uses Mutex for thread-safety to avoid concurrent starts/stops.
      * - It may block while interacting with adb; callers should execute it off the UI
-     *   thread when appropriate. The facade uses an executor to serialize such calls.
+     *   thread when appropriate.
      */
-    @Synchronized
-    fun start(serverJarPath: Path, options: ScrcpyStartOptions): SessionInfo {
-        stop()
-        synchronized(this) {
-            serverLogBuffer.clear()
-        }
-        val targetPath = options.serverRemotePath.ifBlank { DEFAULT_SERVER_REMOTE_PATH }
-        val scid = random.nextInt(Int.MAX_VALUE)
-        val socketName = socketNameFor(scid)
+    suspend fun start(
+        serverJarPath: Path,
+        serverCommand: String,
+        scid: UInt,
+        options: ClientOptions,
+    ): SessionInfo = mutex.withLock {
+        stopInternal()
+        serverLogBuffer.clear()
+        val socketName = socketNameFor(scid.toInt())
 
         try {
-            adbService.push(serverJarPath, targetPath)
-            val cmd = buildServerCommand(targetPath, scid, options)
-            lastServerCommand = cmd
+            lastServerCommand = serverCommand
             Log.i(
                 TAG,
-                "start(): socket=$socketName codec=${options.videoCodec} audio=${options.audio} audioCodec=${options.audioCodec}"
+                "start(): socket=$socketName codec=${options.videoCodec.string} audio=${options.audio} audioCodec=${options.audioCodec.string}"
             )
-            val serverStream = adbService.openShellStream(cmd)
+            val serverStream = adbService.openShellStream(serverCommand)
             val serverLogThread = startServerLogThread(serverStream, socketName)
             Thread.sleep(SERVER_BOOT_DELAY_MS)
 
@@ -118,7 +122,8 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
             }
 
             val deviceName = readDeviceName(firstInput)
-            val audioCodecId = if (options.audio) audioCodecIdFromName(options.audioCodec) else 0
+            val audioCodecId =
+                if (options.audio) audioCodecIdFromName(options.audioCodec.string) else 0
             val codecId: Int
             val width: Int
             val height: Int
@@ -175,8 +180,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * - The reader thread stops when the session ends or the socket is closed.
      * - Consumers should be resilient to occasional dropped packets or reader errors.
      */
-    @Synchronized
-    fun attachVideoConsumer(consumer: (VideoPacket) -> Unit) {
+    suspend fun attachVideoConsumer(consumer: (VideoPacket) -> Unit): Unit = mutex.withLock {
         val session = activeSession ?: throw IllegalStateException("scrcpy session not started")
         val vInput = session.videoInput ?: return
         val vStream = session.videoStream ?: return
@@ -224,8 +228,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         }
     }
 
-    @Synchronized
-    fun clearVideoConsumer() {
+    suspend fun clearVideoConsumer() = mutex.withLock {
         videoConsumer = null
     }
 
@@ -237,8 +240,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * - The function reads the audio stream header to determine whether audio is
      *   available and exits early if disabled.
      */
-    @Synchronized
-    fun attachAudioConsumer(consumer: (AudioPacket) -> Unit) {
+    suspend fun attachAudioConsumer(consumer: (AudioPacket) -> Unit): Unit = mutex.withLock {
         val session = activeSession ?: throw IllegalStateException("scrcpy session not started")
         val aInput = session.audioInput ?: return // audio disabled or unavailable
         val aStream = session.audioStream ?: return
@@ -307,8 +309,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         }
     }
 
-    @Synchronized
-    fun clearAudioConsumer() {
+    suspend fun clearAudioConsumer() = mutex.withLock {
         audioConsumer = null
     }
 
@@ -316,15 +317,14 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * Inject a keycode event to the control channel.
      *
      * - Requires an active control channel; throws if absent.
-     * - Synchronized to serialize control writes.
+     * - Uses Mutex to serialize control writes.
      */
-    @Synchronized
-    fun injectKeycode(action: Int, keycode: Int, repeat: Int = 0, metaState: Int = 0) {
-        requireControlWriter().injectKeycode(action, keycode, repeat, metaState)
-    }
+    suspend fun injectKeycode(action: Int, keycode: Int, repeat: Int = 0, metaState: Int = 0) =
+        mutex.withLock {
+            requireControlWriter().injectKeycode(action, keycode, repeat, metaState)
+        }
 
-    @Synchronized
-    fun injectText(text: String) {
+    suspend fun injectText(text: String) = mutex.withLock {
         requireControlWriter().injectText(text)
     }
 
@@ -333,10 +333,9 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      *
      * - Coordinates are expected in device pixels and are written together with
      *   screen dimensions so the server can interpret them correctly.
-     * - Synchronized to serialize control writes.
+     * - Uses Mutex to serialize control writes.
      */
-    @Synchronized
-    fun injectTouch(
+    suspend fun injectTouch(
         action: Int,
         pointerId: Long,
         x: Int,
@@ -346,7 +345,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         pressure: Float,
         actionButton: Int,
         buttons: Int,
-    ) {
+    ) = mutex.withLock {
         requireControlWriter().injectTouch(
             action,
             pointerId,
@@ -360,8 +359,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         )
     }
 
-    @Synchronized
-    fun injectScroll(
+    suspend fun injectScroll(
         x: Int,
         y: Int,
         screenWidth: Int,
@@ -369,7 +367,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         hScroll: Float,
         vScroll: Float,
         buttons: Int
-    ) {
+    ) = mutex.withLock {
         requireControlWriter().injectScroll(
             x,
             y,
@@ -381,13 +379,11 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         )
     }
 
-    @Synchronized
-    fun pressBackOrScreenOn(action: Int = KeyEvent.ACTION_DOWN) {
+    suspend fun pressBackOrScreenOn(action: Int = KeyEvent.ACTION_DOWN) = mutex.withLock {
         requireControlWriter().pressBackOrScreenOn(action)
     }
 
-    @Synchronized
-    fun setDisplayPower(on: Boolean) {
+    suspend fun setDisplayPower(on: Boolean) = mutex.withLock {
         requireControlWriter().setDisplayPower(on)
     }
 
@@ -397,8 +393,11 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * - Interrupts and joins reader threads with short timeouts, closes sockets,
      *   and clears state. It is safe to call from any thread.
      */
-    @Synchronized
-    fun stop() {
+    suspend fun stop() = mutex.withLock {
+        stopInternal()
+    }
+
+    private fun stopInternal() {
         val session = activeSession ?: return
         activeSession = null
         videoConsumer = null
@@ -430,20 +429,20 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
 
     fun getLastServerCommand(): String? = lastServerCommand
 
-    @Synchronized
-    fun listEncoders(serverJarPath: Path, options: ScrcpyStartOptions): EncoderLists {
-        val targetPath = options.serverRemotePath.ifBlank { DEFAULT_SERVER_REMOTE_PATH }
+    // TODO: 合并几个 --list-xxxx
+    suspend fun listEncoders(
+        serverJarPath: Path,
+        serverParams: ServerParams,
+        serverVersion: String = "3.3.4",
+        serverRemotePath: String = DEFAULT_SERVER_REMOTE_PATH,
+    ): EncoderLists = mutex.withLock {
+        val targetPath = serverRemotePath.ifBlank { DEFAULT_SERVER_REMOTE_PATH }
         adbService.push(serverJarPath, targetPath)
+
         val cmd = buildServerCommand(
             targetPath = targetPath,
-            scid = 0x1234abcd,
-            options = options.copy(
-                video = false,
-                audio = false,
-                control = false,
-                listEncoders = true,
-                cleanup = false,
-            ),
+            serverParams = serverParams,
+            serverVersion = serverVersion,
         )
         Log.i(TAG, "listEncoders(): cmd=$cmd")
         // scrcpy encoder list is printed in logs, so merge stderr into stdout.
@@ -457,20 +456,19 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         return parsed.copy(rawOutput = output)
     }
 
-    @Synchronized
-    fun listCameraSizes(serverJarPath: Path, options: ScrcpyStartOptions): CameraSizeLists {
-        val targetPath = options.serverRemotePath.ifBlank { DEFAULT_SERVER_REMOTE_PATH }
+    suspend fun listCameraSizes(
+        serverJarPath: Path,
+        serverParams: ServerParams,
+        serverVersion: String = "3.3.4",
+        serverRemotePath: String = DEFAULT_SERVER_REMOTE_PATH,
+    ): CameraSizeLists = mutex.withLock {
+        val targetPath = serverRemotePath.ifBlank { DEFAULT_SERVER_REMOTE_PATH }
         adbService.push(serverJarPath, targetPath)
+
         val cmd = buildServerCommand(
             targetPath = targetPath,
-            scid = 0x2234abcd,
-            options = options.copy(
-                video = false,
-                audio = false,
-                control = false,
-                listCameraSizes = true,
-                cleanup = false,
-            ),
+            serverParams = serverParams,
+            serverVersion = serverVersion,
         )
         Log.i(TAG, "listCameraSizes(): cmd=$cmd")
         val output = adbService.shell("$cmd 2>&1")
@@ -490,288 +488,11 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
 
     private fun buildServerCommand(
         targetPath: String,
-        scid: Int,
-        options: ScrcpyStartOptions
+        serverParams: ServerParams,
+        serverVersion: String,
     ): String {
-        val serverArgs = buildServerArgs(scid, options)
-        return "CLASSPATH=$targetPath app_process / com.genymobile.scrcpy.Server ${options.serverVersion} $serverArgs"
-    }
-
-    private fun buildServerArgs(scid: Int, options: ScrcpyStartOptions): String {
-        val videoSource = options.videoSource.trim().ifBlank { "display" }
-        val isCameraSource = videoSource.equals("camera", ignoreCase = true)
-        val cameraId = options.cameraId.trim()
-        val hasCameraId = cameraId.isNotBlank()
-        val hasExplicitCameraSize = options.cameraSize.trim().isNotBlank()
-        val hasValidCameraFps = options.cameraFps > 0
-
-        val args = listOf(
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "scid",
-                value = String.format("%08x", scid),
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "log_level",
-                value = "debug",
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "tunnel_forward",
-                value = true,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "cleanup",
-                value = options.cleanup,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "send_device_meta",
-                value = true,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "send_frame_meta",
-                value = true,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "send_dummy_byte",
-                value = true,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "send_codec_meta",
-                value = true,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "video",
-                value = options.video,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "audio",
-                value = options.audio,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "control",
-                value = options.control,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "video_source",
-                value = videoSource,
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "max_size",
-                value = options.maxSize,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "video_codec",
-                value = options.videoCodec,
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "video_bit_rate",
-                value = options.videoBitRate,
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "max_fps",
-                value = options.maxFps,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "camera_id",
-                value = cameraId,
-                includeWhen = isCameraSource,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "camera_facing",
-                value = options.cameraFacing.trim(),
-                includeWhen = isCameraSource && !hasCameraId,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "camera_size",
-                value = options.cameraSize.trim(),
-                includeWhen = isCameraSource,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "camera_ar",
-                value = options.cameraAr.trim(),
-                includeWhen = isCameraSource && !hasExplicitCameraSize,
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "camera_fps",
-                value = options.cameraFps,
-                includeWhen = isCameraSource,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "camera_high_speed",
-                value = options.cameraHighSpeed,
-                includeWhen = isCameraSource && options.cameraHighSpeed && hasValidCameraFps,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "audio_codec",
-                value = options.audioCodec,
-                includeWhen = options.audio,
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "audio_bit_rate",
-                value = options.audioBitRate,
-                includeWhen = options.audio,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "audio_source",
-                value = options.audioSource.trim(),
-                includeWhen = options.audio,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "audio_dup",
-                value = options.audioDup,
-                includeWhen = options.audioDup,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "video_encoder",
-                value = options.videoEncoder.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "video_codec_options",
-                value = options.videoCodecOptions.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "audio_encoder",
-                value = options.audioEncoder.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "audio_codec_options",
-                value = options.audioCodecOptions.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "new_display",
-                value = options.newDisplay.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.NUMBER,
-                key = "display_id",
-                value = options.displayId,
-            ),
-            ServerArg(
-                type = ServerArgType.STRING,
-                key = "crop",
-                value = options.crop.trim(),
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "list_encoders",
-                value = options.listEncoders,
-                includeWhen = options.listEncoders,
-            ),
-            ServerArg(
-                type = ServerArgType.BOOLEAN,
-                key = "list_camera_sizes",
-                value = options.listCameraSizes,
-                includeWhen = options.listCameraSizes,
-            ),
-            // Reserved for future args that require repeated/list values.
-            // ServerArg(
-            //     type = ServerArgType.LIST,
-            //     key = "_unused_list",
-            //     value = emptyList<String>(),
-            //     includeWhen = false,
-            // ),
-        )
-
-        val rendered = args.mapNotNull { it.render() }
-        val header = rendered.firstOrNull()
-        val kv = rendered.drop(1)
-        return if (header == null) {
-            kv.joinToString(" ")
-        } else {
-            "$header ${kv.joinToString(" ")}".trim()
-        }
-    }
-
-    private enum class ServerArgType {
-        NUMBER,
-        STRING,
-        BOOLEAN,
-        LIST,
-    }
-
-    private enum class ZeroValueBehavior {
-        OMIT,
-        KEEP,
-    }
-
-    private data class ServerArg<T>(
-        val type: ServerArgType,
-        val key: String,
-        val value: T?,
-        val includeWhen: Boolean = true,
-        val zeroValueBehavior: ZeroValueBehavior = ZeroValueBehavior.OMIT,
-    ) {
-        fun render(): String? {
-            if (!includeWhen) return null
-            return when (type) {
-                ServerArgType.STRING -> renderString(value as? String)
-                ServerArgType.BOOLEAN -> renderBoolean(value as? Boolean)
-                ServerArgType.NUMBER -> renderNumber(value as? Number)
-                ServerArgType.LIST -> renderList(value as? Iterable<*>)
-            }
-        }
-
-        private fun renderString(raw: String?): String? {
-            val normalized = raw?.trim().orEmpty()
-            if (normalized.isBlank()) return null
-            return "$key=$normalized"
-        }
-
-        private fun renderBoolean(raw: Boolean?): String? {
-            val normalized = raw ?: return null
-            return "$key=$normalized"
-        }
-
-        private fun renderNumber(raw: Number?): String? {
-            val normalized = raw ?: return null
-            val asDouble = normalized.toDouble()
-            if (asDouble == 0.0 && zeroValueBehavior == ZeroValueBehavior.OMIT) return null
-            val valueString = when (normalized) {
-                is Float -> normalized.toString()
-                is Double -> normalized.toString()
-                else -> normalized.toLong().toString()
-            }
-            return "$key=$valueString"
-        }
-
-        private fun renderList(raw: Iterable<*>?): String? {
-            val items = raw
-                ?.mapNotNull { it?.toString()?.trim() }
-                ?.filter { it.isNotBlank() }
-                .orEmpty()
-            if (items.isEmpty()) return null
-            return "$key=${items.joinToString(",")}"
-        }
+        val serverArgs = serverParams.build()
+        return "CLASSPATH=$targetPath app_process / com.genymobile.scrcpy.Server $serverVersion $serverArgs"
     }
 
     private fun parseEncoderLists(output: String): EncoderLists {
@@ -836,7 +557,13 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
                 ).use { reader ->
                     while (true) {
                         val line = reader.readLine() ?: break
-                        appendServerLog(line)
+                        // Use synchronized block for thread-safe log buffer access
+                        synchronized(serverLogBuffer) {
+                            if (serverLogBuffer.size >= SERVER_LOG_BUFFER_MAX_LINES) {
+                                serverLogBuffer.removeFirst()
+                            }
+                            serverLogBuffer.addLast(line)
+                        }
                         Log.i(TAG, "[server:$socketName] $line")
                     }
                 }
@@ -848,21 +575,15 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
         }
     }
 
-    @Synchronized
-    private fun appendServerLog(line: String) {
-        if (serverLogBuffer.size >= SERVER_LOG_BUFFER_MAX_LINES) {
-            serverLogBuffer.removeFirst()
-        }
-        serverLogBuffer.addLast(line)
-    }
-
-    @Synchronized
     private fun snapshotServerLogs(maxLines: Int = 120): String {
-        if (serverLogBuffer.isEmpty()) {
-            return ""
+        val snapshot = synchronized(serverLogBuffer) {
+            if (serverLogBuffer.isEmpty()) {
+                return ""
+            }
+            val take = maxLines.coerceIn(1, SERVER_LOG_BUFFER_MAX_LINES)
+            serverLogBuffer.toList().takeLast(take)
         }
-        val take = maxLines.coerceIn(1, SERVER_LOG_BUFFER_MAX_LINES)
-        return serverLogBuffer.toList().takeLast(take).joinToString("\n")
+        return snapshot.joinToString("\n")
     }
 
     /**
@@ -871,7 +592,7 @@ class ScrcpySessionManager(private val adbService: NativeAdbService) {
      * - Retries a number of times with a short delay (useful during server startup).
      * - Optionally expects a dummy byte on the stream to validate the server handshake.
      */
-    private fun openAbstractSocketWithRetry(
+    private suspend fun openAbstractSocketWithRetry(
         socketName: String,
         expectDummyByte: Boolean
     ): AdbSocketStream {

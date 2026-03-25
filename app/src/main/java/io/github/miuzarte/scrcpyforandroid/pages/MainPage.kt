@@ -50,6 +50,8 @@ import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.MainSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadMainSettings
@@ -82,7 +84,7 @@ private enum class MainTabDestination(
     val icon: ImageVector,
 ) {
     Device(title = "设备", label = "设备", icon = Icons.Rounded.Devices),
-    Settings(title = "设置", label = "设置", icon = Icons.Rounded.Settings),
+    Settings(title = "设置", label = "设置", icon = Icons.Rounded.Settings);
 }
 
 private sealed interface RootScreen : NavKey {
@@ -99,7 +101,11 @@ fun MainPage() {
     val initialOrientation = remember(activity) {
         activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
+
     val nativeCore = remember(context) { NativeCoreFacade.get(context.applicationContext) }
+    val adbService = remember(context) { NativeAdbService(context) }
+    val scrcpy = remember(context) { Scrcpy(context) }
+
     val initialSettings = remember(context) { loadMainSettings(context) }
     val initialDeviceSettings = remember(context) { loadDevicePageSettings(context) }
     val snackHostState = remember { SnackbarHostState() }
@@ -272,7 +278,7 @@ fun MainPage() {
     }
 
     LaunchedEffect(adbKeyName) {
-        nativeCore.setAdbKeyName(adbKeyName.ifBlank { AppDefaults.ADB_KEY_NAME })
+        adbService.keyName = adbKeyName.ifBlank { AppDefaults.ADB_KEY_NAME }
     }
 
     fun popRoot() {
@@ -308,8 +314,8 @@ fun MainPage() {
             lastExitBackPressAtMs = 0L
             scope.launch {
                 withContext(Dispatchers.IO) {
-                    runCatching { nativeCore.scrcpyStop() }
-                    runCatching { nativeCore.adbDisconnect() }
+                    runCatching { scrcpy.stop() }
+                    runCatching { adbService.disconnect() }
                 }
                 activity?.finish()
             }
@@ -422,15 +428,14 @@ fun MainPage() {
                                 DeviceTabScreen(
                                     contentPadding = pagePadding,
                                     nativeCore = nativeCore,
+                                    adbService = adbService,
+                                    scrcpy = scrcpy,
                                     snack = snackHostState,
                                     scrollBehavior = deviceScrollBehavior,
                                     virtualButtonsLayout = virtualButtonsLayout,
                                     showPreviewVirtualButtonText = showPreviewVirtualButtonText,
                                     previewCardHeightDp = devicePreviewCardHeightDp,
                                     themeBaseIndex = themeBaseIndex,
-                                    customServerUri = customServerUri,
-                                    serverRemotePath = serverRemotePath,
-                                    onServerRemotePathChange = { serverRemotePath = it },
                                     videoCodec = videoCodec,
                                     onVideoCodecChange = { videoCodec = it },
                                     audioEnabled = audioEnabled,
