@@ -32,14 +32,8 @@ import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
-import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.ListOptions
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
-import io.github.miuzarte.scrcpyforandroid.services.DevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
@@ -47,10 +41,11 @@ import io.github.miuzarte.scrcpyforandroid.services.loadDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.loadQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.parseQuickTarget
 import io.github.miuzarte.scrcpyforandroid.services.replaceQuickDevicePort
-import io.github.miuzarte.scrcpyforandroid.services.saveDevicePageSettings
 import io.github.miuzarte.scrcpyforandroid.services.saveQuickDevices
 import io.github.miuzarte.scrcpyforandroid.services.updateQuickDeviceNameIfEmpty
 import io.github.miuzarte.scrcpyforandroid.services.upsertQuickDevice
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.widgets.ConfigPanel
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceEditorScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceTile
@@ -105,7 +100,6 @@ private val DeviceShortcutStateListSaver =
                 if (parts.size != 5) return@mapNotNull null
                 val port = parts[3].toIntOrNull() ?: return@mapNotNull null
                 DeviceShortcut(
-                    id = parts[0],
                     name = parts[1],
                     host = parts[2],
                     port = port,
@@ -129,75 +123,7 @@ fun DeviceTabScreen(
     scrcpy: Scrcpy,
     snack: SnackbarHostState,
     scrollBehavior: ScrollBehavior,
-    virtualButtonsLayout: String,
-    showPreviewVirtualButtonText: Boolean,
-    previewCardHeightDp: Int,
-    themeBaseIndex: Int,
-    videoCodec: String,
-    onVideoCodecChange: (String) -> Unit,
-    audioEnabled: Boolean,
-    onAudioEnabledChange: (Boolean) -> Unit,
-    audioCodec: String,
-    onAudioCodecChange: (String) -> Unit,
-    noControl: Boolean,
-    onNoControlChange: (Boolean) -> Unit,
-    videoEncoder: String,
-    onVideoEncoderChange: (String) -> Unit,
-    videoCodecOptions: String,
-    onVideoCodecOptionsChange: (String) -> Unit,
-    audioEncoder: String,
-    onAudioEncoderChange: (String) -> Unit,
-    audioCodecOptions: String,
-    onAudioCodecOptionsChange: (String) -> Unit,
-    audioDup: Boolean,
-    onAudioDupChange: (Boolean) -> Unit,
-    audioSourcePreset: String,
-    onAudioSourcePresetChange: (String) -> Unit,
-    audioSourceCustom: String,
-    onAudioSourceCustomChange: (String) -> Unit,
-    videoSourcePreset: String,
-    onVideoSourcePresetChange: (String) -> Unit,
-    cameraIdInput: String,
-    onCameraIdInputChange: (String) -> Unit,
-    cameraFacingPreset: String,
-    onCameraFacingPresetChange: (String) -> Unit,
-    cameraSizePreset: String,
-    onCameraSizePresetChange: (String) -> Unit,
-    cameraSizeCustom: String,
-    onCameraSizeCustomChange: (String) -> Unit,
-    cameraArInput: String,
-    onCameraArInputChange: (String) -> Unit,
-    cameraFpsInput: String,
-    onCameraFpsInputChange: (String) -> Unit,
-    cameraHighSpeed: Boolean,
-    onCameraHighSpeedChange: (Boolean) -> Unit,
-    noAudioPlayback: Boolean,
-    onNoAudioPlaybackChange: (Boolean) -> Unit,
-    noVideo: Boolean,
-    requireAudio: Boolean,
-    onRequireAudioChange: (Boolean) -> Unit,
-    turnScreenOff: Boolean,
-    onTurnScreenOffChange: (Boolean) -> Unit,
-    maxSizeInput: String,
-    onMaxSizeInputChange: (String) -> Unit,
-    maxFpsInput: String,
-    onMaxFpsInputChange: (String) -> Unit,
-    newDisplayWidth: String,
-    onNewDisplayWidthChange: (String) -> Unit,
-    newDisplayHeight: String,
-    onNewDisplayHeightChange: (String) -> Unit,
-    newDisplayDpi: String,
-    onNewDisplayDpiChange: (String) -> Unit,
-    displayIdInput: String,
-    onDisplayIdInputChange: (String) -> Unit,
-    cropWidth: String,
-    onCropWidthChange: (String) -> Unit,
-    cropHeight: String,
-    onCropHeightChange: (String) -> Unit,
-    cropX: String,
-    onCropXChange: (String) -> Unit,
-    cropY: String,
-    onCropYChange: (String) -> Unit,
+
     videoEncoderOptions: List<String>,
     onVideoEncoderOptionsChange: (List<String>) -> Unit,
     onVideoEncoderTypeMapChange: (Map<String, String>) -> Unit,
@@ -214,12 +140,15 @@ fun DeviceTabScreen(
     onOpenReorderDevicesActionChange: ((() -> Unit)?) -> Unit,
     onOpenAdvancedPage: () -> Unit,
     onOpenFullscreenPage: (ScrcpySessionInfo) -> Unit,
-    adbPairingAutoDiscoverOnDialogOpen: Boolean,
-    adbAutoReconnectPairedDevice: Boolean,
-    adbMdnsLanDiscoveryEnabled: Boolean,
 ) {
     val context = LocalContext.current
+
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
     val haptics = rememberAppHaptics()
+
+    val virtualButtonsLayout by appSettings.virtualButtonsLayout.asState()
     val virtualButtonLayout = remember(virtualButtonsLayout) {
         VirtualButtonActions.splitLayout(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
     }
@@ -285,8 +214,8 @@ fun DeviceTabScreen(
     var audioForwardingSupported by rememberSaveable { mutableStateOf(true) }
     var cameraMirroringSupported by rememberSaveable { mutableStateOf(true) }
 
-    var bitRateMbps by rememberSaveable { mutableFloatStateOf(initialSettings.videoBitRateMbps) }
-    var bitRateInput by rememberSaveable { mutableStateOf(initialSettings.videoBitRateInput) }
+    var videoBitRateMbps by rememberSaveable { mutableFloatStateOf(initialSettings.videoBitRateMbps) }
+    var videoBitRateInput by rememberSaveable { mutableStateOf(initialSettings.videoBitRateInput) }
     var audioBitRateKbps by rememberSaveable { mutableIntStateOf(initialSettings.audioBitRateKbps) }
     val currentTarget = if (currentTargetHost.isNotBlank()) ConnectionTarget(
         currentTargetHost,
@@ -364,11 +293,14 @@ fun DeviceTabScreen(
         disconnectAdbConnection(clearQuickOnlineForTarget = current)
     }
 
+    var audio by scrcpyOptions.audio.asMutableState()
+    var videoSource by scrcpyOptions.videoSource.asMutableState()
+
     fun applyConnectedDeviceCapabilities(sdkInt: Int, release: String) {
         val audioSupported = sdkInt !in 0..<30
         audioForwardingSupported = audioSupported
-        if (!audioSupported && audioEnabled) {
-            onAudioEnabledChange(false)
+        if (!audioSupported && audio) {
+            audio = false
             logEvent(
                 "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持音频转发，已自动关闭",
                 Log.WARN
@@ -376,8 +308,8 @@ fun DeviceTabScreen(
         }
         val cameraSupported = sdkInt !in 0..<31
         cameraMirroringSupported = cameraSupported
-        if (!cameraSupported && videoSourcePreset == "camera") {
-            onVideoSourcePresetChange("display")
+        if (!cameraSupported && videoSource == "camera") {
+            videoSource = "display"
             logEvent(
                 "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持 camera mirroring，已切换为 display",
                 Log.WARN
@@ -531,6 +463,9 @@ fun DeviceTabScreen(
         }
     }
 
+    var videoEncoder by scrcpyOptions.videoEncoder.asMutableState()
+    var audioEncoder by scrcpyOptions.audioEncoder.asMutableState()
+
     suspend fun refreshEncoderLists() {
         if (!adbConnected) return
         runCatching {
@@ -542,10 +477,10 @@ fun DeviceTabScreen(
             onVideoEncoderTypeMapChange(lists.videoEncoderTypes)
             onAudioEncoderTypeMapChange(lists.audioEncoderTypes)
             if (videoEncoder.isNotBlank() && videoEncoder !in videoEncoderOptions) {
-                onVideoEncoderChange("")
+                videoEncoder = ""
             }
             if (audioEncoder.isNotBlank() && audioEncoder !in audioEncoderOptions) {
-                onAudioEncoderChange("")
+                audioEncoder = ""
             }
             EventLogger.logEvent("编码器列表已刷新: video=${lists.videoEncoders.size} audio=${lists.audioEncoders.size}")
             if (lists.videoEncoders.isEmpty() && lists.audioEncoders.isEmpty()) {
@@ -571,6 +506,8 @@ fun DeviceTabScreen(
         }
     }
 
+    var cameraSize by scrcpyOptions.cameraSize.asMutableState()
+
     suspend fun refreshCameraSizeLists() {
         if (!adbConnected) return
         runCatching {
@@ -578,8 +515,8 @@ fun DeviceTabScreen(
         }.onSuccess { result ->
             val lists = result as Scrcpy.ListResult.CameraSizes
             onCameraSizeOptionsChange(lists.sizes)
-            if (cameraSizePreset.isNotBlank() && cameraSizePreset != "custom" && cameraSizePreset !in lists.sizes) {
-                onCameraSizePresetChange("")
+            if (cameraSize.isNotBlank() && cameraSize != "custom" && cameraSize !in lists.sizes) {
+                cameraSize = ""
             }
             EventLogger.logEvent("camera sizes 已刷新: count=${lists.sizes.size}")
             if (lists.sizes.isEmpty()) {
@@ -624,88 +561,11 @@ fun DeviceTabScreen(
         refreshCameraSizeLists()
     }
 
-    LaunchedEffect(bitRateInput) {
-        val parsed = bitRateInput.toFloatOrNull() ?: return@LaunchedEffect
-        bitRateMbps = parsed.coerceAtLeast(0.1f)
+    LaunchedEffect(videoBitRateInput) {
+        val parsed = videoBitRateInput.toFloatOrNull() ?: return@LaunchedEffect
+        videoBitRateMbps = parsed.coerceAtLeast(0.1f)
     }
 
-    LaunchedEffect(
-        quickConnectInput,
-        audioBitRateKbps,
-        bitRateMbps,
-        bitRateInput,
-        turnScreenOff,
-        noControl,
-        noVideo,
-        videoSourcePreset,
-        displayIdInput,
-        cameraIdInput,
-        cameraFacingPreset,
-        cameraSizePreset,
-        cameraSizeCustom,
-        cameraArInput,
-        cameraFpsInput,
-        cameraHighSpeed,
-        audioSourcePreset,
-        audioSourceCustom,
-        audioDup,
-        noAudioPlayback,
-        requireAudio,
-        maxSizeInput,
-        maxFpsInput,
-        videoEncoder,
-        videoCodecOptions,
-        audioEncoder,
-        audioCodecOptions,
-        newDisplayWidth,
-        newDisplayHeight,
-        newDisplayDpi,
-        cropWidth,
-        cropHeight,
-        cropX,
-        cropY,
-    ) {
-        saveDevicePageSettings(
-            context,
-            DevicePageSettings(
-                quickConnectInput = quickConnectInput,
-                audioBitRateKbps = audioBitRateKbps,
-                audioBitRateInput = audioBitRateKbps.toString(),
-                videoBitRateMbps = bitRateMbps,
-                videoBitRateInput = bitRateInput,
-                turnScreenOff = turnScreenOff,
-                noControl = noControl,
-                noVideo = noVideo,
-                videoSourcePreset = videoSourcePreset,
-                displayIdInput = displayIdInput,
-                cameraIdInput = cameraIdInput,
-                cameraFacingPreset = cameraFacingPreset,
-                cameraSizePreset = cameraSizePreset,
-                cameraSizeCustom = cameraSizeCustom,
-                cameraAr = cameraArInput,
-                cameraFps = cameraFpsInput,
-                cameraHighSpeed = cameraHighSpeed,
-                audioSourcePreset = audioSourcePreset,
-                audioSourceCustom = audioSourceCustom,
-                audioDup = audioDup,
-                noAudioPlayback = noAudioPlayback,
-                requireAudio = requireAudio,
-                maxSizeInput = maxSizeInput,
-                maxFpsInput = maxFpsInput,
-                videoEncoder = videoEncoder,
-                videoCodecOptions = videoCodecOptions,
-                audioEncoder = audioEncoder,
-                audioCodecOptions = audioCodecOptions,
-                newDisplayWidth = newDisplayWidth,
-                newDisplayHeight = newDisplayHeight,
-                newDisplayDpi = newDisplayDpi,
-                cropWidth = cropWidth,
-                cropHeight = cropHeight,
-                cropX = cropX,
-                cropY = cropY,
-            ),
-        )
-    }
 
     LaunchedEffect(Unit) {
         if (quickDevices.isEmpty()) {
@@ -762,7 +622,10 @@ fun DeviceTabScreen(
         }
     }
 
-    LaunchedEffect(adbConnected, adbAutoReconnectPairedDevice, adbMdnsLanDiscoveryEnabled) {
+    val adbPairingAutoDiscoverOnDialogOpen by appSettings.adbPairingAutoDiscoverOnDialogOpen.asState()
+    val adbAutoReconnectPairedDevice by appSettings.adbAutoReconnectPairedDevice.asState()
+    val adbMdnsLanDiscovery by appSettings.adbMdnsLanDiscovery.asState()
+    LaunchedEffect(adbConnected, adbAutoReconnectPairedDevice, adbMdnsLanDiscovery) {
         if (adbConnected || !adbAutoReconnectPairedDevice) return@LaunchedEffect
 
         // Background auto reconnect pipeline:
@@ -809,7 +672,7 @@ fun DeviceTabScreen(
             val discovered = withContext(Dispatchers.IO) {
                 adbService.discoverConnectService(
                     timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
-                    includeLanDevices = adbMdnsLanDiscoveryEnabled,
+                    includeLanDevices = adbMdnsLanDiscovery,
                 )
             }
 
@@ -985,6 +848,8 @@ fun DeviceTabScreen(
         editingDeviceId = null
     }
 
+    val devicePreviewCardHeightDp by appSettings.devicePreviewCardHeightDp.asState()
+    val previewVirtualButtonShowText by appSettings.previewVirtualButtonShowText.asState()
     // 设备
     AppPageLazyColumn(
         contentPadding = contentPadding,
@@ -998,7 +863,6 @@ fun DeviceTabScreen(
                 sessionInfo = sessionInfo,
                 busyLabel = null,
                 connectedDeviceLabel = connectedDeviceLabel,
-                themeBaseIndex = themeBaseIndex,
             )
         }
 
@@ -1099,7 +963,7 @@ fun DeviceTabScreen(
                 autoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
                 onDiscoverTarget = {
                     adbService.discoverPairingService(
-                        includeLanDevices = adbMdnsLanDiscoveryEnabled,
+                        includeLanDevices = adbMdnsLanDiscovery,
                     )
                 },
                 onPair = { host, port, code ->
@@ -1128,139 +992,34 @@ fun DeviceTabScreen(
             item {
                 ConfigPanel(
                     busy = busy,
-                    bitRateMbps = bitRateMbps,
-                    onBitRateSliderChange = {
-                        bitRateMbps = it
-                        @SuppressLint("DefaultLocale")
-                        bitRateInput = String.format("%.1f", it)
-                    },
-                    onBitRateInputChange = { bitRateInput = it },
-                    audioBitRateKbps = audioBitRateKbps,
-                    onAudioBitRateChange = { audioBitRateKbps = it },
-                    videoCodec = videoCodec,
-                    onVideoCodecChange = onVideoCodecChange,
-                    audioEnabled = audioEnabled,
-                    onAudioEnabledChange = onAudioEnabledChange,
                     audioForwardingSupported = audioForwardingSupported,
-                    audioCodec = audioCodec,
-                    onAudioCodecChange = onAudioCodecChange,
                     onOpenAdvanced = onOpenAdvancedPage,
                     onStartStopHaptic = { haptics.contextClick() },
                     onStart = {
                         runBusy("启动 scrcpy") {
-                            if (noVideo && !audioEnabled) {
-                                throw IllegalArgumentException("--no-video 需要同时启用音频")
-                            }
-                            if (audioEnabled && audioSourcePreset == "custom" && audioSourceCustom.isBlank()) {
-                                throw IllegalArgumentException("audio-source 选择自定义时不能为空")
-                            }
-                            val resolvedVideoSource = videoSourcePreset.trim().ifBlank { "display" }
-                            if (resolvedVideoSource == "camera" && !cameraMirroringSupported) {
-                                throw IllegalArgumentException("camera mirroring 需要 Android 12+ (SDK 31+)")
-                            }
-                            val resolvedCameraSize = when (cameraSizePreset) {
-                                "custom" -> cameraSizeCustom.trim()
-                                else -> cameraSizePreset.trim()
-                            }
-                            if (resolvedVideoSource == "camera" && cameraSizePreset == "custom" && resolvedCameraSize.isBlank()) {
-                                throw IllegalArgumentException("camera-size 选择自定义时不能为空")
-                            }
-                            val resolvedCameraId = cameraIdInput.trim()
-                            val resolvedCameraFacing = cameraFacingPreset.trim()
-                            if (resolvedVideoSource == "camera" && resolvedCameraId.isNotBlank() && resolvedCameraFacing.isNotBlank()) {
-                                throw IllegalArgumentException("camera-id 与 camera-facing 不能同时设置")
-                            }
-                            val resolvedCameraAr = cameraArInput.trim()
-                            val resolvedCameraFps =
-                                cameraFpsInput.filter(Char::isDigit).toIntOrNull() ?: 0
-                            if (resolvedVideoSource == "camera" && cameraHighSpeed && resolvedCameraFps <= 0) {
-                                throw IllegalArgumentException("启用 --camera-high-speed 时，--camera-fps 不能为 0")
-                            }
-                            val maxSize =
-                                maxSizeInput.filter(Char::isDigit).toIntOrNull()?.takeIf { it > 0 }
-                                    ?: 0
-                            val maxFps =
-                                maxFpsInput.filter(Char::isDigit).toIntOrNull()?.toFloat() ?: 0f
-                            if (resolvedVideoSource == "camera" && resolvedCameraSize.isNotBlank() && (maxSize > 0 || resolvedCameraAr.isNotBlank())) {
-                                throw IllegalArgumentException("显式 camera-size 时不能同时设置 --max-size 或 --camera-ar")
-                            }
-                            val bitRateBps = (bitRateMbps * 1_000_000).toInt()
-                            val audioBitRateBps = (audioBitRateKbps.coerceAtLeast(1)) * 1_000
-                            val resolvedAudioSource = when (audioSourcePreset) {
-                                "custom" -> audioSourceCustom.trim()
-                                else -> audioSourcePreset.trim()
-                            }
-                            val newDisplayArg = buildNewDisplayArg(
-                                newDisplayWidth.filter(Char::isDigit),
-                                newDisplayHeight.filter(Char::isDigit),
-                                newDisplayDpi.filter(Char::isDigit),
-                            )
-                            val displayId = displayIdInput.filter(Char::isDigit).toIntOrNull()
-                                ?.takeIf { it > 0 }
-                            val crop = buildCropArg(
-                                cropWidth.filter(Char::isDigit),
-                                cropHeight.filter(Char::isDigit),
-                                cropX.filter(Char::isDigit),
-                                cropY.filter(Char::isDigit),
-                            )
-                            val effectiveTurnScreenOff = turnScreenOff && !noControl
-
-                            val options = ClientOptions(
-                                crop = crop,
-                                videoCodecOptions = videoCodecOptions,
-                                audioCodecOptions = audioCodecOptions,
-                                videoEncoder = videoEncoder,
-                                audioEncoder = audioEncoder,
-                                cameraId = resolvedCameraId,
-                                cameraSize = resolvedCameraSize,
-                                cameraAr = resolvedCameraAr,
-                                cameraFps = resolvedCameraFps.toUShort(),
-                                videoCodec = Codec.fromString(videoCodec),
-                                audioCodec = Codec.fromString(audioCodec),
-                                videoSource = if (resolvedVideoSource == "camera") VideoSource.CAMERA else VideoSource.DISPLAY,
-                                audioSource = if (resolvedAudioSource.isNotBlank()) AudioSource.fromString(
-                                    resolvedAudioSource
-                                ) else AudioSource.AUTO,
-                                cameraFacing = if (resolvedCameraFacing.isNotBlank()) CameraFacing.fromString(
-                                    resolvedCameraFacing
-                                ) else CameraFacing.ANY,
-                                maxSize = maxSize.toUShort(),
-                                videoBitRate = bitRateBps.toUInt(),
-                                audioBitRate = audioBitRateBps.toUInt(),
-                                maxFps = if (maxFps > 0f) maxFps.toString() else "",
-                                displayId = (displayId ?: 0).toUInt(),
-                                control = !noControl,
-                                video = !noVideo,
-                                audio = audioEnabled,
-                                requireAudio = requireAudio,
-                                audioPlayback = !noAudioPlayback,
-                                turnScreenOff = effectiveTurnScreenOff,
-                                audioDup = audioDup,
-                                newDisplay = newDisplayArg,
-                                cameraHighSpeed = cameraHighSpeed,
-                            )
-
-                            // Start scrcpy using Scrcpy class
-                            val session = scrcpy.start(
-                                options = options,
-                            )
-
+                            val options = scrcpyOptions.toClientOptions()
+                            val session = scrcpy.start(options)
                             sessionInfo = session
                             statusLine = "scrcpy 运行中"
                             @SuppressLint("DefaultLocale")
-                            val videoDetail = if (noVideo) {
+                            val videoDetail = if (!options.video) {
                                 "off"
                             } else {
                                 "${session.codec} ${session.width}x${session.height} " +
-                                        "@${String.format("%.1f", bitRateMbps)}Mbps"
+                                        "@${String.format("%.1f", videoBitRateMbps)}Mbps"
                             }
-                            val audioDetail = if (!audioEnabled) {
+                            val audioDetail = if (!audio) {
                                 "off"
                             } else {
-                                val playback = if (noAudioPlayback) "(no-playback)" else ""
-                                "$audioCodec ${audioBitRateKbps}kbps source=${resolvedAudioSource.ifBlank { "default" }}$playback"
+                                val playback = if (!options.audioPlayback) "(no-playback)" else ""
+                                "${options.audioCodec} ${audioBitRateKbps}kbps source=${options.audioSource}$playback"
                             }
-                            logEvent("scrcpy 已启动: device=${session.deviceName}, video=$videoDetail, audio=$audioDetail, control=${!noControl}, turnScreenOff=$effectiveTurnScreenOff, maxSize=${if (maxSize > 0) maxSize else "auto"}, maxFps=${if (maxFps > 0f) maxFps else "auto"}")
+                            logEvent(
+                                "scrcpy 已启动: device=${session.deviceName}" +
+                                        ", video=$videoDetail, audio=$audioDetail" +
+                                        ", control=${options.control}, turnScreenOff=${options.turnScreenOff}" +
+                                        ", maxSize=${options.maxSize}, maxFps=${options.maxFps}"
+                            )
                             scope.launch {
                                 snack.showSnackbar("scrcpy 已启动")
                             }
@@ -1293,7 +1052,7 @@ fun DeviceTabScreen(
                     PreviewCard(
                         sessionInfo = sessionInfo,
                         nativeCore = nativeCore,
-                        previewHeightDp = previewCardHeightDp.coerceAtLeast(120),
+                        previewHeightDp = devicePreviewCardHeightDp.coerceAtLeast(120),
                         controlsVisible = previewControlsVisible,
                         onTapped = {
                             previewControlsVisible = !previewControlsVisible
@@ -1302,15 +1061,15 @@ fun DeviceTabScreen(
                             val info = sessionInfo ?: return@PreviewCard
                             onOpenFullscreenPage(info)
                         },
-                        onOpenFullscreenHaptic = { haptics.contextClick() },
                     )
                 }
+
                 item {
                     VirtualButtonCard(
                         busy = busy,
                         outsideActions = virtualButtonLayout.first,
                         moreActions = virtualButtonLayout.second,
-                        showText = showPreviewVirtualButtonText,
+                        showText = previewVirtualButtonShowText,
                         onAction = ::sendVirtualButtonAction,
                     )
                 }

@@ -11,6 +11,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -19,6 +22,8 @@ import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -43,11 +48,11 @@ private val THEME_BASE_OPTIONS = listOf(
     ThemeModeOption("深色", ColorSchemeMode.Dark),
 )
 
-fun resolveThemeMode(baseIndex: Int, monetEnabled: Boolean): ColorSchemeMode {
+fun resolveThemeMode(baseIndex: Int, monet: Boolean): ColorSchemeMode {
     return when (baseIndex.coerceIn(0, 2)) {
-        0 -> if (monetEnabled) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
-        1 -> if (monetEnabled) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
-        else -> if (monetEnabled) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
+        0 -> if (monet) ColorSchemeMode.MonetSystem else ColorSchemeMode.System
+        1 -> if (monet) ColorSchemeMode.MonetLight else ColorSchemeMode.Light
+        else -> if (monet) ColorSchemeMode.MonetDark else ColorSchemeMode.Dark
     }
 }
 
@@ -59,35 +64,36 @@ private fun resolveThemeLabel(baseIndex: Int, monetEnabled: Boolean): String {
 @Composable
 fun SettingsScreen(
     contentPadding: PaddingValues,
-    themeBaseIndex: Int,
-    onThemeBaseIndexChange: (Int) -> Unit,
-    monetEnabled: Boolean,
-    onMonetEnabledChange: (Boolean) -> Unit,
-    fullscreenDebugInfoEnabled: Boolean,
-    onFullscreenDebugInfoEnabledChange: (Boolean) -> Unit,
-    keepScreenOnWhenStreamingEnabled: Boolean,
-    onKeepScreenOnWhenStreamingEnabledChange: (Boolean) -> Unit,
-    devicePreviewCardHeightDp: Int,
-    onDevicePreviewCardHeightDpChange: (Int) -> Unit,
-    showFullscreenVirtualButtons: Boolean,
     onOpenReorderDevices: () -> Unit,
     onOpenVirtualButtonOrder: () -> Unit,
-    onShowFullscreenVirtualButtonsChange: (Boolean) -> Unit,
-    customServerUri: String?,
     onPickServer: () -> Unit,
-    onClearServer: () -> Unit,
-    serverRemotePath: String,
-    onServerRemotePathChange: (String) -> Unit,
-    adbKeyName: String,
-    onAdbKeyNameChange: (String) -> Unit,
-    adbPairingAutoDiscoverOnDialogOpen: Boolean,
-    onAdbPairingAutoDiscoverOnDialogOpenChange: (Boolean) -> Unit,
-    adbAutoReconnectPairedDevice: Boolean,
-    onAdbAutoReconnectPairedDeviceChange: (Boolean) -> Unit,
     scrollBehavior: ScrollBehavior,
 ) {
-    val baseModeItems = THEME_BASE_OPTIONS.map { it.label }
     val context = LocalContext.current
+
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
+    val baseModeItems = THEME_BASE_OPTIONS.map { it.label }
+
+    // 主题
+    var themeBaseIndex by appSettings.themeBaseIndex.asMutableState()
+    var monet by appSettings.monet.asMutableState()
+
+    // 投屏
+    var fullscreenDebugInfo by appSettings.fullscreenDebugInfo.asMutableState()
+    var keepScreenOnWhenStreaming by appSettings.keepScreenOnWhenStreaming.asMutableState()
+    var devicePreviewCardHeightDp by appSettings.devicePreviewCardHeightDp.asMutableState()
+    var showFullscreenVirtualButtons by appSettings.showFullscreenVirtualButtons.asMutableState()
+
+    // scrcpy-server
+    var customServerUri by appSettings.customServerUri.asMutableState()
+    var serverRemotePath by appSettings.serverRemotePath.asMutableState()
+
+    // ADB
+    var adbKeyName by appSettings.adbKeyName.asMutableState()
+    var adbPairingAutoDiscoverOnDialogOpen by appSettings.adbPairingAutoDiscoverOnDialogOpen.asMutableState()
+    var adbAutoReconnectPairedDevice by appSettings.adbAutoReconnectPairedDevice.asMutableState()
 
     // 设置
     AppPageLazyColumn(
@@ -99,16 +105,16 @@ fun SettingsScreen(
             Card {
                 SuperDropdown(
                     title = "外观模式",
-                    summary = resolveThemeLabel(themeBaseIndex, monetEnabled),
+                    summary = resolveThemeLabel(themeBaseIndex, monet),
                     items = baseModeItems,
                     selectedIndex = themeBaseIndex.coerceIn(0, baseModeItems.lastIndex),
-                    onSelectedIndexChange = onThemeBaseIndexChange,
+                    onSelectedIndexChange = { themeBaseIndex = it },
                 )
                 SuperSwitch(
                     title = "Monet",
                     summary = "开启后使用 Monet 动态配色",
-                    checked = monetEnabled,
-                    onCheckedChange = onMonetEnabledChange,
+                    checked = monet,
+                    onCheckedChange = { monet = it },
                 )
             }
 
@@ -117,23 +123,21 @@ fun SettingsScreen(
                 SuperSwitch(
                     title = "启用调试信息",
                     summary = "在全屏界面显示触点数量、设备分辨率和实时 FPS",
-                    checked = fullscreenDebugInfoEnabled,
-                    onCheckedChange = onFullscreenDebugInfoEnabledChange,
+                    checked = fullscreenDebugInfo,
+                    onCheckedChange = { fullscreenDebugInfo = it },
                 )
                 SuperSwitch(
                     title = "投屏时保持屏幕常亮",
                     summary = "Scrcpy 启动后保持本机屏幕常亮，避免锁屏导致 ADB 断开",
-                    checked = keepScreenOnWhenStreamingEnabled,
-                    onCheckedChange = onKeepScreenOnWhenStreamingEnabledChange,
+                    checked = keepScreenOnWhenStreaming,
+                    onCheckedChange = { keepScreenOnWhenStreaming = it },
                 )
                 SuperSlide(
                     title = "预览卡高度",
                     summary = "设备页预览卡高度",
                     value = devicePreviewCardHeightDp.toFloat(),
                     onValueChange = {
-                        onDevicePreviewCardHeightDpChange(
-                            it.roundToInt().coerceAtLeast(120)
-                        )
+                        devicePreviewCardHeightDp = it.roundToInt().coerceAtLeast(120)
                     },
                     valueRange = 160f..600f,
                     steps = 439,
@@ -142,9 +146,10 @@ fun SettingsScreen(
                     inputInitialValue = devicePreviewCardHeightDp.toString(),
                     inputFilter = { it.filter(Char::isDigit) },
                     inputValueRange = 120f..Float.MAX_VALUE,
-                    onInputConfirm = { raw ->
-                        raw.toIntOrNull()
-                            ?.let { onDevicePreviewCardHeightDpChange(it.coerceAtLeast(120)) }
+                    onInputConfirm = { input ->
+                        input.toIntOrNull()?.let {
+                            devicePreviewCardHeightDp = it.coerceAtLeast(120)
+                        }
                     },
                 )
                 SuperArrow(
@@ -161,7 +166,7 @@ fun SettingsScreen(
                     title = "全屏显示虚拟按钮",
                     summary = "在全屏控制页底部显示返回键、主页键等虚拟按钮",
                     checked = showFullscreenVirtualButtons,
-                    onCheckedChange = onShowFullscreenVirtualButtonsChange,
+                    onCheckedChange = { showFullscreenVirtualButtons = it },
                 )
             }
 
@@ -176,20 +181,21 @@ fun SettingsScreen(
                     fontWeight = FontWeight.Medium,
                 )
                 TextField(
-                    value = customServerUri ?: "",
+                    value = customServerUri,
                     onValueChange = {},
                     readOnly = true,
                     label = "scrcpy-server-v3.3.4",
-                    useLabelAsPlaceholder = customServerUri == null,
+                    useLabelAsPlaceholder = customServerUri.isBlank(),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = UiSpacing.CardContent)
                         .padding(bottom = UiSpacing.CardContent),
                     trailingIcon = {
                         Row(modifier = Modifier.padding(end = UiSpacing.SectionTitleLeadingGap)) {
-                            if (customServerUri != null) IconButton(onClick = onClearServer) {
-                                Icon(Icons.Rounded.Clear, contentDescription = "清空")
-                            }
+                            if (customServerUri.isNotBlank())
+                                IconButton(onClick = { customServerUri = "" }) {
+                                    Icon(Icons.Rounded.Clear, contentDescription = "清空")
+                                }
                             IconButton(onClick = onPickServer) {
                                 Icon(Icons.Rounded.FileOpen, contentDescription = "选择文件")
                             }
@@ -205,7 +211,7 @@ fun SettingsScreen(
                 )
                 TextField(
                     value = serverRemotePath,
-                    onValueChange = onServerRemotePathChange,
+                    onValueChange = { serverRemotePath = it },
                     label = AppDefaults.SERVER_REMOTE_PATH,
                     useLabelAsPlaceholder = true,
                     singleLine = true,
@@ -227,7 +233,7 @@ fun SettingsScreen(
                 )
                 TextField(
                     value = adbKeyName,
-                    onValueChange = onAdbKeyNameChange,
+                    onValueChange = { adbKeyName = it },
                     label = AppDefaults.ADB_KEY_NAME,
                     useLabelAsPlaceholder = true,
                     singleLine = true,
@@ -240,13 +246,13 @@ fun SettingsScreen(
                     title = "配对时自动启用发现服务",
                     summary = "打开配对弹窗后自动搜索可用配对端口",
                     checked = adbPairingAutoDiscoverOnDialogOpen,
-                    onCheckedChange = onAdbPairingAutoDiscoverOnDialogOpenChange,
+                    onCheckedChange = { adbPairingAutoDiscoverOnDialogOpen = it },
                 )
                 SuperSwitch(
                     title = "自动重连已配对设备",
                     summary = "自动发现开启无线调试的设备，更新快速设备的随机端口并尝试连接（效果比较随缘）",
                     checked = adbAutoReconnectPairedDevice,
-                    onCheckedChange = onAdbAutoReconnectPairedDeviceChange,
+                    onCheckedChange = { adbAutoReconnectPairedDevice = it },
                 )
             }
 

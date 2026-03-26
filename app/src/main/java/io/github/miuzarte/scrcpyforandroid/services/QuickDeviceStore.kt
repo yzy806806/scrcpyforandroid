@@ -25,7 +25,6 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
-                            id = "$host:$port",
                             name = name,
                             host = host,
                             port = port,
@@ -44,7 +43,6 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
-                            id = "$host:$port",
                             name = name,
                             host = host,
                             port = port,
@@ -83,11 +81,9 @@ internal fun upsertQuickDevice(
     port: Int,
     online: Boolean,
 ) {
-    val id = "$host:$port"
-    val idx = quickDevices.indexOfFirst { it.id == id }
+    val idx = quickDevices.indexOfFirst { it.id == "$host:$port" }
     val existingName = if (idx >= 0) quickDevices[idx].name else ""
     val item = DeviceShortcut(
-        id = id,
         name = existingName,
         host = host,
         port = port,
@@ -124,7 +120,6 @@ internal fun replaceQuickDevicePort(
 
     val old = quickDevices[idx]
     val updated = old.copy(
-        id = "$host:$newPort",
         port = newPort,
         online = online,
     )

@@ -68,7 +68,7 @@ class Shared {
         AAC("aac"),
         FLAC("flac"),
         RAW("raw"); // wav raw
-        
+
         companion object {
             fun fromString(value: String): Codec {
                 return entries.find { it.string.equals(value, ignoreCase = true) } ?: H264
@@ -79,7 +79,7 @@ class Shared {
     enum class VideoSource(val string: String) {
         DISPLAY("display"), // default, ignore when passing
         CAMERA("camera");
-        
+
         companion object {
             fun fromString(value: String): VideoSource {
                 return entries.find { it.string.equals(value, ignoreCase = true) } ?: DISPLAY
@@ -100,7 +100,7 @@ class Shared {
         VOICE_CALL_UPLINK("voice-call-uplink"),
         VOICE_CALL_DOWNLINK("voice-call-downlink"),
         VOICE_PERFORMANCE("voice-performance");
-        
+
         companion object {
             fun fromString(value: String): AudioSource {
                 return entries.find { it.string.equals(value, ignoreCase = true) } ?: AUTO
@@ -113,7 +113,7 @@ class Shared {
         FRONT("front"),
         BACK("back"),
         EXTERNAL("external");
-        
+
         companion object {
             fun fromString(value: String): CameraFacing {
                 return entries.find { it.string.equals(value, ignoreCase = true) } ?: ANY
@@ -140,6 +140,13 @@ class Shared {
                 2 -> ORIENT_180
                 3 -> ORIENT_270
                 else -> error("Invalid rotation value")
+            }
+        }
+
+        companion object {
+            fun fromInt(value: Int): Orientation {
+                return entries.getOrNull(value)
+                    ?: error("Invalid orientation value: $value")
             }
         }
     }

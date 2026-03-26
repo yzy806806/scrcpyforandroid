@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -70,6 +71,8 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -92,12 +95,16 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.roundToInt
 
+// TODO: migrate to scrcpy.Shared
+
+@Deprecated("scrcpy.Shared.Codec")
 private val VIDEO_CODEC_OPTIONS = listOf(
     "h264" to "H.264",
     "h265" to "H.265",
     "av1" to "AV1",
 )
 
+@Deprecated("scrcpy.Shared.Codec")
 private val AUDIO_CODEC_OPTIONS = listOf(
     "opus" to "Opus",
     "aac" to "AAC",
@@ -124,8 +131,14 @@ internal fun StatusCard(
     sessionInfo: ScrcpySessionInfo?,
     busyLabel: String?,
     connectedDeviceLabel: String,
-    themeBaseIndex: Int,
 ) {
+    val context = LocalContext.current
+
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
+    val themeBaseIndex by appSettings.themeBaseIndex.asState()
+
     val cleanStatusLine = normalizeStatusLine(statusLine)
 
     // 根据应用主题设置决定是否使用深色模式
@@ -261,9 +274,9 @@ internal fun PreviewCard(
     previewHeightDp: Int,
     controlsVisible: Boolean,
     onTapped: () -> Unit,
-    onOpenFullscreenHaptic: (() -> Unit)? = null,
     onOpenFullscreen: () -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     val alpha by animateFloatAsState(if (controlsVisible) 1f else 0f, label = "preview-controls")
 
     Card {
@@ -312,7 +325,7 @@ internal fun PreviewCard(
                     Button(
                         onClick = {
                             if (alpha > 0.1) {
-                                onOpenFullscreenHaptic?.invoke()
+                                haptics.contextClick()
                                 onOpenFullscreen()
                             }
                         },
@@ -361,94 +374,99 @@ internal fun VirtualButtonCard(
 @Composable
 internal fun ConfigPanel(
     busy: Boolean,
-    bitRateMbps: Float,
-    onBitRateSliderChange: (Float) -> Unit,
-    onBitRateInputChange: (String) -> Unit,
-    audioBitRateKbps: Int,
-    onAudioBitRateChange: (Int) -> Unit,
-    videoCodec: String,
-    onVideoCodecChange: (String) -> Unit,
-    audioEnabled: Boolean,
-    onAudioEnabledChange: (Boolean) -> Unit,
     audioForwardingSupported: Boolean,
-    audioCodec: String,
-    onAudioCodecChange: (String) -> Unit,
     onOpenAdvanced: () -> Unit,
     onStartStopHaptic: (() -> Unit)? = null,
     onStart: () -> Unit,
     onStop: () -> Unit,
     sessionStarted: Boolean,
 ) {
-    val videoCodecItems = remember { VIDEO_CODEC_OPTIONS.map { it.second } }
-    val videoCodecIndex =
-        VIDEO_CODEC_OPTIONS.indexOfFirst { it.first == videoCodec }.coerceAtLeast(0)
-    val audioCodecItems = remember { AUDIO_CODEC_OPTIONS.map { it.second } }
-    val audioCodecIndex =
-        AUDIO_CODEC_OPTIONS.indexOfFirst { it.first == audioCodec }.coerceAtLeast(0)
-    val audioBitRatePresetIndex =
-        presetIndexFromInput(audioBitRateKbps.toString(), ScrcpyPresets.AudioBitRate)
+    val context = LocalContext.current
+
+    // val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
 
     SectionSmallTitle("Scrcpy")
     Card {
+        var audio by scrcpyOptions.audio.asMutableState()
         SuperSwitch(
             title = "音频转发",
             summary = "转发设备音频到本机 (Android 11+)",
-            checked = audioEnabled,
-            onCheckedChange = onAudioEnabledChange,
+            checked = audio,
+            onCheckedChange = { audio = it },
             enabled = !sessionStarted && audioForwardingSupported,
+        )
+
+        var audioCodec by scrcpyOptions.audioCodec.asMutableState()
+        val audioCodecItems = remember { AUDIO_CODEC_OPTIONS.map { it.second } }
+        val audioCodecIndex = AUDIO_CODEC_OPTIONS.indexOfFirst {
+            it.first == audioCodec
+        }.coerceAtLeast(0)
+        var audioBitRate by scrcpyOptions.audioBitRate.asMutableState()
+        val audioBitRateKbps = audioBitRate * 1_000f
+        val audioBitRatePresetIndex = presetIndexFromInput(
+            audioBitRateKbps.toString(),
+            ScrcpyPresets.AudioBitRate
         )
         SuperDropdown(
             title = "音频编码",
             summary = "--audio-codec",
             items = audioCodecItems,
             selectedIndex = audioCodecIndex,
-            onSelectedIndexChange = { onAudioCodecChange(AUDIO_CODEC_OPTIONS[it].first) },
-            enabled = !sessionStarted && audioEnabled,
+            onSelectedIndexChange = { audioCodec = AUDIO_CODEC_OPTIONS[it].first },
+            enabled = !sessionStarted && audio,
         )
-        if (audioEnabled && (audioCodec == "opus" || audioCodec == "aac")) {
+        if (audio && (audioCodec == "opus" || audioCodec == "aac")) {
             SuperSlide(
                 title = "音频码率",
                 summary = "--audio-bit-rate",
                 value = audioBitRatePresetIndex.toFloat(),
                 onValueChange = { value ->
                     val idx = value.roundToInt().coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
-                    onAudioBitRateChange(ScrcpyPresets.AudioBitRate[idx])
+                    audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1024
                 },
                 valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
                 steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
                 enabled = !sessionStarted,
                 unit = "Kbps",
-                displayText = audioBitRateKbps.toString(),
-                inputInitialValue = audioBitRateKbps.toString(),
+                displayText = audioBitRate.toString(),
+                inputInitialValue = audioBitRate.toString(),
                 inputFilter = { it.filter(Char::isDigit) },
                 inputValueRange = 1f..Float.MAX_VALUE,
                 onInputConfirm = { raw ->
-                    raw.toIntOrNull()?.takeIf { it > 0 }?.let { onAudioBitRateChange(it) }
+                    raw.toIntOrNull()?.takeIf { it > 0 }?.let { audioBitRate = it }
                 },
             )
         }
+
+        var videoCodec by scrcpyOptions.videoCodec.asMutableState()
+        val videoCodecItems = remember { VIDEO_CODEC_OPTIONS.map { it.second } }
+        val videoCodecIndex = VIDEO_CODEC_OPTIONS.indexOfFirst {
+            it.first == videoCodec
+        }.coerceAtLeast(0)
+        var videoBitRate by scrcpyOptions.videoBitRate.asMutableState()
+        val videoBitRateMbps = videoBitRate / 1_000_000f
         SuperDropdown(
             title = "视频编码",
             summary = "--video-codec",
             items = videoCodecItems,
             selectedIndex = videoCodecIndex,
-            onSelectedIndexChange = { onVideoCodecChange(VIDEO_CODEC_OPTIONS[it].first) },
+            onSelectedIndexChange = { videoCodec = VIDEO_CODEC_OPTIONS[it].first },
             enabled = !sessionStarted,
         )
         SuperSlide(
             title = "视频码率",
             summary = "--video-bit-rate",
-            value = bitRateMbps,
-            onValueChange = {
-                onBitRateSliderChange(it)
-                onBitRateInputChange(formatBitRate(it))
+            value = videoBitRateMbps,
+            onValueChange = { mbps ->
+                videoBitRate = (mbps * 1_000_000).toInt()
             },
             valueRange = 0.1f..40f,
             steps = 399,
             enabled = !sessionStarted,
             unit = "Mbps",
             displayFormatter = { formatBitRate(it) },
-            inputInitialValue = formatBitRate(bitRateMbps),
+            inputInitialValue = formatBitRate(videoBitRateMbps),
             inputFilter = { text ->
                 var dotUsed = false
                 text.filter { ch ->
@@ -467,18 +485,19 @@ internal fun ConfigPanel(
             onInputConfirm = { raw ->
                 raw.toFloatOrNull()?.let { parsed ->
                     if (parsed >= 0.1f) {
-                        onBitRateSliderChange(parsed)
-                        onBitRateInputChange(formatBitRate(parsed))
+                        videoBitRate = (parsed * 1_000_000).toInt()
                     }
                 }
             },
         )
+
         SuperArrow(
             title = "高级参数",
             summary = "更多 scrcpy 启动参数",
             onClick = onOpenAdvanced,
             enabled = !sessionStarted,
         )
+
         TextButton(
             text = if (sessionStarted) "停止" else "启动",
             onClick = {
@@ -1353,7 +1372,6 @@ internal fun DeviceEditorScreen(
                         if (h.isNotBlank()) {
                             onSave(
                                 DeviceShortcut(
-                                    id = "$h:$p",
                                     name = name.trim(),
                                     host = h,
                                     port = p,
