@@ -8,31 +8,28 @@ import kotlinx.coroutines.flow.map
 
 class QuickDevices(context: Context) : Settings(context, "QuickDevices") {
     companion object {
-        private val QUICK_DEVICES = Pair(
-            stringPreferencesKey("quick_devices"),
+        val QUICK_DEVICES_LIST = Pair(
+            stringPreferencesKey("quick_devices_list"),
             "",
         )
-        private val QUICK_CONNECT_INPUT = Pair(
+        val QUICK_CONNECT_INPUT = Pair(
             stringPreferencesKey("quick_connect_input"),
             "",
         )
     }
 
-    override suspend fun toMap(): Map<String, Any> {
-        return mapOf(
-            QUICK_DEVICES.name to getQuickDevicesRaw(),
-            QUICK_CONNECT_INPUT.name to getQuickConnectInput(),
-        )
-    }
+    val quickDevicesList by setting(QUICK_DEVICES_LIST)
+    val quickConnectInput by setting(QUICK_CONNECT_INPUT)
+
+    override suspend fun toMap(): Map<String, Any> = mapOf(
+        QUICK_DEVICES_LIST.name to quickDevicesList.get(),
+        QUICK_CONNECT_INPUT.name to quickConnectInput.get(),
+    )
 
     override fun validate(): Boolean = true
 
-    private suspend fun getQuickDevicesRaw(): String = getValue(QUICK_DEVICES)
-    private suspend fun setQuickDevicesRaw(value: String) = setValue(QUICK_DEVICES, value)
-    private fun observeQuickDevicesRaw(): Flow<String> = observe(QUICK_DEVICES)
-
     suspend fun getQuickDevices(): List<DeviceShortcut> {
-        val raw = getQuickDevicesRaw()
+        val raw = quickDevicesList.get()
         if (raw.isBlank()) return emptyList()
 
         val result = mutableListOf<DeviceShortcut>()
@@ -42,10 +39,10 @@ class QuickDevices(context: Context) : Settings(context, "QuickDevices") {
         return result
     }
 
-    suspend fun setQuickDevices(quickDevices: List<DeviceShortcut>) =
-        setQuickDevicesRaw(quickDevices.joinToString("\n") { it.marshalToString() })
+    suspend fun setQuickDevices(list: List<DeviceShortcut>) =
+        quickDevicesList.set(list.joinToString("\n") { it.marshalToString() })
 
-    fun observeQuickDevices(): Flow<List<DeviceShortcut>> = observeQuickDevicesRaw()
+    fun observeQuickDevices(): Flow<List<DeviceShortcut>> = quickDevicesList.observe()
         .map { raw ->
             if (raw.isBlank()) return@map emptyList()
 
@@ -162,10 +159,6 @@ class QuickDevices(context: Context) : Settings(context, "QuickDevices") {
      * 清空所有快速设备
      */
     suspend fun clearQuickDevices() {
-        setQuickDevicesRaw("")
+        quickDevicesList.set("")
     }
-
-    private suspend fun getQuickConnectInput(): String = getValue(QUICK_CONNECT_INPUT)
-    private suspend fun setQuickConnectInput(value: String) = setValue(QUICK_CONNECT_INPUT, value)
-    private fun observeQuickConnectInput(): Flow<String> = observe(QUICK_CONNECT_INPUT)
 }

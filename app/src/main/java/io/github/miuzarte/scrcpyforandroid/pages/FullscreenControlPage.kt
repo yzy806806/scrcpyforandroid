@@ -22,6 +22,8 @@ import androidx.core.view.WindowInsetsControllerCompat
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.ScrcpySessionInfo
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.widgets.FullscreenControlScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
@@ -38,9 +40,6 @@ data class FullscreenControlLaunch(
 fun FullscreenControlPage(
     launch: FullscreenControlLaunch,
     nativeCore: NativeCoreFacade,
-    virtualButtonsLayout: String,
-    showDebugInfo: Boolean,
-    showVirtualButtons: Boolean,
     onVideoSizeChanged: (width: Int, height: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -48,15 +47,25 @@ fun FullscreenControlPage(
     BackHandler(enabled = true, onBack = onDismiss)
 
     val context = LocalContext.current
+
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
     val haptics = rememberAppHaptics()
+
     val activity = remember(context) { context as? Activity }
-    val virtualButtonLayout = remember(virtualButtonsLayout) {
+
+    var virtualButtonsLayout by appSettings.virtualButtonsLayout.asMutableState()
+    val buttonItems = remember(virtualButtonsLayout) {
         VirtualButtonActions.splitLayout(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
     }
-    val bar = remember(virtualButtonLayout) {
+    val fullscreenDebugInfo by appSettings.fullscreenDebugInfo.asState()
+    val showFullscreenVirtualButtons by appSettings.showFullscreenVirtualButtons.asState()
+
+    val bar = remember(buttonItems) {
         VirtualButtonBar(
-            outsideActions = virtualButtonLayout.first,
-            moreActions = virtualButtonLayout.second,
+            outsideActions = buttonItems.first,
+            moreActions = buttonItems.second,
         )
     }
     var session by remember(launch) {
@@ -128,7 +137,7 @@ fun FullscreenControlPage(
                 session = session,
                 nativeCore = nativeCore,
                 onDismiss = onDismiss,
-                showDebugInfo = showDebugInfo,
+                showDebugInfo = fullscreenDebugInfo,
                 currentFps = currentFps,
                 enableBackHandler = false,
                 onInjectTouch = { action, pointerId, x, y, pressure, buttons ->
@@ -146,7 +155,7 @@ fun FullscreenControlPage(
                 },
             )
 
-            if (showVirtualButtons) {
+            if (showFullscreenVirtualButtons) {
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     onAction = { action ->

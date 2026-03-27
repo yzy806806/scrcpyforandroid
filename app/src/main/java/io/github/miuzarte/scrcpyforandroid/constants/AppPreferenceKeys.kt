@@ -2,8 +2,6 @@ package io.github.miuzarte.scrcpyforandroid.constants
 
 object AppPreferenceKeys {
     const val PREFS_NAME = "scrcpy_app_prefs"
-    const val NATIVE_ADB_KEY_PREFS_NAME = "nativecore_adb_rsa"
-    const val NATIVE_ADB_PRIVATE_KEY = "priv"
 
     // Devices
     const val QUICK_DEVICES = "quick_devices"

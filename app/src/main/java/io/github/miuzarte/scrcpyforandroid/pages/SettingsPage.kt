@@ -18,7 +18,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.net.toUri
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
@@ -212,7 +211,7 @@ fun SettingsScreen(
                 TextField(
                     value = serverRemotePath,
                     onValueChange = { serverRemotePath = it },
-                    label = AppDefaults.SERVER_REMOTE_PATH,
+                    label = AppSettings.SERVER_REMOTE_PATH.defaultValue,
                     useLabelAsPlaceholder = true,
                     singleLine = true,
                     modifier = Modifier
@@ -234,7 +233,7 @@ fun SettingsScreen(
                 TextField(
                     value = adbKeyName,
                     onValueChange = { adbKeyName = it },
-                    label = AppDefaults.ADB_KEY_NAME,
+                    label = AppSettings.ADB_KEY_NAME.defaultValue,
                     useLabelAsPlaceholder = true,
                     singleLine = true,
                     modifier = Modifier

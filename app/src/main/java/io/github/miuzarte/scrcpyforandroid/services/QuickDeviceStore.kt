@@ -2,8 +2,8 @@ package io.github.miuzarte.scrcpyforandroid.services
 
 import android.content.Context
 import androidx.core.content.edit
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.AppPreferenceKeys
+import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 
@@ -21,7 +21,7 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
             3 -> {
                 val name = parts[0].trim()
                 val host = parts[1].trim()
-                val port = parts[2].trim().toIntOrNull() ?: AppDefaults.ADB_PORT
+                val port = parts[2].trim().toIntOrNull() ?: Defaults.ADB_PORT
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
@@ -38,8 +38,8 @@ internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
                 // Backward compatibility with old format: name|host:port
                 val name = parts[0].trim()
                 val host = parts[1].substringBefore(":").trim()
-                val port = parts[1].substringAfter(":", AppDefaults.ADB_PORT.toString()).trim()
-                    .toIntOrNull() ?: AppDefaults.ADB_PORT
+                val port = parts[1].substringAfter(":", Defaults.ADB_PORT.toString()).trim()
+                    .toIntOrNull() ?: Defaults.ADB_PORT
                 if (host.isNotBlank()) {
                     result.add(
                         DeviceShortcut(
@@ -69,8 +69,8 @@ internal fun parseQuickTarget(raw: String): ConnectionTarget? {
     if (value.isEmpty()) return null
     val host = value.substringBefore(':').trim()
     if (host.isEmpty()) return null
-    val port = value.substringAfter(':', AppDefaults.ADB_PORT.toString()).trim().toIntOrNull()
-        ?: AppDefaults.ADB_PORT
+    val port = value.substringAfter(':', Defaults.ADB_PORT.toString()).trim().toIntOrNull()
+        ?: Defaults.ADB_PORT
     return ConnectionTarget(host, port)
 }
 

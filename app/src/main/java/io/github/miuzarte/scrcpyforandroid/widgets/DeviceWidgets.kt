@@ -65,7 +65,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.ScrcpySessionInfo
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
+import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
@@ -1367,7 +1367,7 @@ internal fun DeviceEditorScreen(
                 TextButton(
                     text = "保存",
                     onClick = {
-                        val p = port.toIntOrNull() ?: AppDefaults.ADB_PORT
+                        val p = port.toIntOrNull() ?: Defaults.ADB_PORT
                         val h = host.trim()
                         if (h.isNotBlank()) {
                             onSave(

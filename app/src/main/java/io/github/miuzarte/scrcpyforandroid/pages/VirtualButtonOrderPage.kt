@@ -6,7 +6,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.widgets.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
@@ -18,17 +21,16 @@ import top.yukonga.miuix.kmp.extra.SuperSwitch
 internal fun VirtualButtonOrderPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
-    layoutString: String,
-    onLayoutChange: (String) -> Unit,
-    showPreviewText: Boolean,
-    onShowPreviewTextChange: (Boolean) -> Unit,
 ) {
-    var buttonItems by remember(layoutString) {
-        mutableStateOf(VirtualButtonActions.parseStoredLayout(layoutString))
-    }
+    val context = LocalContext.current
 
-    fun emitChanges() {
-        onLayoutChange(VirtualButtonActions.encodeStoredLayout(buttonItems))
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
+    var previewVirtualButtonShowText by appSettings.previewVirtualButtonShowText.asMutableState()
+    var virtualButtonsLayout by appSettings.virtualButtonsLayout.asMutableState()
+    var buttonItems by remember(virtualButtonsLayout) {
+        mutableStateOf(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
     }
 
     AppPageLazyColumn(
@@ -41,8 +43,8 @@ internal fun VirtualButtonOrderPage(
                 SuperSwitch(
                     title = "按钮显示文本",
                     summary = "超过3个建议关闭，只对预览卡下方的虚拟按钮生效",
-                    checked = showPreviewText,
-                    onCheckedChange = onShowPreviewTextChange,
+                    checked = previewVirtualButtonShowText,
+                    onCheckedChange = { previewVirtualButtonShowText = it },
                 )
             }
         }
@@ -67,7 +69,7 @@ internal fun VirtualButtonOrderPage(
                     buttonItems = buttonItems.toMutableList().apply {
                         add(toIndex, removeAt(fromIndex))
                     }
-                    emitChanges()
+                    virtualButtonsLayout = VirtualButtonActions.encodeStoredLayout(buttonItems)
                 },
                 showCheckbox = true,
                 onCheckboxChange = { id, checked ->
@@ -78,7 +80,7 @@ internal fun VirtualButtonOrderPage(
                             item
                         }
                     }
-                    emitChanges()
+                    virtualButtonsLayout = VirtualButtonActions.encodeStoredLayout(buttonItems)
                 },
             )()
         }

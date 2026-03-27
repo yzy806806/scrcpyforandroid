@@ -33,7 +33,6 @@ import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.runtime.setValue
@@ -47,7 +46,6 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.ui.NavDisplay
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
@@ -95,10 +93,16 @@ private sealed interface RootScreen : NavKey {
 @Composable
 fun MainPage() {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
 
     val activity = remember(context) { context as? Activity }
     val initialOrientation = remember(activity) {
         activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+    }
+    DisposableEffect(activity) {
+        onDispose {
+            activity?.requestedOrientation = initialOrientation
+        }
     }
 
     val nativeCore = remember(context) { NativeCoreFacade.get(context.applicationContext) }
@@ -106,234 +110,26 @@ fun MainPage() {
     val scrcpy = remember(context) { Scrcpy(context) }
 
     val snackHostState = remember { SnackbarHostState() }
+    val saveableStateHolder = rememberSaveableStateHolder()
     val tabs = remember { MainTabDestination.entries }
     val pagerState = rememberPagerState(
         initialPage = MainTabDestination.Device.ordinal,
         pageCount = { tabs.size })
     val currentTab = tabs[pagerState.currentPage]
-    val saveableStateHolder = rememberSaveableStateHolder()
-    val scope = rememberCoroutineScope()
     val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
-    val deviceScrollBehavior =
-        MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Device })
-    val settingsScrollBehavior =
-        MiuixScrollBehavior(canScroll = { currentTab == MainTabDestination.Settings })
-    val advancedScrollBehavior = MiuixScrollBehavior(
+    val devicesPageScrollBehavior = MiuixScrollBehavior(
+        canScroll = { currentTab == MainTabDestination.Device })
+    val settingsPageScrollBehavior = MiuixScrollBehavior(
+        canScroll = { currentTab == MainTabDestination.Settings })
+    val advancedPageScrollBehavior = MiuixScrollBehavior(
         canScroll = {
-            currentRootScreen is RootScreen.Advanced || currentRootScreen is RootScreen.VirtualButtonOrder
-        },
-    )
-    val stringListSaver = listSaver<List<String>, String>(
-        save = { value -> ArrayList(value) },
-        restore = { restored -> restored.toList() },
-    )
-
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
-
-    /*
-    val initialSettings = remember(context) {
-        loadMainSettings(context)
-    }
-    var audioEnabled by rememberSaveable {
-        mutableStateOf(initialSettings.audioEnabled)
-    }
-    var audioCodec by rememberSaveable {
-        mutableStateOf(initialSettings.audioCodec)
-    }
-    var videoCodec by rememberSaveable {
-        mutableStateOf(initialSettings.videoCodec)
-    }
-    var fullscreenDebugInfoEnabled by rememberSaveable {
-        mutableStateOf(initialSettings.fullscreenDebugInfoEnabled)
-    }
-    var showFullscreenVirtualButtons by rememberSaveable {
-        mutableStateOf(initialSettings.showFullscreenVirtualButtons)
-    }
-    var showPreviewVirtualButtonText by rememberSaveable {
-        mutableStateOf(initialSettings.showPreviewVirtualButtonText)
-    }
-    var keepScreenOnWhenStreamingEnabled by rememberSaveable {
-        mutableStateOf(initialSettings.keepScreenOnWhenStreamingEnabled)
-    }
-    var devicePreviewCardHeightDp by rememberSaveable {
-        mutableIntStateOf(initialSettings.devicePreviewCardHeightDp)
-    }
-    var virtualButtonsLayout by rememberSaveable {
-        mutableStateOf(initialSettings.virtualButtonsLayout)
-    }
-    var customServerUri by rememberSaveable {
-        mutableStateOf(initialSettings.customServerUri)
-    }
-    var serverRemotePath by rememberSaveable {
-        mutableStateOf(initialSettings.serverRemotePath)
-    }
-    var adbKeyName by rememberSaveable {
-        mutableStateOf(initialSettings.adbKeyName)
-    }
-    var adbPairingAutoDiscoverOnDialogOpen by rememberSaveable {
-        mutableStateOf(initialSettings.adbPairingAutoDiscoverOnDialogOpen)
-    }
-    var adbAutoReconnectPairedDevice by rememberSaveable {
-        mutableStateOf(initialSettings.adbAutoReconnectPairedDevice)
-    }
-    var adbMdnsLanDiscoveryEnabled by rememberSaveable {
-        mutableStateOf(initialSettings.adbMdnsLanDiscoveryEnabled)
-    }
-
-    val initialDeviceSettings = remember(context) {
-        loadDevicePageSettings(context)
-    }
-    var noControl by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.noControl)
-    }
-    var videoEncoder by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.videoEncoder)
-    }
-    var videoCodecOptions by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.videoCodecOptions)
-    }
-    var audioEncoder by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.audioEncoder)
-    }
-    var audioCodecOptions by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.audioCodecOptions)
-    }
-    var audioDup by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.audioDup)
-    }
-    var audioSourcePreset by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.audioSourcePreset)
-    }
-    var audioSourceCustom by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.audioSourceCustom)
-    }
-    var videoSourcePreset by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.videoSourcePreset)
-    }
-    var cameraIdInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraIdInput)
-    }
-    var cameraFacingPreset by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraFacingPreset)
-    }
-    var cameraSizePreset by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraSizePreset)
-    }
-    var cameraSizeCustom by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraSizeCustom)
-    }
-    var cameraArInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraAr)
-    }
-    var cameraFpsInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraFps)
-    }
-    var cameraHighSpeed by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cameraHighSpeed)
-    }
-    var noAudioPlayback by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.noAudioPlayback)
-    }
-    var noVideo by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.noVideo)
-    }
-    var requireAudio by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.requireAudio)
-    }
-    var turnScreenOff by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.turnScreenOff)
-    }
-    var maxSizeInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.maxSizeInput)
-    }
-    var maxFpsInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.maxFpsInput)
-    }
-    var newDisplayWidth by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.newDisplayWidth)
-    }
-    var newDisplayHeight by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.newDisplayHeight)
-    }
-    var newDisplayDpi by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.newDisplayDpi)
-    }
-    var displayIdInput by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.displayIdInput)
-    }
-    var cropWidth by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cropWidth)
-    }
-    var cropHeight by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cropHeight)
-    }
-    var cropX by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cropX)
-    }
-    var cropY by rememberSaveable {
-        mutableStateOf(initialDeviceSettings.cropY)
-    }
-     */
-
-    val videoEncoderOptions = remember { mutableStateListOf<String>() }
-    val audioEncoderOptions = remember { mutableStateListOf<String>() }
-    val videoEncoderTypeMap = remember { mutableStateMapOf<String, String>() }
-    val audioEncoderTypeMap = remember { mutableStateMapOf<String, String>() }
-    val cameraSizeOptions = remember { mutableStateListOf<String>() }
-    var sessionStarted by remember { mutableStateOf(false) }
-    var refreshEncodersAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var refreshCameraSizesAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var clearLogsAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var openReorderDevicesAction by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var canClearLogs by remember { mutableStateOf(false) }
-    var showDeviceMenu by rememberSaveable { mutableStateOf(false) }
-    var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
-    var fullscreenOrientation by rememberSaveable {
-        mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-    }
-
-    var themeBaseIndex by appSettings.themeBaseIndex.asMutableState()
-    var monet by appSettings.monet.asMutableState()
-    val themeMode = resolveThemeMode(themeBaseIndex, monet)
-    val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
-
-    // Restore system orientation when MainPage leaves composition.
-    DisposableEffect(activity) {
-        onDispose {
-            activity?.requestedOrientation = initialOrientation
-        }
-    }
-
-    val keepScreenOnWhenStreamingEnabled by appSettings.keepScreenOnWhenStreaming.asMutableState()
-    // Keep-screen-on is controlled globally, so fullscreen and preview share the same behavior.
-    DisposableEffect(activity, keepScreenOnWhenStreamingEnabled, sessionStarted) {
-        val window = activity?.window
-        val shouldKeepScreenOn = keepScreenOnWhenStreamingEnabled && sessionStarted
-        if (window != null && shouldKeepScreenOn) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-        onDispose {
-            if (window != null && shouldKeepScreenOn) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            when (currentRootScreen) {
+                is RootScreen.Advanced -> true
+                is RootScreen.VirtualButtonOrder -> true
+                else -> false
             }
-        }
-    }
-
-    // Fullscreen route can force orientation based on stream ratio; all other routes are portrait.
-    LaunchedEffect(activity, currentRootScreen, fullscreenOrientation) {
-        val targetOrientation = when (currentRootScreen) {
-            is RootScreen.Fullscreen -> fullscreenOrientation
-            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
-        activity?.requestedOrientation = targetOrientation
-    }
-
-    val adbKeyName by appSettings.adbKeyName.asMutableState()
-    LaunchedEffect(adbKeyName) {
-        adbService.keyName = adbKeyName.ifBlank { AppDefaults.ADB_KEY_NAME }
-    }
+        })
 
     fun popRoot() {
         if (rootBackStack.size > 1) {
@@ -345,6 +141,7 @@ fun MainPage() {
     // 1) pop inner route
     // 2) switch tab back to Device
     // 3) double-back to exit and disconnect adb/scrcpy
+    var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
     fun handleBackNavigation() {
         if (rootBackStack.size > 1) {
             popRoot()
@@ -392,6 +189,59 @@ fun MainPage() {
         } catch (_: CancellationException) {
             // Gesture was cancelled by the system/user.
         }
+    }
+
+    val appSettings = remember(context) { AppSettings(context) }
+    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+
+    val videoEncoderOptions = remember { mutableStateListOf<String>() }
+    val audioEncoderOptions = remember { mutableStateListOf<String>() }
+    val videoEncoderTypeMap = remember { mutableStateMapOf<String, String>() }
+    val audioEncoderTypeMap = remember { mutableStateMapOf<String, String>() }
+    val cameraSizeOptions = remember { mutableStateListOf<String>() }
+    var sessionStarted by remember { mutableStateOf(false) }
+    var refreshEncodersAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var refreshCameraSizesAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var clearLogsAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var openReorderDevicesAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    var canClearLogs by remember { mutableStateOf(false) }
+    var showDeviceMenu by rememberSaveable { mutableStateOf(false) }
+    var fullscreenOrientation by rememberSaveable {
+        mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+    }
+
+    var themeBaseIndex by appSettings.themeBaseIndex.asMutableState()
+    var monet by appSettings.monet.asMutableState()
+    val themeMode = resolveThemeMode(themeBaseIndex, monet)
+    val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
+
+    val keepScreenOnWhenStreamingEnabled by appSettings.keepScreenOnWhenStreaming.asMutableState()
+    // Keep-screen-on is controlled globally, so fullscreen and preview share the same behavior.
+    DisposableEffect(activity, keepScreenOnWhenStreamingEnabled, sessionStarted) {
+        val window = activity?.window
+        val shouldKeepScreenOn = keepScreenOnWhenStreamingEnabled && sessionStarted
+        if (window != null && shouldKeepScreenOn) {
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        }
+        onDispose {
+            if (window != null && shouldKeepScreenOn) {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+
+    // Fullscreen route can force orientation based on stream ratio; all other routes are portrait.
+    LaunchedEffect(activity, currentRootScreen, fullscreenOrientation) {
+        val targetOrientation = when (currentRootScreen) {
+            is RootScreen.Fullscreen -> fullscreenOrientation
+            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+        }
+        activity?.requestedOrientation = targetOrientation
+    }
+
+    val adbKeyName by appSettings.adbKeyName.asState()
+    LaunchedEffect(adbKeyName) {
+        adbService.keyName = adbKeyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
     }
 
     var customServerUri by appSettings.customServerUri.asMutableState()
@@ -477,7 +327,7 @@ fun MainPage() {
                                                 },
                                             )
                                         },
-                                        scrollBehavior = deviceScrollBehavior,
+                                        scrollBehavior = devicesPageScrollBehavior,
                                     )
                                 },
                             ) { pagePadding ->
@@ -487,15 +337,7 @@ fun MainPage() {
                                     adbService = adbService,
                                     scrcpy = scrcpy,
                                     snack = snackHostState,
-                                    scrollBehavior = deviceScrollBehavior,
-                                    /*
-                                    onNoControlChange = {
-                                        noControl = it
-                                        if (it) {
-                                            turnScreenOff = false
-                                        }
-                                    },
-                                    */
+                                    scrollBehavior = devicesPageScrollBehavior,
                                     videoEncoderOptions = videoEncoderOptions,
                                     onVideoEncoderOptionsChange = {
                                         videoEncoderOptions.clear()
@@ -555,7 +397,7 @@ fun MainPage() {
                                 topBar = {
                                     TopAppBar(
                                         title = tab.title,
-                                        scrollBehavior = settingsScrollBehavior,
+                                        scrollBehavior = settingsPageScrollBehavior,
                                     )
                                 },
                             ) { pagePadding ->
@@ -576,7 +418,7 @@ fun MainPage() {
                                             )
                                         )
                                     },
-                                    scrollBehavior = settingsScrollBehavior,
+                                    scrollBehavior = settingsPageScrollBehavior,
                                 )
                             }
                         }
@@ -605,101 +447,32 @@ fun MainPage() {
                                 )
                             }
                         },
-                        scrollBehavior = advancedScrollBehavior,
+                        scrollBehavior = advancedPageScrollBehavior,
                     )
                 },
                 snackbarHost = { SnackbarHost(snackHostState) },
             ) { pagePadding ->
                 AdvancedConfigPage(
                     contentPadding = pagePadding,
-                    scrollBehavior = advancedScrollBehavior,
-                    sessionStarted = sessionStarted,
+                    scrollBehavior = advancedPageScrollBehavior,
                     snackbarHostState = snackHostState,
-                    audioEnabled = audioEnabled,
-                    noControl = noControl,
-                    onNoControlChange = {
-                        noControl = it
-                        if (it) {
-                            turnScreenOff = false
-                        }
-                    },
-                    audioDup = audioDup,
-                    onAudioDupChange = { audioDup = it },
-                    audioSourcePreset = audioSourcePreset,
-                    onAudioSourcePresetChange = { audioSourcePreset = it },
-                    audioSourceCustom = audioSourceCustom,
-                    onAudioSourceCustomChange = { audioSourceCustom = it },
-                    videoSourcePreset = videoSourcePreset,
-                    onVideoSourcePresetChange = { videoSourcePreset = it },
-                    cameraIdInput = cameraIdInput,
-                    onCameraIdInputChange = { cameraIdInput = it },
-                    cameraFacingPreset = cameraFacingPreset,
-                    onCameraFacingPresetChange = { cameraFacingPreset = it },
-                    cameraSizePreset = cameraSizePreset,
-                    onCameraSizePresetChange = { cameraSizePreset = it },
-                    cameraSizeCustom = cameraSizeCustom,
-                    onCameraSizeCustomChange = { cameraSizeCustom = it },
                     cameraSizeDropdownItems = listOf("默认") + cameraSizeOptions + listOf("自定义"),
-                    cameraSizeIndex = when (cameraSizePreset) {
-                        "custom" -> cameraSizeOptions.size + 1
-                        in cameraSizeOptions -> cameraSizeOptions.indexOf(cameraSizePreset) + 1
-                        else -> 0
-                    },
-                    cameraArInput = cameraArInput,
-                    onCameraArInputChange = { cameraArInput = it },
-                    cameraFpsInput = cameraFpsInput,
-                    onCameraFpsInputChange = { cameraFpsInput = it },
-                    cameraHighSpeed = cameraHighSpeed,
-                    onCameraHighSpeedChange = { cameraHighSpeed = it },
-                    noAudioPlayback = noAudioPlayback,
-                    onNoAudioPlaybackChange = { noAudioPlayback = it },
-                    noVideo = noVideo,
-                    onNoVideoChange = { noVideo = it },
-                    requireAudio = requireAudio,
-                    onRequireAudioChange = { requireAudio = it },
-                    turnScreenOff = turnScreenOff,
-                    onTurnScreenOffChange = { turnScreenOff = it },
-                    maxSizeInput = maxSizeInput,
-                    onMaxSizeInputChange = { maxSizeInput = it },
-                    maxFpsInput = maxFpsInput,
-                    onMaxFpsInputChange = { maxFpsInput = it },
+                    cameraSizeOptions = cameraSizeOptions,
                     videoEncoderDropdownItems = videoEncoderDropdownItems,
                     videoEncoderTypeMap = videoEncoderTypeMap,
                     videoEncoderIndex = videoEncoderIndex,
-                    onVideoEncoderChange = { videoEncoder = it },
-                    videoCodecOptions = videoCodecOptions,
-                    onVideoCodecOptionsChange = { videoCodecOptions = it },
                     audioEncoderDropdownItems = audioEncoderDropdownItems,
                     audioEncoderTypeMap = audioEncoderTypeMap,
                     audioEncoderIndex = audioEncoderIndex,
-                    onAudioEncoderChange = { audioEncoder = it },
-                    audioCodecOptions = audioCodecOptions,
-                    onAudioCodecOptionsChange = { audioCodecOptions = it },
                     onRefreshEncoders = { refreshEncodersAction?.invoke() },
                     onRefreshCameraSizes = { refreshCameraSizesAction?.invoke() },
-                    newDisplayWidth = newDisplayWidth,
-                    onNewDisplayWidthChange = { newDisplayWidth = it },
-                    newDisplayHeight = newDisplayHeight,
-                    onNewDisplayHeightChange = { newDisplayHeight = it },
-                    newDisplayDpi = newDisplayDpi,
-                    onNewDisplayDpiChange = { newDisplayDpi = it },
-                    displayIdInput = displayIdInput,
-                    onDisplayIdInputChange = { displayIdInput = it },
-                    cropWidth = cropWidth,
-                    onCropWidthChange = { cropWidth = it },
-                    cropHeight = cropHeight,
-                    onCropHeightChange = { cropHeight = it },
-                    cropX = cropX,
-                    onCropXChange = { cropX = it },
-                    cropY = cropY,
-                    onCropYChange = { cropY = it },
                 )
             }
         }
 
         entry(RootScreen.VirtualButtonOrder) {
             Scaffold(
-                modifier = Modifier.nestedScroll(advancedScrollBehavior.nestedScrollConnection),
+                modifier = Modifier.nestedScroll(advancedPageScrollBehavior.nestedScrollConnection),
                 topBar = {
                     TopAppBar(
                         title = "虚拟按钮排序",
@@ -711,19 +484,13 @@ fun MainPage() {
                                 )
                             }
                         },
-                        scrollBehavior = advancedScrollBehavior,
+                        scrollBehavior = advancedPageScrollBehavior,
                     )
                 },
             ) { pagePadding ->
                 VirtualButtonOrderPage(
                     contentPadding = pagePadding,
-                    scrollBehavior = advancedScrollBehavior,
-                    layoutString = virtualButtonsLayout,
-                    onLayoutChange = { layout ->
-                        virtualButtonsLayout = layout
-                    },
-                    showPreviewText = showPreviewVirtualButtonText,
-                    onShowPreviewTextChange = { showPreviewVirtualButtonText = it },
+                    scrollBehavior = advancedPageScrollBehavior,
                 )
             }
         }
@@ -732,9 +499,6 @@ fun MainPage() {
             FullscreenControlPage(
                 launch = screen.launch,
                 nativeCore = nativeCore,
-                virtualButtonsLayout = virtualButtonsLayout,
-                showDebugInfo = fullscreenDebugInfoEnabled,
-                showVirtualButtons = showFullscreenVirtualButtons,
                 onVideoSizeChanged = { width, height ->
                     fullscreenOrientation = if (width >= height) {
                         ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE

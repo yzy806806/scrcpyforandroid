@@ -12,9 +12,11 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.platform.LocalContext
@@ -56,6 +58,7 @@ private val AUDIO_SOURCE_OPTIONS = listOf(
     "custom" to "自定义",
 )
 
+// TODO: Scrcpy.VideoSource
 private val VIDEO_SOURCE_OPTIONS = listOf(
     "display" to "display",
     "camera" to "camera",
@@ -75,73 +78,16 @@ internal fun AdvancedConfigPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
     snackbarHostState: SnackbarHostState,
-//    sessionStarted: Boolean,
-
-    // audioEnabled: Boolean,
-
-//    noControl: Boolean,
-//    onNoControlChange: (Boolean) -> Unit,
-    audioDup: Boolean,
-    onAudioDupChange: (Boolean) -> Unit,
-    audioSourcePreset: String,
-    onAudioSourcePresetChange: (String) -> Unit,
-    audioSourceCustom: String,
-    onAudioSourceCustomChange: (String) -> Unit,
-    videoSourcePreset: String,
-    onVideoSourcePresetChange: (String) -> Unit,
-    cameraIdInput: String,
-    onCameraIdInputChange: (String) -> Unit,
-    cameraFacingPreset: String,
-    onCameraFacingPresetChange: (String) -> Unit,
-    cameraSizePreset: String,
-    onCameraSizePresetChange: (String) -> Unit,
-    cameraSizeCustom: String,
-    onCameraSizeCustomChange: (String) -> Unit,
+    cameraSizeOptions: SnapshotStateList<String>,
     cameraSizeDropdownItems: List<String>,
-    cameraSizeIndex: Int,
-    cameraArInput: String,
-    onCameraArInputChange: (String) -> Unit,
-    cameraFpsInput: String,
-    onCameraFpsInputChange: (String) -> Unit,
-    cameraHighSpeed: Boolean,
-    onCameraHighSpeedChange: (Boolean) -> Unit,
-    noAudioPlayback: Boolean,
-    onNoAudioPlaybackChange: (Boolean) -> Unit,
-    noVideo: Boolean,
-    onNoVideoChange: (Boolean) -> Unit,
-    requireAudio: Boolean,
-    onRequireAudioChange: (Boolean) -> Unit,
-    turnScreenOff: Boolean,
-    onTurnScreenOffChange: (Boolean) -> Unit,
-    maxSizeInput: String,
-    onMaxSizeInputChange: (String) -> Unit,
-    maxFpsInput: String,
-    onMaxFpsInputChange: (String) -> Unit,
-
     videoEncoderDropdownItems: List<String>,
     videoEncoderTypeMap: Map<String, String>,
     videoEncoderIndex: Int,
-    onVideoEncoderChange: (String) -> Unit,
-    videoCodecOptions: String,
-    onVideoCodecOptionsChange: (String) -> Unit,
     audioEncoderDropdownItems: List<String>,
     audioEncoderTypeMap: Map<String, String>,
     audioEncoderIndex: Int,
-    onAudioEncoderChange: (String) -> Unit,
-    audioCodecOptions: String,
-    onAudioCodecOptionsChange: (String) -> Unit,
-
     onRefreshEncoders: () -> Unit,
     onRefreshCameraSizes: () -> Unit,
-
-    newDisplayWidth: String,
-    newDisplayHeight: String,
-    newDisplayDpi: String,
-    displayIdInput: String,
-    cropWidth: String,
-    cropHeight: String,
-    cropX: String,
-    cropY: String,
 ) {
     val context = LocalContext.current
 
@@ -152,20 +98,6 @@ internal fun AdvancedConfigPage(
 
     val scope = rememberCoroutineScope()
 
-    val maxSizePresetIndex =
-        presetIndexFromInputForAdvancedPage(maxSizeInput, ScrcpyPresets.MaxSize)
-    val maxFpsPresetIndex = presetIndexFromInputForAdvancedPage(maxFpsInput, ScrcpyPresets.MaxFPS)
-    val audioSourceItems = AUDIO_SOURCE_OPTIONS.map { it.second }
-    val audioSourceIndex = AUDIO_SOURCE_OPTIONS.indexOfFirst { it.first == audioSourcePreset }
-        .let { if (it >= 0) it else 0 }
-    val videoSourceItems = VIDEO_SOURCE_OPTIONS.map { it.second }
-    val videoSourceIndex = VIDEO_SOURCE_OPTIONS.indexOfFirst { it.first == videoSourcePreset }
-        .let { if (it >= 0) it else 0 }
-    val cameraFacingItems = CAMERA_FACING_OPTIONS.map { it.second }
-    val cameraFacingIndex = CAMERA_FACING_OPTIONS.indexOfFirst { it.first == cameraFacingPreset }
-        .let { if (it >= 0) it else 0 }
-    val cameraFpsPresetIndex =
-        presetIndexFromInputForAdvancedPage(cameraFpsInput, CAMERA_FPS_PRESETS)
     val videoEncoderEntries = videoEncoderDropdownItems.map { encoderName ->
         if (encoderName == "默认") {
             SpinnerEntry(title = encoderName)
@@ -189,9 +121,107 @@ internal fun AdvancedConfigPage(
         }
     }
 
+    // TODO: handle custom value
+    // TODO: handle empty input
     var turnScreenOff by scrcpyOptions.turnScreenOff.asMutableState()
     var control by scrcpyOptions.control.asMutableState()
     var video by scrcpyOptions.video.asMutableState()
+
+    var videoSource by scrcpyOptions.videoSource.asMutableState()
+    val videoSourceItems = VIDEO_SOURCE_OPTIONS.map { it.second }
+    val videoSourceIndex = VIDEO_SOURCE_OPTIONS.indexOfFirst {
+        it.first == videoSource
+    }.let { if (it >= 0) it else 0 }
+    var displayId by scrcpyOptions.displayId.asMutableState()
+
+    var cameraId by scrcpyOptions.cameraId.asMutableState()
+    var cameraFacing by scrcpyOptions.cameraFacing.asMutableState()
+    val cameraFacingItems = CAMERA_FACING_OPTIONS.map { it.second }
+    val cameraFacingIndex = CAMERA_FACING_OPTIONS.indexOfFirst {
+        it.first == cameraFacing
+    }.let { if (it >= 0) it else 0 }
+    var cameraSize by scrcpyOptions.cameraSize.asMutableState()
+    val cameraSizeIndex = when (cameraSize) {
+        "custom" -> cameraSizeOptions.size + 1
+        in cameraSizeOptions -> cameraSizeOptions.indexOf(cameraSize) + 1
+        else -> 0
+    }
+    var cameraAr by scrcpyOptions.cameraAr.asMutableState()
+    var cameraFps by scrcpyOptions.cameraFps.asMutableState()
+    val cameraFpsPresetIndex = presetIndexFromInputForAdvancedPage(
+        cameraFps, CAMERA_FPS_PRESETS
+    )
+    var cameraHighSpeed by scrcpyOptions.cameraHighSpeed.asMutableState()
+
+    var audioSource by scrcpyOptions.audioSource.asMutableState()
+    val audioSourceItems = AUDIO_SOURCE_OPTIONS.map { it.second }
+    val audioSourceIndex = AUDIO_SOURCE_OPTIONS.indexOfFirst {
+        it.first == audioSource
+    }.let { if (it >= 0) it else 0 }
+    var audioDup by scrcpyOptions.audioDup.asMutableState()
+    var audioPlayback by scrcpyOptions.audioPlayback.asMutableState()
+    var requireAudio by scrcpyOptions.requireAudio.asMutableState()
+
+    var maxSize by scrcpyOptions.maxSize.asMutableState()
+    val maxSizePresetIndex = presetIndexFromInputForAdvancedPage(
+        maxSize.toString(), ScrcpyPresets.MaxSize
+    )
+    var maxFps by scrcpyOptions.maxFps.asMutableState()
+    val maxFpsPresetIndex = presetIndexFromInputForAdvancedPage(
+        maxFps, ScrcpyPresets.MaxFPS
+    )
+
+    var videoEncoder by scrcpyOptions.videoEncoder.asMutableState()
+    var videoCodecOptions by scrcpyOptions.videoCodecOptions.asMutableState()
+    var audioEncoder by scrcpyOptions.audioEncoder.asMutableState()
+    var audioCodecOptions by scrcpyOptions.audioCodecOptions.asMutableState()
+
+    var newDisplayWidth by remember {
+        mutableStateOf("")
+    }
+    var newDisplayHeight by remember {
+        mutableStateOf("")
+    }
+    var newDisplayDpi by remember {
+        mutableStateOf("")
+    }
+    // [<width>x<height>][/<dpi>]
+    // TODO: 填充当前值到输入框
+    var newDisplay by scrcpyOptions.newDisplay.asMutableState()
+    fun updateNewDisplay() {
+        var nd = ""
+        if (newDisplayWidth.isNotBlank() && newDisplayHeight.isNotBlank()) {
+            nd += "${newDisplayWidth}x${newDisplayHeight}"
+        }
+        if (newDisplayDpi.isNotBlank()) {
+            nd += "/$newDisplayDpi"
+        }
+        newDisplay = nd
+    }
+
+    var cropWidth by remember {
+        mutableStateOf("")
+    }
+    var cropHeight by remember {
+        mutableStateOf("")
+    }
+    var cropX by remember {
+        mutableStateOf("")
+    }
+    var cropY by remember {
+        mutableStateOf("")
+    }
+    // width:height:x:y
+    // TODO: 填充当前值到输入框
+    var crop by scrcpyOptions.crop.asMutableState()
+    fun updateCrop(): Unit {
+        if (cropWidth.isNotBlank()
+            && cropHeight.isNotBlank()
+            && cropX.isNotBlank()
+            && cropY.isNotBlank()
+        ) crop = "$cropWidth:$cropHeight:$cropX:$cropY"
+    }
+
 
     // 高级参数
     AppPageLazyColumn(
@@ -237,13 +267,13 @@ internal fun AdvancedConfigPage(
                     items = videoSourceItems,
                     selectedIndex = videoSourceIndex,
                     onSelectedIndexChange = {
-                        videoSourcePreset = VIDEO_SOURCE_OPTIONS[it].first
+                        videoSource = VIDEO_SOURCE_OPTIONS[it].first
                     },
                 )
-                if (videoSourcePreset == "display") {
+                if (videoSource == "display") {
                     TextField(
-                        value = displayIdInput,
-                        onValueChange = { displayIdInput = it },
+                        value = displayId.toString(),
+                        onValueChange = { displayId = it.toInt() },
                         label = "--display-id",
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -253,10 +283,10 @@ internal fun AdvancedConfigPage(
                             .padding(bottom = UiSpacing.CardContent),
                     )
                 }
-                if (videoSourcePreset == "camera") {
+                if (videoSource == "camera") {
                     TextField(
-                        value = cameraIdInput,
-                        onValueChange = { cameraIdInput = it },
+                        value = cameraId,
+                        onValueChange = { cameraId = it },
                         label = "--camera-id",
                         singleLine = true,
                         modifier = Modifier
@@ -275,7 +305,7 @@ internal fun AdvancedConfigPage(
                         items = cameraFacingItems,
                         selectedIndex = cameraFacingIndex,
                         onSelectedIndexChange = {
-                            cameraFacingPreset = CAMERA_FACING_OPTIONS[it].first
+                            cameraFacing = CAMERA_FACING_OPTIONS[it].first
                         },
                     )
                     SuperDropdown(
@@ -283,21 +313,20 @@ internal fun AdvancedConfigPage(
                         summary = "--camera-size",
                         items = cameraSizeDropdownItems,
                         selectedIndex = cameraSizeIndex.coerceIn(
-                            0,
-                            (cameraSizeDropdownItems.size - 1).coerceAtLeast(0)
+                            0, (cameraSizeDropdownItems.size - 1).coerceAtLeast(0)
                         ),
                         onSelectedIndexChange = {
-                            cameraSizePreset = when (it) {
+                            cameraSize = when (it) {
                                 0 -> ""
                                 cameraSizeDropdownItems.lastIndex -> "custom"
                                 else -> cameraSizeDropdownItems[it]
                             }
                         },
                     )
-                    if (cameraSizePreset == "custom") {
+                    if (cameraSize == "custom") {
                         TextField(
-                            value = cameraSizeCustom,
-                            onValueChange = { cameraSizeCustom = it },
+                            value = cameraSize,
+                            onValueChange = { cameraSize = it },
                             label = "--camera-size",
                             singleLine = true,
                             modifier = Modifier
@@ -307,8 +336,8 @@ internal fun AdvancedConfigPage(
                         )
                     }
                     TextField(
-                        value = cameraArInput,
-                        onValueChange = { cameraArInput = it },
+                        value = cameraAr,
+                        onValueChange = { cameraAr = it },
                         label = "--camera-ar",
                         singleLine = true,
                         modifier = Modifier
@@ -322,8 +351,7 @@ internal fun AdvancedConfigPage(
                         value = cameraFpsPresetIndex.toFloat(),
                         onValueChange = { value ->
                             val idx = value.roundToInt().coerceIn(0, CAMERA_FPS_PRESETS.lastIndex)
-                            val preset = CAMERA_FPS_PRESETS[idx]
-                            cameraFpsInput = if (preset == 0) "" else preset.toString()
+                            cameraFps = CAMERA_FPS_PRESETS[idx]
                         },
                         valueRange = 0f..CAMERA_FPS_PRESETS.lastIndex.toFloat(),
                         steps = (CAMERA_FPS_PRESETS.size - 2).coerceAtLeast(0),
@@ -332,14 +360,12 @@ internal fun AdvancedConfigPage(
                         showUnitWhenZeroState = false,
                         showKeyPoints = true,
                         keyPoints = CAMERA_FPS_PRESETS.indices.map { it.toFloat() },
-                        displayText = cameraFpsInput,
+                        displayText = cameraFps.toString(),
                         inputHint = "0 或留空表示默认",
-                        inputInitialValue = cameraFpsInput,
+                        inputInitialValue = cameraFps.toString(),
                         inputFilter = { it.filter(Char::isDigit) },
                         inputValueRange = 0f..Float.MAX_VALUE,
-                        onInputConfirm = {
-                            cameraFpsInput = if (normalized == "0") "" else normalized
-                        },
+                        onInputConfirm = { cameraFps = it.toInt() },
                     )
                     SuperSwitch(
                         title = "高帧率模式",
@@ -358,12 +384,12 @@ internal fun AdvancedConfigPage(
                     summary = "--audio-source",
                     items = audioSourceItems,
                     selectedIndex = audioSourceIndex,
-                    onSelectedIndexChange = { audioSourcePreset = AUDIO_SOURCE_OPTIONS[it].first },
+                    onSelectedIndexChange = { audioSource = AUDIO_SOURCE_OPTIONS[it].first },
                 )
-                if (audioSourcePreset == "custom") {
+                if (audioSource == "custom") {
                     TextField(
-                        value = audioSourceCustom,
-                        onValueChange = { audioSourceCustom = it },
+                        value = audioSource,
+                        onValueChange = { audioSource = it },
                         label = "--audio-source",
                         singleLine = true,
                         modifier = Modifier
@@ -381,8 +407,8 @@ internal fun AdvancedConfigPage(
                 SuperSwitch(
                     title = "仅转发不播放",
                     summary = "--no-audio-playback",
-                    checked = noAudioPlayback,
-                    onCheckedChange = { noAudioPlayback = it },
+                    checked = !audioPlayback,
+                    onCheckedChange = { audioPlayback = !it },
                 )
                 SuperSwitch(
                     title = "音频失败时终止 [TODO]",
@@ -402,8 +428,7 @@ internal fun AdvancedConfigPage(
                     value = maxSizePresetIndex.toFloat(),
                     onValueChange = { value ->
                         val idx = value.roundToInt().coerceIn(0, ScrcpyPresets.MaxSize.lastIndex)
-                        val preset = ScrcpyPresets.MaxSize[idx]
-                        maxSizeInput = if (preset == 0) "" else preset.toString()
+                        maxSize = ScrcpyPresets.MaxSize[idx]
                     },
                     valueRange = 0f..ScrcpyPresets.MaxSize.lastIndex.toFloat(),
                     steps = (ScrcpyPresets.MaxSize.size - 2).coerceAtLeast(0),
@@ -412,12 +437,12 @@ internal fun AdvancedConfigPage(
                     showUnitWhenZeroState = false,
                     showKeyPoints = true,
                     keyPoints = ScrcpyPresets.MaxSize.indices.map { it.toFloat() },
-                    displayText = maxSizeInput,
+                    displayText = maxSize.toString(),
                     inputHint = "0 或留空表示关闭",
-                    inputInitialValue = maxSizeInput,
+                    inputInitialValue = maxSize.toString(),
                     inputFilter = { it.filter(Char::isDigit) },
                     inputValueRange = 0f..Float.MAX_VALUE,
-                    onInputConfirm = { maxSizeInput = it.ifBlank { "" } },
+                    onInputConfirm = { maxSize = it.toInt() },
                 )
                 SuperSlide(
                     title = "最大帧率",
@@ -425,8 +450,7 @@ internal fun AdvancedConfigPage(
                     value = maxFpsPresetIndex.toFloat(),
                     onValueChange = { value ->
                         val idx = value.roundToInt().coerceIn(0, ScrcpyPresets.MaxFPS.lastIndex)
-                        val preset = ScrcpyPresets.MaxFPS[idx]
-                        maxFpsInput = if (preset == 0) "" else preset.toString()
+                        maxFps = ScrcpyPresets.MaxFPS[idx].toString()
                     },
                     valueRange = 0f..ScrcpyPresets.MaxFPS.lastIndex.toFloat(),
                     steps = (ScrcpyPresets.MaxFPS.size - 2).coerceAtLeast(0),
@@ -435,12 +459,12 @@ internal fun AdvancedConfigPage(
                     showUnitWhenZeroState = false,
                     showKeyPoints = true,
                     keyPoints = ScrcpyPresets.MaxFPS.indices.map { it.toFloat() },
-                    displayText = maxFpsInput,
+                    displayText = maxFps,
                     inputHint = "0 或留空表示关闭",
-                    inputInitialValue = maxFpsInput,
+                    inputInitialValue = maxFps,
                     inputFilter = { it.filter(Char::isDigit) },
                     inputValueRange = 0f..Float.MAX_VALUE,
-                    onInputConfirm = { maxFpsInput = it.ifBlank { "" } },
+                    onInputConfirm = { maxFps = it },
                 )
             }
         }
@@ -457,7 +481,7 @@ internal fun AdvancedConfigPage(
                     summary = "--video-encoder",
                     items = videoEncoderEntries,
                     selectedIndex = videoEncoderIndex,
-                    onSelectedIndexChange = { videoEncoder = it },
+                    onSelectedIndexChange = { videoEncoder = videoEncoderEntries[it].title ?: "" },
                 )
                 TextField(
                     value = videoCodecOptions,
@@ -474,7 +498,7 @@ internal fun AdvancedConfigPage(
                     summary = "--audio-encoder",
                     items = audioEncoderEntries,
                     selectedIndex = audioEncoderIndex,
-                    onSelectedIndexChange = { audioEncoder = it },
+                    onSelectedIndexChange = { audioEncoder = audioEncoderEntries[it].title ?: "" },
                 )
                 TextField(
                     value = audioCodecOptions,
@@ -510,7 +534,7 @@ internal fun AdvancedConfigPage(
                 ) {
                     TextField(
                         value = newDisplayWidth,
-                        onValueChange = { newDisplayWidth = it },
+                        onValueChange = { newDisplayWidth = it; updateNewDisplay() },
                         label = "width",
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
@@ -524,7 +548,7 @@ internal fun AdvancedConfigPage(
                     )
                     TextField(
                         value = newDisplayHeight,
-                        onValueChange = { newDisplayHeight = it },
+                        onValueChange = { newDisplayHeight = it; updateNewDisplay() },
                         label = "height",
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
@@ -538,7 +562,7 @@ internal fun AdvancedConfigPage(
                     )
                     TextField(
                         value = newDisplayDpi,
-                        onValueChange = { newDisplayDpi = it },
+                        onValueChange = { newDisplayDpi = it; updateNewDisplay() },
                         label = "dpi",
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(
@@ -646,6 +670,13 @@ internal fun AdvancedConfigPage(
         // TODO: 放进 [AppPageLazyColumn] 里
         item { Spacer(Modifier.height(UiSpacing.BottomContent)) }
     }
+}
+
+private fun presetIndexFromInputForAdvancedPage(raw: Int, presets: List<Int>): Int {
+    val exact = presets.indexOf(raw)
+    if (exact >= 0) return exact
+    val nearest = presets.withIndex().minByOrNull { (_, preset) -> kotlin.math.abs(preset - raw) }
+    return nearest?.index ?: 0
 }
 
 private fun presetIndexFromInputForAdvancedPage(raw: String, presets: List<Int>): Int {

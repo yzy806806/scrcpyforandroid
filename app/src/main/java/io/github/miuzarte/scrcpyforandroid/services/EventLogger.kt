@@ -3,7 +3,7 @@ package io.github.miuzarte.scrcpyforandroid.services
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
+import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -16,14 +16,14 @@ import java.util.Locale
  */
 object EventLogger {
     private const val LOG_TAG = "EventLogger"
-    
+
     private val _eventLog: SnapshotStateList<String> = mutableStateListOf()
-    
+
     /**
      * Read-only access to the event log list.
      */
     val eventLog: List<String> get() = _eventLog
-    
+
     /**
      * Log an event with timestamp and optional error.
      * 
@@ -34,12 +34,12 @@ object EventLogger {
     fun logEvent(message: String, level: Int = Log.INFO, error: Throwable? = null) {
         val timestamp = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
         _eventLog.add(0, "[$timestamp] $message")
-        
+
         // Rotate logs if exceeds max size
-        if (_eventLog.size > AppDefaults.EVENT_LOG_LINES) {
-            _eventLog.removeRange(AppDefaults.EVENT_LOG_LINES, _eventLog.size)
+        if (_eventLog.size > Defaults.EVENT_LOG_LINES) {
+            _eventLog.removeRange(Defaults.EVENT_LOG_LINES, _eventLog.size)
         }
-        
+
         // Log to Android logcat
         when (level) {
             Log.ERROR -> if (error != null) Log.e(LOG_TAG, message, error)
@@ -55,14 +55,14 @@ object EventLogger {
             else Log.i(LOG_TAG, message)
         }
     }
-    
+
     /**
      * Clear all event logs.
      */
     fun clearLogs() {
         _eventLog.clear()
     }
-    
+
     /**
      * Check if there are any logs.
      */
