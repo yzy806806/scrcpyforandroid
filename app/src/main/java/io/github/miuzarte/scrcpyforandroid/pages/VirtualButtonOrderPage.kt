@@ -8,8 +8,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.widgets.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
@@ -22,10 +21,9 @@ internal fun VirtualButtonOrderPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
 ) {
-    val context = LocalContext.current
+    val appSettings = Storage.appSettings
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     var previewVirtualButtonShowText by appSettings.previewVirtualButtonShowText.asMutableState()
     var virtualButtonsLayout by appSettings.virtualButtonsLayout.asMutableState()

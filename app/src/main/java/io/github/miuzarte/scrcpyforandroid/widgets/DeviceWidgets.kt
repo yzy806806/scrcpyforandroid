@@ -48,6 +48,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -71,8 +74,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -132,10 +134,9 @@ internal fun StatusCard(
     busyLabel: String?,
     connectedDeviceLabel: String,
 ) {
-    val context = LocalContext.current
+    val appSettings = Storage.appSettings
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     val themeBaseIndex by appSettings.themeBaseIndex.asState()
 
@@ -381,10 +382,9 @@ internal fun ConfigPanel(
     onStop: () -> Unit,
     sessionStarted: Boolean,
 ) {
-    val context = LocalContext.current
+    val scrcpyOptions = Storage.scrcpyOptions
 
-    // val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     SectionSmallTitle("Scrcpy")
     Card {
@@ -1221,12 +1221,16 @@ internal fun DeviceTile(
 @Composable
 internal fun QuickConnectCard(
     input: String,
-    onInputChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
     onConnect: () -> Unit,
     onAddDevice: () -> Unit,
     enabled: Boolean = true,
 ) {
+    val scope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
+    val focusRequester = remember { FocusRequester() }
+    var tempText by remember(input) { mutableStateOf(input) }
+    var tempFocusState by remember(input) { mutableStateOf(false) }
 
     Card(
         colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.primaryContainer),
@@ -1256,10 +1260,8 @@ internal fun QuickConnectCard(
             )
         }
         TextField(
-            value = input,
-            onValueChange = {
-                if (enabled) onInputChange(it)
-            },
+            value = tempText,
+            onValueChange = { tempText = it },
             label = "IP:PORT",
             enabled = enabled,
             useLabelAsPlaceholder = true,
@@ -1267,7 +1269,15 @@ internal fun QuickConnectCard(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = UiSpacing.CardContent)
-                .padding(bottom = UiSpacing.SectionTitleLeadingGap),
+                .padding(bottom = UiSpacing.SectionTitleLeadingGap)
+                .onFocusChanged { focusState ->
+                    // 失去焦点时回调
+                    if (!focusState.isFocused && tempFocusState) {
+                        onValueChange(tempText)
+                    }
+                    tempFocusState = focusState.isFocused
+                }
+                .focusRequester(focusRequester),
             keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
         )

@@ -3,69 +3,80 @@ package io.github.miuzarte.scrcpyforandroid.storage
 import android.content.Context
 import android.content.SharedPreferences
 import android.util.Log
+import androidx.core.content.edit
 import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
 import io.github.miuzarte.scrcpyforandroid.constants.AppPreferenceKeys
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 private const val TAG = "PreferenceMigration"
-private const val MIGRATION_COMPLETED_KEY = "migration_completed"
 
 /**
  * 从旧的 SharedPreferences 迁移到新的 DataStore
  */
-class PreferenceMigration(private val context: Context) {
-
+class PreferenceMigration(private val appContext: Context) {
+    private val appSharedPrefs: SharedPreferences by lazy {
+        appContext.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+    }
+    
     private val sharedPrefs: SharedPreferences by lazy {
-        context.getSharedPreferences(AppPreferenceKeys.PREFS_NAME, Context.MODE_PRIVATE)
+        appContext.getSharedPreferences("nativecore_adb_rsa", Context.MODE_PRIVATE)
     }
 
     /**
-     * 检查是否已完成迁移
+     * 检查是否需要迁移（SharedPreferences 是否包含数据）
      */
-    @Deprecated("做成设置内入口手动调用，这个没必要")
-    suspend fun isMigrationCompleted(): Boolean = withContext(Dispatchers.IO) {
-        sharedPrefs.getBoolean(MIGRATION_COMPLETED_KEY, false)
+    suspend fun needsMigration(): Boolean = withContext(Dispatchers.IO) {
+        appSharedPrefs.all.isNotEmpty() || sharedPrefs.all.isNotEmpty()
     }
 
     /**
      * 执行完整迁移
-     * @return 迁移是否成功
      */
-    suspend fun migrate(): Boolean = withContext(Dispatchers.IO) {
-        try {
-            if (isMigrationCompleted()) {
-                Log.i(TAG, "Migration already completed, skipping")
-                return@withContext true
-            }
-
-            Log.i(TAG, "Starting migration from SharedPreferences to DataStore")
-
-            // 迁移 AppSettings
-            migrateAppSettings()
-
-            // 迁移 ScrcpyOptions
-            migrateScrcpyOptions()
-
-            // 迁移 QuickDevices
-            migrateQuickDevices()
-
-            // 标记迁移完成
-            markMigrationCompleted()
-
-            Log.i(TAG, "Migration completed successfully")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "Migration failed", e)
-            false
+    suspend fun migrate(
+        clearSharedPrefs: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        if (!needsMigration()) {
+            Log.i(TAG, "No data to migrate, skipping")
+            return@withContext
+        } else {
+            val appList = appSharedPrefs.all.entries.joinToString { (k, v) -> "\"$k\" to $v" }
+            val adbList = sharedPrefs.all.entries.joinToString { (k, v) -> "\"$k\" to $v" }
+            Log.d(TAG, "Migrating appSharedPrefs ($appList)")
         }
+
+        Log.i(TAG, "Starting migration from SharedPreferences to DataStore")
+
+        // 迁移 AppSettings
+        migrateAppSettings()
+
+        // 迁移 ScrcpyOptions
+        migrateScrcpyOptions()
+
+        // 迁移 QuickDevices
+        migrateQuickDevices()
+
+        // 迁移 ADB 密钥
+        migrateAdbClientData()
+
+        // 清空 SharedPreferences
+        if (clearSharedPrefs) {
+            appSharedPrefs.edit { clear() }
+            sharedPrefs.edit { clear() }
+            Log.d(TAG, "SharedPreferences cleared")
+        }
+
+        Log.i(
+            TAG, "Migration completed successfully" +
+                    " and SharedPreferences ${if (clearSharedPrefs) "" else "is not "}cleared"
+        )
     }
 
     /**
      * 迁移应用设置
      */
     private suspend fun migrateAppSettings() {
-        val appSettings = AppSettings(context)
+        val appSettings = Storage.appSettings
 
         // Theme Settings
         migrateInt(
@@ -152,7 +163,7 @@ class PreferenceMigration(private val context: Context) {
      * 迁移 Scrcpy 选项
      */
     private suspend fun migrateScrcpyOptions() {
-        val scrcpyOptions = ScrcpyOptions(context)
+        val scrcpyOptions = Storage.scrcpyOptions
 
         // Audio & Video Codecs
         migrateString(
@@ -383,10 +394,10 @@ class PreferenceMigration(private val context: Context) {
      * 迁移快速设备列表
      */
     private suspend fun migrateQuickDevices() {
-        val quickDevices = QuickDevices(context)
+        val quickDevices = Storage.quickDevices
 
         // Migrate quick devices list
-        val quickDevicesRaw = sharedPrefs.getString(
+        val quickDevicesRaw = appSharedPrefs.getString(
             AppPreferenceKeys.QUICK_DEVICES,
             ""
         ).orEmpty()
@@ -403,12 +414,21 @@ class PreferenceMigration(private val context: Context) {
 
         Log.d(TAG, "QuickDevices migration completed")
     }
-
+    
     /**
-     * 标记迁移完成
+     * 迁移 ADB 客户端数据（RSA 密钥）
      */
-    private fun markMigrationCompleted() {
-        sharedPrefs.edit().putBoolean(MIGRATION_COMPLETED_KEY, true).apply()
+    private suspend fun migrateAdbClientData() {
+        val adbClientData = Storage.adbClientData
+        
+        // 迁移 RSA 私钥
+        val privKey = sharedPrefs.getString("priv", null)
+        if (privKey != null) {
+            adbClientData.rsaPrivateKey.set(privKey)
+            Log.d(TAG, "ADB RSA private key migrated")
+        }
+        
+        Log.d(TAG, "AdbClientData migration completed")
     }
 
     // Helper methods for different data types
@@ -418,7 +438,7 @@ class PreferenceMigration(private val context: Context) {
         defaultValue: String,
         settingProperty: Settings.SettingProperty<String>
     ) {
-        val value = sharedPrefs.getString(key, defaultValue)
+        val value = appSharedPrefs.getString(key, defaultValue)
             .orEmpty()
             .ifBlank { defaultValue }
         settingProperty.set(value)
@@ -429,7 +449,7 @@ class PreferenceMigration(private val context: Context) {
         defaultValue: String,
         action: suspend (String) -> Unit
     ) {
-        val value = sharedPrefs.getString(key, defaultValue)
+        val value = appSharedPrefs.getString(key, defaultValue)
             .orEmpty()
             .ifBlank { defaultValue }
         action(value)
@@ -440,7 +460,7 @@ class PreferenceMigration(private val context: Context) {
         defaultValue: Int,
         settingProperty: Settings.SettingProperty<Int>
     ) {
-        val value = sharedPrefs.getInt(key, defaultValue)
+        val value = appSharedPrefs.getInt(key, defaultValue)
         settingProperty.set(value)
     }
 
@@ -449,7 +469,7 @@ class PreferenceMigration(private val context: Context) {
         defaultValue: Boolean,
         settingProperty: Settings.SettingProperty<Boolean>
     ) {
-        val value = sharedPrefs.getBoolean(key, defaultValue)
+        val value = appSharedPrefs.getBoolean(key, defaultValue)
         settingProperty.set(value)
     }
 
@@ -458,7 +478,7 @@ class PreferenceMigration(private val context: Context) {
         defaultValue: Boolean,
         action: suspend (Boolean) -> Unit
     ) {
-        val value = sharedPrefs.getBoolean(key, defaultValue)
+        val value = appSharedPrefs.getBoolean(key, defaultValue)
         action(value)
     }
 }

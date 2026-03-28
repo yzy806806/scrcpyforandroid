@@ -4,7 +4,6 @@ import android.content.Context
 import androidx.core.content.edit
 import io.github.miuzarte.scrcpyforandroid.constants.AppPreferenceKeys
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
-import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 
 internal fun loadQuickDevices(context: Context): List<DeviceShortcut> {
@@ -62,71 +61,4 @@ internal fun saveQuickDevices(context: Context, quickDevices: List<DeviceShortcu
         .edit {
             putString(AppPreferenceKeys.QUICK_DEVICES, raw)
         }
-}
-
-internal fun parseQuickTarget(raw: String): ConnectionTarget? {
-    val value = raw.trim()
-    if (value.isEmpty()) return null
-    val host = value.substringBefore(':').trim()
-    if (host.isEmpty()) return null
-    val port = value.substringAfter(':', Defaults.ADB_PORT.toString()).trim().toIntOrNull()
-        ?: Defaults.ADB_PORT
-    return ConnectionTarget(host, port)
-}
-
-internal fun upsertQuickDevice(
-    context: Context,
-    quickDevices: MutableList<DeviceShortcut>,
-    host: String,
-    port: Int,
-    online: Boolean,
-) {
-    val idx = quickDevices.indexOfFirst { it.id == "$host:$port" }
-    val existingName = if (idx >= 0) quickDevices[idx].name else ""
-    val item = DeviceShortcut(
-        name = existingName,
-        host = host,
-        port = port,
-        online = online,
-    )
-    if (idx >= 0) quickDevices[idx] = item else quickDevices.add(0, item)
-    saveQuickDevices(context, quickDevices)
-}
-
-internal fun updateQuickDeviceNameIfEmpty(
-    context: Context,
-    quickDevices: MutableList<DeviceShortcut>,
-    host: String,
-    port: Int,
-    fallbackName: String,
-) {
-    val idx = quickDevices.indexOfFirst { it.host == host && it.port == port }
-    if (idx >= 0 && quickDevices[idx].name.isBlank()) {
-        quickDevices[idx] = quickDevices[idx].copy(name = fallbackName)
-        saveQuickDevices(context, quickDevices)
-    }
-}
-
-internal fun replaceQuickDevicePort(
-    context: Context,
-    quickDevices: MutableList<DeviceShortcut>,
-    host: String,
-    oldPort: Int,
-    newPort: Int,
-    online: Boolean,
-) {
-    val idx = quickDevices.indexOfFirst { it.host == host && it.port == oldPort }
-    if (idx < 0) return
-
-    val old = quickDevices[idx]
-    val updated = old.copy(
-        port = newPort,
-        online = online,
-    )
-
-    quickDevices[idx] = updated
-    val dedup = quickDevices.distinctBy { it.id }
-    quickDevices.clear()
-    quickDevices.addAll(dedup)
-    saveQuickDevices(context, quickDevices)
 }

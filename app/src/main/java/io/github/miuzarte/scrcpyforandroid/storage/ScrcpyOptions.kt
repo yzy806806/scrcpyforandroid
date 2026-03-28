@@ -278,61 +278,7 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
     val vdDestroyContent by setting(VD_DESTROY_CONTENT)
     val vdSystemDecorations by setting(VD_SYSTEM_DECORATIONS)
 
-    override suspend fun toMap(): Map<String, Any> = mapOf(
-        CROP.name to crop.get(),
-        RECORD_FILENAME.name to recordFilename.get(),
-        VIDEO_CODEC_OPTIONS.name to videoCodecOptions.get(),
-        AUDIO_CODEC_OPTIONS.name to audioCodecOptions.get(),
-        VIDEO_ENCODER.name to videoEncoder.get(),
-        AUDIO_ENCODER.name to audioEncoder.get(),
-        CAMERA_ID.name to cameraId.get(),
-        CAMERA_SIZE.name to cameraSize.get(),
-        CAMERA_AR.name to cameraAr.get(),
-        CAMERA_FPS.name to cameraFps.get(),
-        LOG_LEVEL.name to logLevel.get(),
-        VIDEO_CODEC.name to videoCodec.get(),
-        AUDIO_CODEC.name to audioCodec.get(),
-        VIDEO_SOURCE.name to videoSource.get(),
-        AUDIO_SOURCE.name to audioSource.get(),
-        RECORD_FORMAT.name to recordFormat.get(),
-        CAMERA_FACING.name to cameraFacing.get(),
-        MAX_SIZE.name to maxSize.get(),
-        VIDEO_BIT_RATE.name to videoBitRate.get(),
-        AUDIO_BIT_RATE.name to audioBitRate.get(),
-        MAX_FPS.name to maxFps.get(),
-        ANGLE.name to angle.get(),
-        CAPTURE_ORIENTATION.name to captureOrientation.get(),
-        CAPTURE_ORIENTATION_LOCK.name to captureOrientationLock.get(),
-        DISPLAY_ORIENTATION.name to displayOrientation.get(),
-        RECORD_ORIENTATION.name to recordOrientation.get(),
-        DISPLAY_IME_POLICY.name to displayImePolicy.get(),
-        DISPLAY_ID.name to displayId.get(),
-        SCREEN_OFF_TIMEOUT.name to screenOffTimeout.get(),
-        SHOW_TOUCHES.name to showTouches.get(),
-        FULLSCREEN.name to fullscreen.get(),
-        CONTROL.name to control.get(),
-        VIDEO_PLAYBACK.name to videoPlayback.get(),
-        AUDIO_PLAYBACK.name to audioPlayback.get(),
-        TURN_SCREEN_OFF.name to turnScreenOff.get(),
-        STAY_AWAKE.name to stayAwake.get(),
-        DISABLE_SCREENSAVER.name to disableScreensaver.get(),
-        POWER_OFF_ON_CLOSE.name to powerOffOnClose.get(),
-        CLEANUP.name to cleanup.get(),
-        POWER_ON.name to powerOn.get(),
-        VIDEO.name to video.get(),
-        AUDIO.name to audio.get(),
-        REQUIRE_AUDIO.name to requireAudio.get(),
-        KILL_ADB_ON_CLOSE.name to killAdbOnClose.get(),
-        CAMERA_HIGH_SPEED.name to cameraHighSpeed.get(),
-        LIST.name to list.get(),
-        AUDIO_DUP.name to audioDup.get(),
-        NEW_DISPLAY.name to newDisplay.get(),
-        START_APP.name to startApp.get(),
-        VD_DESTROY_CONTENT.name to vdDestroyContent.get(),
-        VD_SYSTEM_DECORATIONS.name to vdSystemDecorations.get()
-    )
-
-    override fun validate(): Boolean = runBlocking {
+    fun validate(): Boolean = runBlocking {
         runCatching {
             toClientOptions().validate()
             true

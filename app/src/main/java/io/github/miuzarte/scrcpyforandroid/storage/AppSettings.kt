@@ -87,30 +87,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val adbAutoReconnectPairedDevice by setting(ADB_AUTO_RECONNECT_PAIRED_DEVICE)
     val adbMdnsLanDiscovery by setting(ADB_MDNS_LAN_DISCOVERY)
 
-    override suspend fun toMap(): Map<String, Any> = mapOf(
-        // Theme Settings
-        THEME_BASE_INDEX.name to themeBaseIndex.get(),
-        MONET.name to monet.get(),
-
-        // Scrcpy Settings
-        FULLSCREEN_DEBUG_INFO.name to fullscreenDebugInfo.get(),
-        SHOW_FULLSCREEN_VIRTUAL_BUTTONS.name to showFullscreenVirtualButtons.get(),
-        KEEP_SCREEN_ON_WHEN_STREAMING.name to keepScreenOnWhenStreaming.get(),
-        DEVICE_PREVIEW_CARD_HEIGHT_DP.name to devicePreviewCardHeightDp.get(),
-        PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT.name to previewVirtualButtonShowText.get(),
-        VIRTUAL_BUTTONS_LAYOUT.name to virtualButtonsLayout.get(),
-
-        // Scrcpy Server Settings
-        CUSTOM_SERVER_URI.name to customServerUri.get(),
-        SERVER_REMOTE_PATH.name to serverRemotePath.get(),
-
-        // ADB Settings
-        ADB_KEY_NAME.name to adbKeyName.get(),
-        ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN.name to adbPairingAutoDiscoverOnDialogOpen.get(),
-        ADB_AUTO_RECONNECT_PAIRED_DEVICE.name to adbAutoReconnectPairedDevice.get(),
-        ADB_MDNS_LAN_DISCOVERY.name to adbMdnsLanDiscovery.get()
-    )
-
     // TODO?
-    override fun validate(): Boolean = true
+    // fun validate(): Boolean = true
 }

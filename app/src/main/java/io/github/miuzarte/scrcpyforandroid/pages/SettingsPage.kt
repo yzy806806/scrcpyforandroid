@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.content.Intent
+import android.os.Process
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +14,7 @@ import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -22,12 +24,16 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.PreferenceMigration
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.extra.SuperArrow
@@ -35,6 +41,7 @@ import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperSwitch
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import kotlin.math.roundToInt
+import kotlin.system.exitProcess
 
 private data class ThemeModeOption(
     val label: String,
@@ -68,10 +75,13 @@ fun SettingsScreen(
     onPickServer: () -> Unit,
     scrollBehavior: ScrollBehavior,
 ) {
+    val appContext = LocalContext.current.applicationContext
+    val appSettings = Storage.appSettings
+
     val context = LocalContext.current
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val scope = rememberCoroutineScope()
+    val snackHostState = remember { SnackbarHostState() }
 
     val baseModeItems = THEME_BASE_OPTIONS.map { it.label }
 
@@ -255,17 +265,49 @@ fun SettingsScreen(
                 )
             }
 
+            SectionSmallTitle("应用")
+            Card {
+                SuperArrow(
+                    title = "恢复旧版本配置",
+                    summary = "从旧版本的 SharedPreferences 恢复至 DataStore",
+                    onClick = {
+                        scope.launch {
+                            val migration = PreferenceMigration(appContext)
+                            migration.migrate(clearSharedPrefs = false)
+                            snackHostState.showSnackbar("迁移完成，应用将重启")
+
+                            delay(1000)
+
+                            val intent = context.packageManager.getLaunchIntentForPackage(
+                                context.packageName
+                            )
+                            intent?.apply {
+                                addFlags(
+                                    Intent.FLAG_ACTIVITY_NEW_TASK
+                                            or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                                )
+                            }
+                            context.startActivity(intent)
+
+                            Process.killProcess(Process.myPid())
+                            exitProcess(0)
+                        }
+                    },
+                )
+            }
+
             SectionSmallTitle("关于")
             Card {
                 SuperArrow(
                     title = "前往仓库",
                     summary = "github.com/Miuzarte/ScrcpyForAndroid",
                     onClick = {
-                        val intent = Intent(
-                            Intent.ACTION_VIEW,
-                            "https://github.com/Miuzarte/ScrcpyForAndroid".toUri()
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                "https://github.com/Miuzarte/ScrcpyForAndroid".toUri(),
+                            )
                         )
-                        context.startActivity(intent)
                     },
                 )
             }

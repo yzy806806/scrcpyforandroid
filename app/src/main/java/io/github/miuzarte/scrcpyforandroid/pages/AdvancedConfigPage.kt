@@ -28,8 +28,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.AppPageLazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
@@ -89,10 +88,9 @@ internal fun AdvancedConfigPage(
     onRefreshEncoders: () -> Unit,
     onRefreshCameraSizes: () -> Unit,
 ) {
-    val context = LocalContext.current
+    val scrcpyOptions = Storage.scrcpyOptions
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     val focusManager = LocalFocusManager.current
 

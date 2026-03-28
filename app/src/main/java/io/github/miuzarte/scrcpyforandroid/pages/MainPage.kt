@@ -51,7 +51,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -191,8 +191,8 @@ fun MainPage() {
         }
     }
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val appSettings = Storage.appSettings
+    val scrcpyOptions = Storage.scrcpyOptions
 
     val videoEncoderOptions = remember { mutableStateListOf<String>() }
     val audioEncoderOptions = remember { mutableStateListOf<String>() }

@@ -34,11 +34,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.ListOptions
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
-import io.github.miuzarte.scrcpyforandroid.services.parseQuickTarget
-import io.github.miuzarte.scrcpyforandroid.services.upsertQuickDevice
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.QuickDevices
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.widgets.ConfigPanel
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceEditorScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceTile
@@ -131,11 +127,11 @@ fun DeviceTabScreen(
     onOpenAdvancedPage: () -> Unit,
     onOpenFullscreenPage: (ScrcpySessionInfo) -> Unit,
 ) {
-    val context = LocalContext.current
+    val appSettings = Storage.appSettings
+    val quickDevices = Storage.quickDevices
+    val scrcpyOptions = Storage.scrcpyOptions
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val quickDevices = remember(context) { QuickDevices(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     val haptics = rememberAppHaptics()
 
@@ -216,10 +212,18 @@ fun DeviceTabScreen(
     }
 
     var quickDevicesList by quickDevices.quickDevicesList.asMutableState()
-    var savedShortcuts = rememberSaveable(saver = DeviceShortcutsSaver) {
+    var savedShortcuts = rememberSaveable(quickDevicesList, saver = DeviceShortcutsSaver) {
         DeviceShortcuts.unmarshalFrom(quickDevicesList)
     }
     var quickConnectInput by quickDevices.quickConnectInput.asMutableState()
+
+    // save changes when [savedShortcuts] was modified
+    LaunchedEffect(savedShortcuts) {
+        val serialized = savedShortcuts.marshalToString()
+        if (serialized != quickDevicesList) {
+            quickDevicesList = serialized
+        }
+    }
 
     /**
      * Disconnect the current ADB connection and stop any running scrcpy session.
@@ -232,7 +236,7 @@ fun DeviceTabScreen(
      * - Calls `nativeCore.scrcpyStop()` and `nativeCore.adbDisconnect()` (best-effort).
      * - Resets UI-visible connection state: `adbConnected`, `currentTargetHost/Port`,
      *   `sessionInfo`, device capability flags, `statusLine`, and `connectedDeviceLabel`.
-     * - Updates the saved quick-device list via [upsertQuickDevice] when a target is provided.
+     * - Updates the saved quick-device list via [savedShortcuts.update] when a target is provided.
      * - Logs an optional [logMessage] to the local event log.
      * - Shows an optional snackbar message asynchronously (launched on the composition scope)
      *   so callers don't get blocked by `snack.showSnackbar` (it is suspending).
@@ -263,8 +267,9 @@ fun DeviceTabScreen(
         connectedDeviceLabel = "未连接"
         clearQuickOnlineForTarget?.let { target ->
             if (target.host.isNotBlank())
-                savedShortcuts =
-                    savedShortcuts.update(host = target.host, port = target.port, online = false)
+                savedShortcuts = savedShortcuts.update(
+                    host = target.host, port = target.port, online = false
+                )
         }
         logMessage?.let { logEvent(it) }
         if (!showSnackMessage.isNullOrBlank()) {
@@ -539,10 +544,24 @@ fun DeviceTabScreen(
 
         connectedDeviceLabel = info.model
         applyConnectedDeviceCapabilities(info.sdkInt, info.androidRelease)
-        quickDevices.updateQuickDeviceNameIfEmpty(host, port, fullLabel)
+        savedShortcuts = savedShortcuts.update(
+            host = host,
+            port = port,
+            name = fullLabel,
+            updateNameOnlyWhenEmpty = true
+        )
         statusLine = "$host:$port"
 
-        logEvent("ADB 已连接: model=${info.model}, serial=${info.serial.ifBlank { "unknown" }}, manufacturer=${info.manufacturer.ifBlank { "unknown" }}, brand=${info.brand.ifBlank { "unknown" }}, device=${info.device.ifBlank { "unknown" }}, android=${info.androidRelease.ifBlank { "unknown" }}, sdk=${info.sdkInt}")
+        logEvent(
+            "ADB 已连接: " +
+                    "model=${info.model}, " +
+                    "serial=${info.serial.ifBlank { "unknown" }}, " +
+                    "manufacturer=${info.manufacturer.ifBlank { "unknown" }}, " +
+                    "brand=${info.brand.ifBlank { "unknown" }}, " +
+                    "device=${info.device.ifBlank { "unknown" }}, " +
+                    "android=${info.androidRelease.ifBlank { "unknown" }}, " +
+                    "sdk=${info.sdkInt}"
+        )
         scope.launch {
             snack.showSnackbar("ADB 已连接")
         }
@@ -857,7 +876,8 @@ fun DeviceTabScreen(
                             try {
                                 connectWithTimeout(host, port)
                                 adbConnected = true
-                                savedShortcuts = savedShortcuts.update(host = host, port = port, online = true)
+                                savedShortcuts =
+                                    savedShortcuts.update(host = host, port = port, online = true)
                                 handleAdbConnected(host, port)
                             } catch (e: Exception) {
                                 statusLine = "ADB 连接失败"
@@ -886,23 +906,32 @@ fun DeviceTabScreen(
             // "快速连接"
             QuickConnectCard(
                 input = quickConnectInput,
-                onInputChange = { quickConnectInput = it },
+                onValueChange = { quickConnectInput = it },
                 enabled = !adbConnecting,
                 onAddDevice = {
-                    val target = parseQuickTarget(quickConnectInput) ?: return@QuickConnectCard
-                    savedShortcuts = savedShortcuts.update(host = target.host, port = target.port)
+                    val target = ConnectionTarget.unmarshalFrom(quickConnectInput)
+                        ?: return@QuickConnectCard
+                    savedShortcuts = savedShortcuts.upsert(
+                        DeviceShortcut(host = target.host, port = target.port)
+                    )
+                    Log.i("SavedShortcuts", "size: ${savedShortcuts.size}, list: $quickDevicesList")
                     scope.launch {
                         snack.showSnackbar("已添加设备: ${target.host}:${target.port}")
                     }
                 },
                 onConnect = {
-                    val target = parseQuickTarget(quickConnectInput) ?: return@QuickConnectCard
+                    val target = ConnectionTarget.unmarshalFrom(quickConnectInput)
+                        ?: return@QuickConnectCard
                     runAdbConnect("连接 ADB", onFinished = { activeDeviceActionId = null }) {
                         disconnectCurrentTargetBeforeConnecting(target.host, target.port)
                         try {
                             connectWithTimeout(target.host, target.port)
                             adbConnected = true
-                            savedShortcuts = savedShortcuts.update(host = target.host, port = target.port, online = true)
+                            savedShortcuts = savedShortcuts.update(
+                                host = target.host,
+                                port = target.port,
+                                online = true
+                            )
                             handleAdbConnected(target.host, target.port)
                         } catch (e: Exception) {
                             statusLine = "ADB 连接失败"

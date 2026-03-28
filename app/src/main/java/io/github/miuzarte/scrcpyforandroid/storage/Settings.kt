@@ -42,11 +42,16 @@ abstract class Settings(
     }
 
     /**
-     * 设置项委托类，自动提供 get/set/observe/observeAsState/asMutableState 方法
+     * 设置项委托类，自动提供 get/set/observe/asState/asMutableState 方法
      */
     inner class SettingProperty<T>(
-        private val pair: Pair<T>
+        val pair: Pair<T>
     ) {
+        // 创建时注册自身
+        init {
+            registerProperty(pair.name, this)
+        }
+
         operator fun getValue(thisRef: Any?, property: KProperty<*>): SettingProperty<T> = this
 
         suspend fun get(): T = getValue(pair)
@@ -62,6 +67,15 @@ abstract class Settings(
         fun asMutableState(): MutableState<T> = this@Settings.asMutableState(pair)
     }
 
+    // 注册表, 用于遍历
+    private val propertyRegistry = mutableMapOf<String, SettingProperty<*>>()
+
+    private fun <T> registerProperty(name: String, property: SettingProperty<T>) {
+        propertyRegistry[name] = property
+    }
+
+    protected fun getAllProperties(): Map<String, SettingProperty<*>> = propertyRegistry.toMap()
+
     // 为 Context 添加扩展委托属性，确保 DataStore 单例
     private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(
         name = this.name,
@@ -69,21 +83,16 @@ abstract class Settings(
         scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
     )
 
-    abstract suspend fun toMap(): Map<String, Any>
-    abstract fun validate(): Boolean
-
     // 对外暴露的 DataStore 实例
     protected val dataStore: DataStore<Preferences> = context.dataStore
 
-    protected fun <T> setting(pair: Pair<T>): SettingProperty<T> =
-        SettingProperty(pair)
+    protected fun <T> setting(pair: Pair<T>) = SettingProperty(pair)
 
     protected suspend fun <T> getValue(pair: Pair<T>): T =
         dataStore.data.first()[pair.key] ?: pair.defaultValue
 
-    protected suspend fun <T> setValue(pair: Pair<T>, value: T) {
+    protected suspend fun <T> setValue(pair: Pair<T>, value: T) =
         dataStore.edit { preferences -> preferences[pair.key] = value }
-    }
 
     protected fun <T> observe(pair: Pair<T>): Flow<T> =
         dataStore.data.map { preferences -> preferences[pair.key] ?: pair.defaultValue }

@@ -22,8 +22,7 @@ import androidx.core.view.WindowInsetsControllerCompat
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade.ScrcpySessionInfo
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
-import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.widgets.FullscreenControlScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
@@ -46,10 +45,9 @@ fun FullscreenControlPage(
     // Disable predictive back handler temporarily to avoid decoding issues.
     BackHandler(enabled = true, onBack = onDismiss)
 
-    val context = LocalContext.current
+    val appSettings = Storage.appSettings
 
-    val appSettings = remember(context) { AppSettings(context) }
-    val scrcpyOptions = remember(context) { ScrcpyOptions(context) }
+    val context = LocalContext.current
 
     val haptics = rememberAppHaptics()
 
