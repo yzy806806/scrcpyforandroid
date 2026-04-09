@@ -8,10 +8,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,56 +25,78 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
-import io.github.miuzarte.scrcpyforandroid.ScrcpySessionInfo
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.storage.Settings
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.widgets.FullscreenControlScreen
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Scaffold
 
-data class FullscreenControlLaunch(
-    val deviceName: String,
-    val width: Int,
-    val height: Int,
-    val codec: String,
-)
-
 @Composable
-fun FullscreenControlPage(
-    launch: FullscreenControlLaunch,
+fun FullscreenControlScreen(
+    onBack: () -> Unit,
+    session: Scrcpy.Session.SessionInfo,
     nativeCore: NativeCoreFacade,
-    virtualButtonsLayout: String,
-    showDebugInfo: Boolean,
-    showVirtualButtons: Boolean,
     onVideoSizeChanged: (width: Int, height: Int) -> Unit,
-    onDismiss: () -> Unit,
 ) {
     // Disable predictive back handler temporarily to avoid decoding issues.
-    BackHandler(enabled = true, onBack = onDismiss)
+    BackHandler(enabled = true, onBack = onBack)
+
 
     val context = LocalContext.current
+
     val haptics = rememberAppHaptics()
+    val scope = rememberCoroutineScope()
+    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+
     val activity = remember(context) { context as? Activity }
-    val virtualButtonLayout = remember(virtualButtonsLayout) {
-        VirtualButtonActions.splitLayout(VirtualButtonActions.parseStoredLayout(virtualButtonsLayout))
+
+    val asBundleShared by appSettings.bundleState.collectAsState()
+    val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
+    var asBundle by rememberSaveable(asBundleShared) { mutableStateOf(asBundleShared) }
+    val asBundleLatest by rememberUpdatedState(asBundle)
+    LaunchedEffect(asBundleShared) {
+        if (asBundle != asBundleShared) {
+            asBundle = asBundleShared
+        }
     }
-    val bar = remember(virtualButtonLayout) {
+    LaunchedEffect(asBundle) {
+        delay(Settings.BUNDLE_SAVE_DELAY)
+        if (asBundle != asBundleSharedLatest) {
+            appSettings.saveBundle(asBundle)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            taskScope.launch {
+                appSettings.saveBundle(asBundleLatest)
+            }
+        }
+    }
+
+    val buttonItems = remember(asBundle.virtualButtonsLayout) {
+        VirtualButtonActions.splitLayout(
+            VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout)
+        )
+    }
+    val fullscreenDebugInfo = asBundle.fullscreenDebugInfo
+    val showFullscreenVirtualButtons = asBundle.showFullscreenVirtualButtons
+
+    val bar = remember(buttonItems) {
         VirtualButtonBar(
-            outsideActions = virtualButtonLayout.first,
-            moreActions = virtualButtonLayout.second,
+            outsideActions = buttonItems.first,
+            moreActions = buttonItems.second,
         )
     }
-    var session by remember(launch) {
-        mutableStateOf(
-            ScrcpySessionInfo(
-                width = launch.width,
-                height = launch.height,
-                deviceName = launch.deviceName.ifBlank { "设备" },
-                codec = launch.codec.ifBlank { "unknown" },
-                controlEnabled = true,
-            ),
-        )
-    }
+
     var currentFps by remember { mutableFloatStateOf(0f) }
 
     DisposableEffect(activity) {
@@ -94,7 +121,6 @@ fun FullscreenControlPage(
 
     DisposableEffect(nativeCore) {
         val listener: (Int, Int) -> Unit = { w, h ->
-            session = session.copy(width = w, height = h)
             onVideoSizeChanged(w, h)
         }
         nativeCore.addVideoSizeListener(listener)
@@ -113,9 +139,15 @@ fun FullscreenControlPage(
         }
     }
 
-    fun sendKeycode(keycode: Int) {
-        nativeCore.scrcpyInjectKeycode(0, keycode)
-        nativeCore.scrcpyInjectKeycode(1, keycode)
+    suspend fun sendKeycode(keycode: Int) {
+        runCatching {
+            withContext(Dispatchers.IO) {
+                nativeCore.session?.injectKeycode(0, keycode)
+                nativeCore.session?.injectKeycode(1, keycode)
+            }
+        }.onFailure { e ->
+            android.util.Log.w("FullscreenControlPage", "sendKeycode failed for keycode=$keycode", e)
+        }
     }
 
     Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { contentPadding ->
@@ -127,30 +159,34 @@ fun FullscreenControlPage(
             FullscreenControlScreen(
                 session = session,
                 nativeCore = nativeCore,
-                onDismiss = onDismiss,
-                showDebugInfo = showDebugInfo,
+                onDismiss = onBack,
+                showDebugInfo = fullscreenDebugInfo,
                 currentFps = currentFps,
                 enableBackHandler = false,
                 onInjectTouch = { action, pointerId, x, y, pressure, buttons ->
-                    nativeCore.scrcpyInjectTouch(
-                        action = action,
-                        pointerId = pointerId,
-                        x = x,
-                        y = y,
-                        screenWidth = session.width,
-                        screenHeight = session.height,
-                        pressure = pressure,
-                        actionButton = 0,
-                        buttons = buttons,
-                    )
+                    withContext(Dispatchers.IO) {
+                        nativeCore.session?.injectTouch(
+                            action = action,
+                            pointerId = pointerId,
+                            x = x,
+                            y = y,
+                            screenWidth = session.width,
+                            screenHeight = session.height,
+                            pressure = pressure,
+                            actionButton = 0,
+                            buttons = buttons,
+                        )
+                    }
                 },
             )
 
-            if (showVirtualButtons) {
+            if (showFullscreenVirtualButtons) {
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     onAction = { action ->
-                        action.keycode?.let(::sendKeycode)
+                        action.keycode?.let {
+                            sendKeycode(it)
+                        }
                     },
                 )
             }

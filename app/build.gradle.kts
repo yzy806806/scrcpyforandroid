@@ -1,6 +1,7 @@
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
+    id("kotlin-parcelize")
 }
 
 val defaultAbiList = listOf("armeabi-v7a", "arm64-v8a", "x86", "x86_64")
@@ -23,8 +24,8 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.0.5"
+        versionCode = 6
+        versionName = "0.1.0"
 
         externalNativeBuild {
             cmake {
@@ -97,6 +98,8 @@ dependencies {
     implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
     implementation("org.conscrypt:conscrypt-android:2.5.2")
     implementation("sh.calvin.reorderable:reorderable:3.0.0")
+    implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation(libs.androidx.compose.runtime)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

@@ -4,9 +4,9 @@ import android.content.Context
 import android.os.Build
 import android.util.Base64
 import android.util.Log
-import androidx.core.content.edit
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
-import io.github.miuzarte.scrcpyforandroid.constants.AppPreferenceKeys
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
+import kotlinx.coroutines.runBlocking
 import java.io.BufferedInputStream
 import java.io.Closeable
 import java.io.EOFException
@@ -45,13 +45,13 @@ import kotlin.concurrent.thread
  */
 internal class DirectAdbTransport(private val context: Context) {
 
-    private val keys: Pair<PrivateKey, ByteArray> by lazy { loadOrCreate() }
+    private val keys: Pair<PrivateKey, ByteArray> by lazy { runBlocking { loadOrCreate() } }
 
     val privateKey: PrivateKey get() = keys.first
     val publicKeyX509: ByteArray get() = keys.second
 
     @Volatile
-    var keyName: String = AppDefaults.ADB_KEY_NAME
+    var keyName: String = AppSettings.ADB_KEY_NAME.defaultValue
 
     fun connect(host: String, port: Int): DirectAdbConnection {
         Log.i(TAG, "connect(): opening direct adbd transport to $host:$port")
@@ -60,7 +60,7 @@ internal class DirectAdbTransport(private val context: Context) {
             port,
             privateKey,
             publicKeyX509,
-            keyName.ifBlank { AppDefaults.ADB_KEY_NAME })
+            keyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue })
         conn.handshake()
         Log.i(TAG, "connect(): handshake success for $host:$port")
         return conn
@@ -78,7 +78,7 @@ internal class DirectAdbTransport(private val context: Context) {
 
         val pairingKey = AdbPairingKey(
             privateKey = privateKey,
-            alias = keyName.ifBlank { AppDefaults.ADB_KEY_NAME },
+            alias = keyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue },
         )
         return DirectAdbPairingClient(targetHost, port, targetCode, pairingKey).use {
             it.start()
@@ -102,39 +102,52 @@ internal class DirectAdbTransport(private val context: Context) {
     }
 
     /**
-     * Load persisted RSA keypair from shared preferences, or generate a new one.
+     * Load persisted RSA keypair from DataStore, or generate a new one.
      * Returns (privateKey, publicX509Bytes).
      */
-    private fun loadOrCreate(): Pair<PrivateKey, ByteArray> {
-        val prefs = context.getSharedPreferences(
-            AppPreferenceKeys.NATIVE_ADB_KEY_PREFS_NAME,
-            Context.MODE_PRIVATE
-        )
-        val privB64 = prefs.getString(AppPreferenceKeys.NATIVE_ADB_PRIVATE_KEY, null)
-        if (privB64 != null) {
+    private suspend fun loadOrCreate(
+        forceNew: Boolean = false,
+    ): Pair<PrivateKey, ByteArray> {
+        val adbClientData = Storage.adbClientData
+
+        val privB64 = adbClientData.rsaPrivateKey.get()
+
+        if (privB64.isNotBlank() && !forceNew) {
             try {
                 val kf = KeyFactory.getInstance("RSA")
-                val priv =
-                    kf.generatePrivate(PKCS8EncodedKeySpec(Base64.decode(privB64, Base64.DEFAULT)))
+                val priv = kf.generatePrivate(
+                    PKCS8EncodedKeySpec(
+                        Base64.decode(privB64, Base64.DEFAULT)
+                    )
+                )
                 val pub = derivePublicX509(priv)
-                Log.i(TAG, "loadOrCreate(): loaded persisted RSA key pair, fp=${fingerprint(pub)}")
+                Log.i(
+                    TAG,
+                    "loadOrCreate(): loaded persisted RSA key pair from DataStore, " +
+                            "fp=${fingerprint(pub)}"
+                )
                 return Pair(priv, pub)
             } catch (e: Exception) {
-                Log.w(TAG, "loadOrCreate(): failed to load persisted key, regenerating", e)
+                Log.w(
+                    TAG,
+                    "loadOrCreate(): failed to load persisted key from DataStore, regenerating",
+                    e
+                )
             }
         }
         val kpg = KeyPairGenerator.getInstance("RSA")
         kpg.initialize(2048)
         val kp = kpg.generateKeyPair()
-        prefs.edit {
-            putString(
-                AppPreferenceKeys.NATIVE_ADB_PRIVATE_KEY,
-                Base64.encodeToString(kp.private.encoded, Base64.NO_WRAP)
-            )
-        }
+
+        // 保存到 DataStore
+        val privateKeyB64 = Base64.encodeToString(kp.private.encoded, Base64.NO_WRAP)
+        val publicKeyB64 = Base64.encodeToString(kp.public.encoded, Base64.NO_WRAP)
+        adbClientData.rsaPrivateKey.set(privateKeyB64)
+        adbClientData.rsaPublicKeyX509.set(publicKeyB64)
+
         Log.i(
             TAG,
-            "loadOrCreate(): generated new RSA key pair, fp=${fingerprint(kp.public.encoded)}"
+            "loadOrCreate(): generated new RSA key pair and saved to DataStore, fp=${fingerprint(kp.public.encoded)}"
         )
         return Pair(kp.private, kp.public.encoded)
     }
@@ -203,7 +216,7 @@ internal class DirectAdbConnection(
     val port: Int,
     private val privateKey: PrivateKey,
     private val publicKeyX509: ByteArray,
-    private val keyName: String = AppDefaults.ADB_KEY_NAME,
+    private val keyName: String = AppSettings.ADB_KEY_NAME.defaultValue,
 ) : AutoCloseable {
 
     private val sha1DigestInfoPrefix = byteArrayOf(
@@ -380,7 +393,12 @@ internal class DirectAdbConnection(
         }
     }
 
-    fun isAlive(): Boolean = !closed && !socket.isClosed && socket.isConnected
+    fun isAlive(): Boolean {
+        val isClosed = socket.isClosed
+        val isConnected = socket.isConnected
+        Log.d(TAG, "isClose: $isClosed, isConnected: $isConnected")
+        return !closed && !isClosed && isConnected
+    }
 
     override fun close() {
         if (!closed) {
@@ -548,7 +566,7 @@ internal class DirectAdbConnection(
  * Logical ADB stream abstraction mapped to a local id. Provides blocking
  * `InputStream`/`OutputStream` implementations and lifecycle helpers used by callers.
  */
-internal class AdbSocketStream(
+class AdbSocketStream(
     val localId: Int,
     private val sender: (cmd: Int, arg0: Int, arg1: Int, data: ByteArray) -> Unit,
 ) : Closeable {

@@ -2,10 +2,10 @@ package io.github.miuzarte.scrcpyforandroid.widgets
 
 import android.annotation.SuppressLint
 import android.graphics.SurfaceTexture
-import android.view.MotionEvent
 import android.view.Surface
 import android.view.TextureView
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -38,16 +38,19 @@ import androidx.compose.material.icons.rounded.Wifi
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -63,14 +66,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
-import io.github.miuzarte.scrcpyforandroid.ScrcpySessionInfo
-import io.github.miuzarte.scrcpyforandroid.constants.AppDefaults
+import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
-import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlide
+import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
+import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
+import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
+import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.storage.Settings
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
@@ -91,40 +104,19 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.roundToInt
 
-private val VIDEO_CODEC_OPTIONS = listOf(
-    "h264" to "H.264",
-    "h265" to "H.265",
-    "av1" to "AV1",
-)
-
-private val AUDIO_CODEC_OPTIONS = listOf(
-    "opus" to "Opus",
-    "aac" to "AAC",
-    "flac" to "FLAC",
-    "raw" to "RAW",
-)
-
-private object UiMotionActions {
-    const val DOWN = 0
-    const val UP = 1
-    const val MOVE = 2
-    const val CANCEL = 3
-    const val POINTER_DOWN = 5
-    const val POINTER_UP = 6
-}
-
-private const val FULLSCREEN_TOUCH_LOG_TAG = "FullscreenTouch"
-
 @Composable
 internal fun StatusCard(
     statusLine: String,
     adbConnected: Boolean,
     streaming: Boolean,
-    sessionInfo: ScrcpySessionInfo?,
+    sessionInfo: Scrcpy.Session.SessionInfo?,
     busyLabel: String?,
     connectedDeviceLabel: String,
-    themeBaseIndex: Int,
 ) {
+    val appSettings = Storage.appSettings
+    val appSettingsBundle by appSettings.bundleState.collectAsState()
+    val themeBaseIndex = appSettingsBundle.themeBaseIndex
+
     val cleanStatusLine = normalizeStatusLine(statusLine)
 
     // 根据应用主题设置决定是否使用深色模式
@@ -168,7 +160,7 @@ internal fun StatusCard(
                 ),
                 secondSmall = StatusSmallCardSpec(
                     "编解码器",
-                    sessionInfo.codec,
+                    sessionInfo.codec?.displayName ?: "null",
                 ),
             )
         }
@@ -221,7 +213,7 @@ internal fun StatusCard(
 internal fun PairingCard(
     busy: Boolean,
     autoDiscoverOnDialogOpen: Boolean,
-    onDiscoverTarget: (() -> Pair<String, Int>?)? = null,
+    onDiscoverTarget: (suspend () -> Pair<String, Int>?)? = null,
     onPair: (host: String, port: String, code: String) -> Unit,
 ) {
     val showPairDialog = remember { mutableStateOf(false) }
@@ -255,14 +247,14 @@ internal fun PairingCard(
 
 @Composable
 internal fun PreviewCard(
-    sessionInfo: ScrcpySessionInfo?,
+    sessionInfo: Scrcpy.Session.SessionInfo?,
     nativeCore: NativeCoreFacade,
     previewHeightDp: Int,
     controlsVisible: Boolean,
     onTapped: () -> Unit,
-    onOpenFullscreenHaptic: (() -> Unit)? = null,
     onOpenFullscreen: () -> Unit,
 ) {
+    val haptics = rememberAppHaptics()
     val alpha by animateFloatAsState(if (controlsVisible) 1f else 0f, label = "preview-controls")
 
     Card {
@@ -306,12 +298,12 @@ internal fun PreviewCard(
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
-                        .padding(UiSpacing.CardContent),
+                        .padding(UiSpacing.ContentVertical),
                 ) {
                     Button(
                         onClick = {
                             if (alpha > 0.1) {
-                                onOpenFullscreenHaptic?.invoke()
+                                haptics.contextClick()
                                 onOpenFullscreen()
                             }
                         },
@@ -352,7 +344,7 @@ internal fun VirtualButtonCard(
             onAction = onAction,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(UiSpacing.CardContent),
+                .padding(UiSpacing.ContentVertical),
         )
     }
 }
@@ -360,94 +352,151 @@ internal fun VirtualButtonCard(
 @Composable
 internal fun ConfigPanel(
     busy: Boolean,
-    bitRateMbps: Float,
-    onBitRateSliderChange: (Float) -> Unit,
-    onBitRateInputChange: (String) -> Unit,
-    audioBitRateKbps: Int,
-    onAudioBitRateChange: (Int) -> Unit,
-    videoCodec: String,
-    onVideoCodecChange: (String) -> Unit,
-    audioEnabled: Boolean,
-    onAudioEnabledChange: (Boolean) -> Unit,
+    snackbar: SnackbarController,
     audioForwardingSupported: Boolean,
-    audioCodec: String,
-    onAudioCodecChange: (String) -> Unit,
+    cameraMirroringSupported: Boolean,
+    adbConnecting: Boolean,
+    isQuickConnected: Boolean,
     onOpenAdvanced: () -> Unit,
     onStartStopHaptic: (() -> Unit)? = null,
     onStart: () -> Unit,
     onStop: () -> Unit,
-    sessionStarted: Boolean,
+    sessionInfo: Scrcpy.Session.SessionInfo?,
+    onDisconnect: () -> Unit = {},
 ) {
-    val videoCodecItems = remember { VIDEO_CODEC_OPTIONS.map { it.second } }
-    val videoCodecIndex =
-        VIDEO_CODEC_OPTIONS.indexOfFirst { it.first == videoCodec }.coerceAtLeast(0)
-    val audioCodecItems = remember { AUDIO_CODEC_OPTIONS.map { it.second } }
-    val audioCodecIndex =
-        AUDIO_CODEC_OPTIONS.indexOfFirst { it.first == audioCodec }.coerceAtLeast(0)
-    val audioBitRatePresetIndex =
-        presetIndexFromInput(audioBitRateKbps.toString(), ScrcpyPresets.AudioBitRate)
+    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
-    SectionSmallTitle("Scrcpy")
+    val sessionStarted = sessionInfo != null
+
+    val soBundleShared by scrcpyOptions.bundleState.collectAsState()
+    val soBundleSharedLatest by rememberUpdatedState(soBundleShared)
+    var soBundle by rememberSaveable(soBundleShared) { mutableStateOf(soBundleShared) }
+    val soBundleLatest by rememberUpdatedState(soBundle)
+    LaunchedEffect(soBundleShared) {
+        if (soBundle != soBundleShared) {
+            soBundle = soBundleShared
+        }
+    }
+    LaunchedEffect(soBundle) {
+        delay(Settings.BUNDLE_SAVE_DELAY)
+        if (soBundle != soBundleSharedLatest) {
+            scrcpyOptions.saveBundle(soBundle)
+        }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            taskScope.launch {
+                scrcpyOptions.saveBundle(soBundleLatest)
+            }
+        }
+    }
+
+    val audioBitRateVisibility = rememberSaveable(soBundle) {
+        soBundle.audio && (soBundle.audioCodec == "opus" || soBundle.audioCodec == "aac")
+    }
+
+    val audioCodecItems = rememberSaveable { Codec.AUDIO.map { it.displayName } }
+    val audioCodecIndex = rememberSaveable(soBundle) {
+        Codec.AUDIO
+            .indexOfFirst { it.string == soBundle.audioCodec }
+            .coerceAtLeast(0)
+    }
+
+    val videoCodecItems = rememberSaveable { Codec.VIDEO.map { it.displayName } }
+    val videoCodecIndex = rememberSaveable(soBundle) {
+        Codec.VIDEO
+            .indexOfFirst { it.string == soBundle.videoCodec }
+            .coerceAtLeast(0)
+    }
+
     Card {
         SuperSwitch(
             title = "音频转发",
             summary = "转发设备音频到本机 (Android 11+)",
-            checked = audioEnabled,
-            onCheckedChange = onAudioEnabledChange,
-            enabled = !sessionStarted && audioForwardingSupported,
+            checked = soBundle.audio,
+            onCheckedChange = { soBundle = soBundle.copy(audio = it) },
+            enabled = !sessionStarted
+                    && audioForwardingSupported,
         )
+
         SuperDropdown(
             title = "音频编码",
             summary = "--audio-codec",
             items = audioCodecItems,
             selectedIndex = audioCodecIndex,
-            onSelectedIndexChange = { onAudioCodecChange(AUDIO_CODEC_OPTIONS[it].first) },
-            enabled = !sessionStarted && audioEnabled,
+            onSelectedIndexChange = {
+                val codec = Codec.AUDIO[it]
+                soBundle = soBundle.copy(audioCodec = codec.string)
+                if (codec == Codec.FLAC) {
+                    snackbar.show("注意：FLAC编解码会引入较大的延迟")
+                }
+            },
+            enabled = !sessionStarted && soBundle.audio,
         )
-        if (audioEnabled && (audioCodec == "opus" || audioCodec == "aac")) {
-            SuperSlide(
-                title = "音频码率",
-                summary = "--audio-bit-rate",
-                value = audioBitRatePresetIndex.toFloat(),
-                onValueChange = { value ->
-                    val idx = value.roundToInt().coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
-                    onAudioBitRateChange(ScrcpyPresets.AudioBitRate[idx])
-                },
-                valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
-                steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
-                enabled = !sessionStarted,
-                unit = "Kbps",
-                displayText = audioBitRateKbps.toString(),
-                inputInitialValue = audioBitRateKbps.toString(),
+        AnimatedVisibility(audioBitRateVisibility) {
+                SuperSlider(
+                    title = "音频码率",
+                    summary = "--audio-bit-rate",
+                    value = ScrcpyPresets.AudioBitRate
+                        .indexOfOrNearest(soBundle.audioBitRate / 1000)
+                        .toFloat(),
+                    onValueChange = { value ->
+                        val idx = value.roundToInt()
+                            .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
+                        soBundle = soBundle.copy(
+                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                        )
+                    },
+                    valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
+                    steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
+                    unit = "Kbps",
+                    zeroStateText = "默认",
+                displayText = (soBundle.audioBitRate / 1_000).toString(),
+                inputInitialValue =
+                    if (soBundle.audioBitRate <= 0) ""
+                    else (soBundle.audioBitRate / 1_000).toString(),
                 inputFilter = { it.filter(Char::isDigit) },
-                inputValueRange = 1f..Float.MAX_VALUE,
+                inputValueRange = 0f..UShort.MAX_VALUE.toFloat(),
                 onInputConfirm = { raw ->
-                    raw.toIntOrNull()?.takeIf { it > 0 }?.let { onAudioBitRateChange(it) }
+                    raw.toIntOrNull()
+                        ?.takeIf { it >= 0 }
+                        ?.let { soBundle = soBundle.copy(audioBitRate = it * 1000) }
                 },
             )
         }
+
         SuperDropdown(
             title = "视频编码",
             summary = "--video-codec",
             items = videoCodecItems,
             selectedIndex = videoCodecIndex,
-            onSelectedIndexChange = { onVideoCodecChange(VIDEO_CODEC_OPTIONS[it].first) },
+            onSelectedIndexChange = {
+                val codec = Codec.VIDEO[it]
+                soBundle = soBundle.copy(videoCodec = codec.string)
+                if (codec == Codec.AV1) {
+                    snackbar.show("注意：绝大部分设备不支持AV1硬件编码")
+                }
+            },
             enabled = !sessionStarted,
         )
-        SuperSlide(
+        @SuppressLint("DefaultLocale")
+        SuperSlider(
             title = "视频码率",
             summary = "--video-bit-rate",
-            value = bitRateMbps,
-            onValueChange = {
-                onBitRateSliderChange(it)
-                onBitRateInputChange(formatBitRate(it))
+            value = soBundle.videoBitRate / 1_000_000f,
+            onValueChange = { mbps ->
+                soBundle = soBundle.copy(
+                    videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10)
+                )
             },
-            valueRange = 0.1f..40f,
-            steps = 399,
-            enabled = !sessionStarted,
+            valueRange = 0f..40f,
+            steps = 400 - 1,
             unit = "Mbps",
-            displayFormatter = { formatBitRate(it) },
-            inputInitialValue = formatBitRate(bitRateMbps),
+            zeroStateText = "默认",
+            displayFormatter = { String.format("%.1f", it) },
+            inputInitialValue =
+                if (soBundle.videoBitRate <= 0) ""
+                else String.format("%.1f", soBundle.videoBitRate / 1_000_000f),
             inputFilter = { text ->
                 var dotUsed = false
                 text.filter { ch ->
@@ -462,39 +511,62 @@ internal fun ConfigPanel(
                     }
                 }
             },
-            inputValueRange = 0.1f..Float.MAX_VALUE,
+            inputValueRange = 0f..UInt.MAX_VALUE.toFloat(),
             onInputConfirm = { raw ->
                 raw.toFloatOrNull()?.let { parsed ->
-                    if (parsed >= 0.1f) {
-                        onBitRateSliderChange(parsed)
-                        onBitRateInputChange(formatBitRate(parsed))
+                    if (parsed >= 0f) {
+                        soBundle = soBundle.copy(
+                            videoBitRate = (parsed * 1_000_000f).roundToInt()
+                        )
                     }
                 }
             },
+            enabled = !sessionStarted,
         )
+
         SuperArrow(
-            title = "高级参数",
-            summary = "更多 scrcpy 启动参数",
+            title = "更多参数",
+            summary = "所有 scrcpy 参数",
             onClick = onOpenAdvanced,
             enabled = !sessionStarted,
         )
-        TextButton(
-            text = if (sessionStarted) "停止" else "启动",
-            onClick = {
-                onStartStopHaptic?.invoke()
-                if (sessionStarted) onStop() else onStart()
-            },
+
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = UiSpacing.CardContent)
-                .padding(bottom = UiSpacing.CardContent),
-            enabled = !busy,
-            colors = if (sessionStarted) {
-                ButtonDefaults.textButtonColors()
-            } else {
-                ButtonDefaults.textButtonColorsPrimary()
-            },
-        )
+                .padding(horizontal = UiSpacing.ContentVertical)
+                .padding(bottom = UiSpacing.ContentVertical),
+            horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+        ) {
+            if (isQuickConnected) TextButton(
+                text = "断开",
+                onClick = {
+                    onStartStopHaptic?.invoke()
+                    onDisconnect()
+                },
+                modifier = Modifier.weight(1f / 4f),
+                enabled = !busy,
+            )
+            if (!sessionStarted) TextButton(
+                text = "启动",
+                onClick = {
+                    onStartStopHaptic?.invoke()
+                    onStart()
+                },
+                modifier = Modifier.weight(if (isQuickConnected) 3f / 4f else 1f),
+                enabled = !busy,
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+            if (sessionStarted) TextButton(
+                text = "停止",
+                onClick = {
+                    onStartStopHaptic?.invoke()
+                    onStop()
+                },
+                modifier = Modifier.weight(if (isQuickConnected) 3f / 4f else 1f),
+                enabled = !busy,
+            )
+        }
     }
 }
 
@@ -516,7 +588,7 @@ private fun PairingDialog(
     showDialog: Boolean,
     enabled: Boolean,
     autoDiscoverOnDialogOpen: Boolean,
-    onDiscoverTarget: (() -> Pair<String, Int>?)?,
+    onDiscoverTarget: (suspend () -> Pair<String, Int>?)?,
     onDismissRequest: () -> Unit,
     onDismissFinished: () -> Unit,
     onConfirm: (host: String, port: String, code: String) -> Unit,
@@ -526,9 +598,10 @@ private fun PairingDialog(
     var code by rememberSaveable(showDialog) { mutableStateOf("") }
     var discoveringPort by rememberSaveable(showDialog) { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
+    val focusManager = LocalFocusManager.current
 
     suspend fun doDiscover() {
-        if (onDiscoverTarget == null || discoveringPort || !enabled) return
+        if (!(enabled && onDiscoverTarget != null && !discoveringPort)) return
         discoveringPort = true
         val found = withContext(Dispatchers.IO) { onDiscoverTarget.invoke() }
         if (found != null) {
@@ -544,122 +617,114 @@ private fun PairingDialog(
         }
     }
 
-    fun clearInputs() {
-        host = ""
-        port = ""
-        code = ""
-        discoveringPort = false
-    }
-
     SuperDialog(
         show = showDialog,
         title = "使用配对码配对设备",
         summary = "使用六位数的配对码配对新设备",
         onDismissRequest = {
-            clearInputs()
             onDismissRequest()
         },
-        onDismissFinished = onDismissFinished,
+        onDismissFinished = {
+            onDismissFinished()
+        },
         content = {
-            TextField(
-                value = host,
-                onValueChange = { host = it },
-                label = "IP 地址",
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = UiSpacing.CardContent),
-            )
-            TextField(
-                value = port,
-                onValueChange = { port = it.filter(Char::isDigit) },
-                label = "端口",
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = UiSpacing.CardContent),
-            )
-            TextField(
-                value = code,
-                onValueChange = { code = it },
-                label = "WLAN 配对码",
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = UiSpacing.CardContent),
-            )
-
-            TextButton(
-                text = if (discoveringPort) "发现中..." else "自动发现",
-                onClick = {
-                    if (onDiscoverTarget == null || discoveringPort || !enabled) return@TextButton
-                    scope.launch {
-                        doDiscover()
-                    }
-                },
-                enabled = enabled && onDiscoverTarget != null && !discoveringPort,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(
-                        top = UiSpacing.Medium,
-                        bottom = UiSpacing.CardContent,
+            Column(
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+            ) {
+                TextField(
+                    value = host,
+                    onValueChange = { host = it },
+                    label = "IP 地址",
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next,
                     ),
-            )
-            Row(
-                modifier = Modifier
-                    .padding(bottom = UiSpacing.PopupHorizontal),
-                horizontalArrangement = Arrangement.spacedBy(UiSpacing.PopupHorizontal),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) },
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextField(
+                    value = port,
+                    onValueChange = { port = it.filter(Char::isDigit) },
+                    label = "端口",
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Next,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onNext = { focusManager.moveFocus(FocusDirection.Next) },
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = "WLAN 配对码",
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Number,
+                        imeAction = ImeAction.Done,
+                    ),
+                    keyboardActions = KeyboardActions(
+                        onDone = { focusManager.clearFocus() },
+                    ),
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Spacer(Modifier.height(UiSpacing.ContentVertical * 2))
+
+            Column(
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
             ) {
                 TextButton(
-                    text = "取消",
+                    text = if (!discoveringPort) "自动发现" else "发现中...",
                     onClick = {
-                        clearInputs()
-                        onDismissRequest()
+                        if (enabled && onDiscoverTarget != null && !discoveringPort)
+                            scope.launch { doDiscover() }
                     },
-                    modifier = Modifier.weight(1f),
+                    enabled = enabled && onDiscoverTarget != null && !discoveringPort,
+                    modifier = Modifier.fillMaxWidth(),
                 )
-                TextButton(
-                    text = "配对",
-                    onClick = {
-                        onConfirm(host.trim(), port.trim(), code.trim())
-                        clearInputs()
-                    },
-                    enabled = enabled &&
-                            host.trim().isNotBlank() &&
-                            port.trim().isNotBlank() &&
-                            code.trim().isNotBlank(),
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = {
+                            onDismissRequest()
+                        },
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = "配对",
+                        onClick = {
+                            onConfirm(host.trim(), port.trim(), code.trim())
+                            onDismissRequest()
+                        },
+                        enabled = enabled &&
+                                host.trim().isNotBlank() &&
+                                port.trim().isNotBlank() &&
+                                code.trim().isNotBlank(),
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
             }
         },
     )
 }
 
-private fun presetIndexFromInput(raw: String, presets: List<Int>): Int {
-    if (raw.isBlank()) return 0
-    val value = raw.toIntOrNull() ?: return 0
-    val exact = presets.indexOf(value)
-    if (exact >= 0) return exact
-    val nearest = presets.withIndex().minByOrNull { (_, preset) -> kotlin.math.abs(preset - value) }
-    return nearest?.index ?: 0
-}
-
-@SuppressLint("DefaultLocale")
-private fun formatBitRate(value: Float): String = String.format("%.1f", value)
-
-@Composable
-internal fun LogsPanel(lines: List<String>) {
-    Card {
-        TextField(
-            value = lines.joinToString(separator = "\n"),
-            onValueChange = {},
-            readOnly = true,
-            modifier = Modifier.fillMaxWidth(),
-        )
-    }
-}
+/**
+ * TouchEventHandler
+ *
+ * Purpose:
+ * - Handles touch event processing for fullscreen control screen
+ * - Manages pointer tracking, coordinate mapping, and touch injection
+ */
 
 /**
  * FullscreenControlScreen
@@ -679,14 +744,16 @@ internal fun LogsPanel(lines: List<String>) {
  */
 @Composable
 fun FullscreenControlScreen(
-    session: ScrcpySessionInfo,
+    session: Scrcpy.Session.SessionInfo,
     nativeCore: NativeCoreFacade,
     onDismiss: () -> Unit,
     showDebugInfo: Boolean,
     currentFps: Float,
     enableBackHandler: Boolean = true,
-    onInjectTouch: (action: Int, pointerId: Long, x: Int, y: Int, pressure: Float, buttons: Int) -> Unit,
+    onInjectTouch: suspend (action: Int, pointerId: Long, x: Int, y: Int, pressure: Float, buttons: Int) -> Unit,
 ) {
+    BackHandler(enabled = enableBackHandler, onBack = onDismiss)
+    val coroutineScope = rememberCoroutineScope()
     var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
     val activePointerIds = remember { linkedSetOf<Int>() }
     val activePointerPositions = remember { linkedMapOf<Int, Offset>() }
@@ -695,173 +762,30 @@ fun FullscreenControlScreen(
     var nextPointerLabel by remember { mutableIntStateOf(1) }
     var activeTouchCount by remember { mutableIntStateOf(0) }
     var activeTouchDebug by remember { mutableStateOf("") }
-    BackHandler(enabled = enableBackHandler, onBack = onDismiss)
+
+    val touchEventHandler = remember(session, touchAreaSize) {
+        TouchEventHandler(
+            coroutineScope = coroutineScope,
+            session = session,
+            touchAreaSize = touchAreaSize,
+            activePointerIds = activePointerIds,
+            activePointerPositions = activePointerPositions,
+            activePointerDevicePositions = activePointerDevicePositions,
+            pointerLabels = pointerLabels,
+            nextPointerLabel = nextPointerLabel,
+            onInjectTouch = onInjectTouch,
+            onActiveTouchCountChanged = { activeTouchCount = it },
+            onActiveTouchDebugChanged = { activeTouchDebug = it },
+            onNextPointerLabelChanged = { nextPointerLabel = it },
+        )
+    }
 
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(Color.Black)
             .pointerInteropFilter { event ->
-                if (touchAreaSize.width == 0 || touchAreaSize.height == 0) {
-                    return@pointerInteropFilter true
-                }
-
-                val sessionAspect = if (session.height == 0) {
-                    16f / 9f
-                } else {
-                    session.width.toFloat() / session.height.toFloat()
-                }
-                val containerWidth = touchAreaSize.width.toFloat()
-                val containerHeight = touchAreaSize.height.toFloat()
-                val containerAspect = containerWidth / containerHeight
-                val contentWidth: Float
-                val contentHeight: Float
-                if (sessionAspect > containerAspect) {
-                    contentWidth = containerWidth
-                    contentHeight = containerWidth / sessionAspect
-                } else {
-                    contentHeight = containerHeight
-                    contentWidth = containerHeight * sessionAspect
-                }
-                val contentLeft = (containerWidth - contentWidth) / 2f
-                val contentTop = (containerHeight - contentHeight) / 2f
-
-                fun isInsideContent(rawX: Float, rawY: Float): Boolean {
-                    return rawX in contentLeft..(contentLeft + contentWidth) &&
-                            rawY in contentTop..(contentTop + contentHeight)
-                }
-
-                fun mapToDevice(rawX: Float, rawY: Float): Pair<Int, Int> {
-                    val normalizedX = ((rawX - contentLeft) / contentWidth).coerceIn(0f, 1f)
-                    val normalizedY = ((rawY - contentTop) / contentHeight).coerceIn(0f, 1f)
-                    val x = (normalizedX * (session.width - 1).coerceAtLeast(0)).roundToInt()
-                        .coerceIn(0, (session.width - 1).coerceAtLeast(0))
-                    val y = (normalizedY * (session.height - 1).coerceAtLeast(0)).roundToInt()
-                        .coerceIn(0, (session.height - 1).coerceAtLeast(0))
-                    return x to y
-                }
-
-                fun pointerLabel(pointerId: Int): Int {
-                    val existing = pointerLabels[pointerId]
-                    if (existing != null) {
-                        return existing
-                    }
-                    val assigned = nextPointerLabel
-                    nextPointerLabel += 1
-                    pointerLabels[pointerId] = assigned
-                    return assigned
-                }
-
-                fun refreshTouchDebug() {
-                    if (activePointerIds.isEmpty()) {
-                        activeTouchDebug = ""
-                        return
-                    }
-                    activeTouchDebug = activePointerIds
-                        .sortedBy { pointerLabel(it) }
-                        .joinToString(separator = "\n") { pointerId ->
-                            val label = pointerLabel(pointerId)
-                            val pos = activePointerDevicePositions[pointerId]
-                            if (pos == null) {
-                                "#$label(id=$pointerId):?"
-                            } else {
-                                "#$label(id=$pointerId):${pos.first},${pos.second}"
-                            }
-                        }
-                }
-
-                fun releasePointer(pointerId: Int, reason: String) {
-                    if (!activePointerIds.contains(pointerId)) return
-                    val pos = activePointerPositions[pointerId] ?: Offset.Zero
-                    val (x, y) = mapToDevice(pos.x, pos.y)
-                    // val label = pointerLabel(pointerId)
-                    // Log.d(
-                    //     FULLSCREEN_TOUCH_LOG_TAG,
-                    //     "抬起($reason): pointer#$label(id=$pointerId) x=$x y=$y"
-                    // )
-                    onInjectTouch(UiMotionActions.UP, pointerId.toLong(), x, y, 0f, 0)
-                    activePointerIds -= pointerId
-                    activePointerPositions.remove(pointerId)
-                    activePointerDevicePositions.remove(pointerId)
-                    pointerLabels.remove(pointerId)
-                }
-
-                if (event.actionMasked == MotionEvent.ACTION_CANCEL) {
-                    val toCancel = activePointerIds.toList()
-                    for (pointerId in toCancel) {
-                        releasePointer(pointerId, reason = "cancel")
-                    }
-                    activeTouchCount = activePointerIds.size
-                    refreshTouchDebug()
-                    return@pointerInteropFilter true
-                }
-
-                val eventPointerIds = HashSet<Int>(event.pointerCount)
-                val eventPositions = HashMap<Int, Offset>(event.pointerCount)
-                val eventPressures = HashMap<Int, Float>(event.pointerCount)
-                for (i in 0 until event.pointerCount) {
-                    val pointerId = event.getPointerId(i)
-                    eventPointerIds += pointerId
-                    eventPositions[pointerId] = Offset(event.getX(i), event.getY(i))
-                    eventPressures[pointerId] = event.getPressure(i).coerceIn(0f, 1f)
-                }
-
-                val disappearedPointers = activePointerIds.filter { it !in eventPointerIds }
-                for (pointerId in disappearedPointers) {
-                    releasePointer(pointerId, reason = "missing")
-                }
-
-                val endedPointerId = when (event.actionMasked) {
-                    MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> event.getPointerId(event.actionIndex)
-                    else -> null
-                }
-
-                val justPressed = HashSet<Int>()
-                for (i in 0 until event.pointerCount) {
-                    val pointerId = event.getPointerId(i)
-                    if (pointerId == endedPointerId) continue
-                    val raw = eventPositions[pointerId] ?: continue
-                    val pressure = eventPressures[pointerId] ?: 0f
-                    if (!activePointerIds.contains(pointerId)) {
-                        if (!isInsideContent(raw.x, raw.y)) continue
-                        val (x, y) = mapToDevice(raw.x, raw.y)
-                        // val label = pointerLabel(pointerId)
-                        // Log.d(
-                        //     FULLSCREEN_TOUCH_LOG_TAG,
-                        //     "按下: pointer#$label(id=$pointerId) x=$x y=$y"
-                        // )
-                        activePointerIds += pointerId
-                        activePointerPositions[pointerId] = raw
-                        activePointerDevicePositions[pointerId] = x to y
-                        justPressed += pointerId
-                        onInjectTouch(UiMotionActions.DOWN, pointerId.toLong(), x, y, pressure, 0)
-                    }
-                }
-
-                for (i in 0 until event.pointerCount) {
-                    val pointerId = event.getPointerId(i)
-                    if (!activePointerIds.contains(pointerId)) continue
-                    if (pointerId == endedPointerId) continue
-                    if (pointerId in justPressed) continue
-                    val raw = eventPositions[pointerId] ?: continue
-                    val pressure = eventPressures[pointerId] ?: 0f
-                    activePointerPositions[pointerId] = raw
-                    val (x, y) = mapToDevice(raw.x, raw.y)
-                    activePointerDevicePositions[pointerId] = x to y
-                    onInjectTouch(UiMotionActions.MOVE, pointerId.toLong(), x, y, pressure, 0)
-                }
-
-                if (endedPointerId != null) {
-                    val endPos = eventPositions[endedPointerId]
-                    if (endPos != null) {
-                        activePointerPositions[endedPointerId] = endPos
-                    }
-                    releasePointer(endedPointerId, reason = "event")
-                }
-
-                activeTouchCount = activePointerIds.size
-                refreshTouchDebug()
-                true
+                touchEventHandler.handleMotionEvent(event)
             }
             .onSizeChanged { touchAreaSize = it },
     ) {
@@ -897,9 +821,9 @@ fun FullscreenControlScreen(
             Box(
                 modifier = Modifier
                     .align(Alignment.TopStart)
-                    .padding(start = UiSpacing.CardContent, top = UiSpacing.CardContent)
+                    .padding(start = UiSpacing.ContentVertical, top = UiSpacing.ContentVertical)
                     .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = UiSpacing.CardContent, vertical = UiSpacing.Medium),
+                    .padding(horizontal = UiSpacing.ContentVertical, vertical = UiSpacing.Medium),
             ) {
                 Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.Tiny)) {
                     Text(
@@ -954,27 +878,25 @@ fun FullscreenControlScreen(
 private fun ScrcpyVideoSurface(
     modifier: Modifier,
     nativeCore: NativeCoreFacade,
-    session: ScrcpySessionInfo?,
+    session: Scrcpy.Session.SessionInfo?,
 ) {
-    val surfaceTag = "video-main"
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
+    val scope = rememberCoroutineScope()
+    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
     LaunchedEffect(session, currentSurface) {
-        if (session != null && currentSurface != null) {
-            nativeCore.registerVideoSurface(surfaceTag, currentSurface!!)
+        val surface = currentSurface
+        if (session != null && surface != null && surface.isValid) {
+            nativeCore.attachVideoSurface(surface)
         }
-        // Unregistration is handled directly in onSurfaceTextureDestroyed and DisposableEffect
     }
 
     DisposableEffect(Unit) {
         onDispose {
-            val released = currentSurface
-            if (released != null) {
-                nativeCore.unregisterVideoSurface(surfaceTag, released)
-                released.release()
-                currentSurface = null
+            val surface = currentSurface
+            if (surface != null) {
+                taskScope.launch { nativeCore.detachVideoSurface(surface, releaseDecoder = false) }
             }
-            // If currentSurface is null, onSurfaceTextureDestroyed already handled cleanup
         }
     }
 
@@ -988,9 +910,15 @@ private fun ScrcpyVideoSurface(
                         width: Int,
                         height: Int
                     ) {
-                        currentSurface?.release() // Release stale surface if any
                         @SuppressLint("Recycle")
-                        currentSurface = Surface(surfaceTexture)
+                        val newSurface = Surface(surfaceTexture)
+                        currentSurface = newSurface
+                        // Register immediately when surface becomes available
+                        if (session != null) {
+                            scope.launch {
+                                nativeCore.attachVideoSurface(newSurface)
+                            }
+                        }
                     }
 
                     override fun onSurfaceTextureSizeChanged(
@@ -1000,11 +928,13 @@ private fun ScrcpyVideoSurface(
                     ) = Unit
 
                     override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
-                        val released = currentSurface
-                        currentSurface = null
-                        if (released != null) {
-                            nativeCore.unregisterVideoSurface(surfaceTag, released)
-                            released.release()
+                        val surface = currentSurface
+                        if (surface != null) {
+                            taskScope.launch {
+                                nativeCore.detachVideoSurface(surface, releaseDecoder = false)
+                            }
+                            surface.release()
+                            currentSurface = null
                         }
                         return true
                     }
@@ -1020,48 +950,70 @@ private fun ScrcpyVideoSurface(
 @Composable
 internal fun DeviceTile(
     device: DeviceShortcut,
-    actionText: String,
+    isConnected: Boolean,
     actionEnabled: Boolean,
     actionInProgress: Boolean,
-    onLongPress: () -> Unit,
-    onContentClick: () -> Unit,
+    editing: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onAction: () -> Unit,
+    onEditorSave: (DeviceShortcut) -> Unit,
+    onEditorDelete: () -> Unit,
+    onEditorCancel: () -> Unit,
 ) {
     val haptics = rememberAppHaptics()
+    var name by rememberSaveable(device.id) { mutableStateOf(device.name) }
+    var host by rememberSaveable(device.id) { mutableStateOf(device.host) }
+    var port by rememberSaveable(device.id) { mutableStateOf(device.port.toString()) }
+
+    LaunchedEffect(device) {
+        name = device.name
+        host = device.host
+        port = device.port.toString()
+    }
+
     Card(
         colors = CardDefaults.defaultColors(
-            color = if (device.online) MiuixTheme.colorScheme.surfaceContainer
-            else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
+            color =
+                if (isConnected) MiuixTheme.colorScheme.surfaceContainer
+                else MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.6f),
         ),
-        pressFeedbackType = PressFeedbackType.Sink,
+        pressFeedbackType = if (!editing) PressFeedbackType.Sink else PressFeedbackType.None,
         onClick = haptics.contextClick,
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .combinedClickable(
-                    onClick = onContentClick,
-                    onLongClick = onLongPress,
+                .then(
+                    if (!isConnected)
+                        Modifier.combinedClickable(
+                            onClick = onClick,
+                            onLongClick = onLongClick,
+                        )
+                    else Modifier
                 )
                 .padding(UiSpacing.PageItem),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Row(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(end = UiSpacing.CardContent),
+                    .weight(1f),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // statu dot
                 Box(
                     modifier = Modifier
                         .size(8.dp)
                         .background(
-                            color = if (device.online) Color(0xFF44C74F) else MiuixTheme.colorScheme.outline,
+                            color =
+                                if (isConnected) Color(0xFF44C74F)
+                                else MiuixTheme.colorScheme.outline,
                             shape = CircleShape,
                         ),
                 )
                 Spacer(modifier = Modifier.width(UiSpacing.PageItem))
-                Column(modifier = Modifier.weight(1f)) {
+                // device name/address
+                Column {
                     Text(
                         device.name.ifBlank { device.host },
                         fontWeight = FontWeight.SemiBold,
@@ -1079,19 +1031,120 @@ internal fun DeviceTile(
                 }
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 if (actionInProgress) {
                     CircularProgressIndicator(progress = null)
                     Spacer(Modifier.width(UiSpacing.Medium))
                 }
                 TextButton(
-                    text = actionText,
+                    text = if (!isConnected) "连接" else "断开",
                     onClick = onAction,
                     enabled = actionEnabled && !actionInProgress,
                 )
             }
+        }
+
+        AnimatedVisibility(editing) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = UiSpacing.ContentVertical)
+                    .padding(bottom = UiSpacing.ContentVertical),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical)
+            ) {
+                SuperTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = "设备名称",
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SuperTextField(
+                    value = host,
+                    onValueChange = { host = it },
+                    label = "IP 地址",
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                SuperTextField(
+                    value = port,
+                    onValueChange = { port = it.filter(Char::isDigit) },
+                    label = "端口",
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+                ) {
+                    TextButton(
+                        text = "取消",
+                        onClick = onEditorCancel,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = "删除",
+                        onClick = onEditorDelete,
+                        modifier = Modifier.weight(1f),
+                    )
+                    TextButton(
+                        text = "保存",
+                        onClick = {
+                            val trimmedHost = host.trim()
+                            if (trimmedHost.isNotBlank()) {
+                                onEditorSave(
+                                    DeviceShortcut(
+                                        name = name.trim(),
+                                        host = trimmedHost,
+                                        port = port.toIntOrNull() ?: Defaults.ADB_PORT,
+                                    ),
+                                )
+                            }
+                        },
+                        modifier = Modifier.weight(1f),
+                        colors = ButtonDefaults.textButtonColorsPrimary(),
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DeviceTileList(
+    devices: List<DeviceShortcut>,
+    isConnected: (DeviceShortcut) -> Boolean,
+    actionEnabled: Boolean,
+    actionInProgress: (DeviceShortcut) -> Boolean,
+    editingDeviceId: String?,
+    onClick: (DeviceShortcut) -> Unit,
+    onLongClick: (DeviceShortcut) -> Unit,
+    onAction: (DeviceShortcut) -> Unit,
+    onEditorSave: (DeviceShortcut, DeviceShortcut) -> Unit,
+    onEditorDelete: (DeviceShortcut) -> Unit,
+    onEditorCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+    ) {
+        devices.forEach { device ->
+            DeviceTile(
+                device = device,
+                isConnected = isConnected(device),
+                actionEnabled = actionEnabled,
+                actionInProgress = actionInProgress(device),
+                editing = editingDeviceId == device.id,
+                onClick = { onClick(device) },
+                onLongClick = { onLongClick(device) },
+                onAction = { onAction(device) },
+                onEditorSave = { updated -> onEditorSave(device, updated) },
+                onEditorDelete = { onEditorDelete(device) },
+                onEditorCancel = onEditorCancel,
+            )
         }
     }
 }
@@ -1099,7 +1152,8 @@ internal fun DeviceTile(
 @Composable
 internal fun QuickConnectCard(
     input: String,
-    onInputChange: (String) -> Unit,
+    onValueChange: (String) -> Unit,
+    onFocusChange: (() -> Unit)? = null,
     onConnect: () -> Unit,
     onAddDevice: () -> Unit,
     enabled: Boolean = true,
@@ -1108,158 +1162,54 @@ internal fun QuickConnectCard(
 
     Card(
         colors = CardDefaults.defaultColors(color = MiuixTheme.colorScheme.primaryContainer),
-        pressFeedbackType = if (enabled) PressFeedbackType.Tilt else PressFeedbackType.None,
+        pressFeedbackType =
+            if (enabled) PressFeedbackType.Tilt
+            else PressFeedbackType.None,
+        insideMargin = PaddingValues(UiSpacing.Content),
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(
-                    start = UiSpacing.Large,
-                    end = UiSpacing.Large,
-                    top = UiSpacing.PageItem,
-                    bottom = UiSpacing.Small,
-                ),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(
-                Icons.Rounded.AddLink,
-                contentDescription = "快速连接",
-                tint = MiuixTheme.colorScheme.onPrimaryContainer,
-            )
-            Spacer(modifier = Modifier.width(UiSpacing.Medium))
-            Text(
-                "快速连接",
-                fontWeight = FontWeight.Bold,
-                color = MiuixTheme.colorScheme.onPrimaryContainer,
-            )
-        }
-        TextField(
-            value = input,
-            onValueChange = {
-                if (enabled) onInputChange(it)
-            },
-            label = "IP:PORT",
-            enabled = enabled,
-            useLabelAsPlaceholder = true,
-            singleLine = true,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = UiSpacing.CardContent)
-                .padding(bottom = UiSpacing.SectionTitleLeadingGap),
-            keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
-            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-        )
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = UiSpacing.CardContent)
-                .padding(bottom = UiSpacing.CardContent),
-            horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
-        ) {
-            TextButton(
-                text = "添加设备",
-                onClick = onAddDevice,
-                modifier = Modifier.weight(1f),
-                enabled = enabled,
-            )
-            TextButton(
-                text = "连接",
-                onClick = onConnect,
-                modifier = Modifier.weight(1f),
-                enabled = enabled,
-                colors = ButtonDefaults.textButtonColorsPrimary(),
-            )
-        }
-    }
-}
-
-@Composable
-internal fun DeviceEditorScreen(
-    contentPadding: PaddingValues,
-    device: DeviceShortcut,
-    onSave: (DeviceShortcut) -> Unit,
-    onDelete: () -> Unit,
-    onBack: () -> Unit,
-) {
-    var name by rememberSaveable(device.id) { mutableStateOf(device.name) }
-    var host by rememberSaveable(device.id) { mutableStateOf(device.host) }
-    var port by rememberSaveable(device.id) { mutableStateOf(device.port.toString()) }
-
-    BackHandler(enabled = true, onBack = onBack)
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(contentPadding)
-            .padding(UiSpacing.PageHorizontal),
-    ) {
-        SectionSmallTitle("编辑设备")
-        Card {
-            TextField(
-                value = name,
-                onValueChange = { name = it },
-                label = "设备名称",
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.CardContent)
-                    .padding(top = UiSpacing.CardContent),
-            )
-            TextField(
-                value = host,
-                onValueChange = { host = it },
-                label = "IP 地址",
-                singleLine = true,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.CardContent)
-                    .padding(top = UiSpacing.CardContent),
-            )
-            TextField(
-                value = port,
-                onValueChange = { port = it.filter(Char::isDigit) },
-                label = "端口",
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.CardContent)
-                    .padding(top = UiSpacing.CardContent),
-            )
+        Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical)) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(UiSpacing.CardContent),
+                modifier = Modifier.padding(horizontal = UiSpacing.Small),
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
             ) {
+                Icon(
+                    Icons.Rounded.AddLink,
+                    contentDescription = "快速连接",
+                    tint = MiuixTheme.colorScheme.onPrimaryContainer,
+                )
+                Text(
+                    "快速连接",
+                    fontWeight = FontWeight.Bold,
+                    color = MiuixTheme.colorScheme.onPrimaryContainer,
+                )
+            }
+            SuperTextField(
+                value = input,
+                onValueChange = onValueChange,
+                label = "IP:PORT",
+                enabled = enabled,
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+                keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                onFocusLost = onFocusChange,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
+            ) {
                 TextButton(
-                    text = "返回",
-                    onClick = onBack,
+                    text = "添加设备",
+                    onClick = onAddDevice,
                     modifier = Modifier.weight(1f),
+                    enabled = enabled,
                 )
                 TextButton(
-                    text = "删除",
-                    onClick = onDelete,
+                    text = "连接",
+                    onClick = onConnect,
                     modifier = Modifier.weight(1f),
-                )
-                TextButton(
-                    text = "保存",
-                    onClick = {
-                        val p = port.toIntOrNull() ?: AppDefaults.ADB_PORT
-                        val h = host.trim()
-                        if (h.isNotBlank()) {
-                            onSave(
-                                DeviceShortcut(
-                                    id = "$h:$p",
-                                    name = name.trim(),
-                                    host = h,
-                                    port = p,
-                                    online = device.online,
-                                ),
-                            )
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
+                    enabled = enabled,
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             }
