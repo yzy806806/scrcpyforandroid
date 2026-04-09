@@ -5,7 +5,6 @@ import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.SystemClock
-import android.view.WindowManager
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.PredictiveBackHandler
@@ -266,25 +265,9 @@ fun MainScreen() {
         }
     }
 
-    var sessionStarted by remember { mutableStateOf(false) }
     var showReorderDevices by rememberSaveable { mutableStateOf(false) }
     var fullscreenOrientation by rememberSaveable {
         mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-    }
-
-    val keepScreenOnWhenStreamingEnabled = asBundle.keepScreenOnWhenStreaming
-    // Keep-screen-on is controlled globally, so fullscreen and preview share the same behavior.
-    DisposableEffect(activity, keepScreenOnWhenStreamingEnabled, sessionStarted) {
-        val window = activity?.window
-        val shouldKeepScreenOn = keepScreenOnWhenStreamingEnabled && sessionStarted
-        if (window != null && shouldKeepScreenOn) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        }
-        onDispose {
-            if (window != null && shouldKeepScreenOn) {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
     }
 
     // Fullscreen route can force orientation based on stream ratio; all other routes are portrait.
@@ -356,7 +339,6 @@ fun MainScreen() {
                                 snackbar = snackbarController,
                                 scrollBehavior = devicesPageScrollBehavior,
                                 onOpenVirtualButtonOrder = { rootBackStack.add(RootScreen.VirtualButtonOrder) },
-                                onSessionStartedChange = { sessionStarted = it },
                                 onOpenReorderDevices = { showReorderDevices = true },
                                 onOpenAdvancedPage = { rootBackStack.add(RootScreen.Advanced) },
                                 onOpenFullscreenPage = { session ->

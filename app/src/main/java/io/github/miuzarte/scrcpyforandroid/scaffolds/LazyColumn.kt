@@ -32,18 +32,16 @@ fun LazyColumn(
     content: LazyListScope.() -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
-    val focusClearModifier = if (clearFocusOnTap) {
-        Modifier.pointerInput(Unit) {
-            detectTapGestures(onTap = { focusManager.clearFocus() })
-        }
-    } else {
-        Modifier
-    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .then(focusClearModifier)
+            .then(
+                if (clearFocusOnTap)
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures(onTap = { focusManager.clearFocus() })
+                    } else Modifier
+            )
             .overScrollVertical()
             .nestedScroll(scrollBehavior.nestedScrollConnection)
             .padding(contentPadding),

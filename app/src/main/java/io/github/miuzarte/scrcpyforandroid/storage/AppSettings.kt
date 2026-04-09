@@ -28,10 +28,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("show_fullscreen_virtual_buttons"),
             true
         )
-        val KEEP_SCREEN_ON_WHEN_STREAMING = Pair(
-            booleanPreferencesKey("keep_screen_on_when_streaming"),
-            false
-        )
         val DEVICE_PREVIEW_CARD_HEIGHT_DP = Pair(
             intPreferencesKey("device_preview_card_height_dp"),
             320
@@ -81,7 +77,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     // Scrcpy Settings
     val fullscreenDebugInfo by setting(FULLSCREEN_DEBUG_INFO)
     val showFullscreenVirtualButtons by setting(SHOW_FULLSCREEN_VIRTUAL_BUTTONS)
-    val keepScreenOnWhenStreaming by setting(KEEP_SCREEN_ON_WHEN_STREAMING)
     val devicePreviewCardHeightDp by setting(DEVICE_PREVIEW_CARD_HEIGHT_DP)
     val previewVirtualButtonShowText by setting(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT)
     val virtualButtonsLayout by setting(VIRTUAL_BUTTONS_LAYOUT)
@@ -103,7 +98,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val monet: Boolean,
         val fullscreenDebugInfo: Boolean,
         val showFullscreenVirtualButtons: Boolean,
-        val keepScreenOnWhenStreaming: Boolean,
         val devicePreviewCardHeightDp: Int,
         val previewVirtualButtonShowText: Boolean,
         val virtualButtonsLayout: String,
@@ -122,7 +116,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(MONET) { bundle: Bundle -> bundle.monet },
         bundleField(FULLSCREEN_DEBUG_INFO) { bundle: Bundle -> bundle.fullscreenDebugInfo },
         bundleField(SHOW_FULLSCREEN_VIRTUAL_BUTTONS) { bundle: Bundle -> bundle.showFullscreenVirtualButtons },
-        bundleField(KEEP_SCREEN_ON_WHEN_STREAMING) { bundle: Bundle -> bundle.keepScreenOnWhenStreaming },
         bundleField(DEVICE_PREVIEW_CARD_HEIGHT_DP) { bundle: Bundle -> bundle.devicePreviewCardHeightDp },
         bundleField(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT) { bundle: Bundle -> bundle.previewVirtualButtonShowText },
         bundleField(VIRTUAL_BUTTONS_LAYOUT) { bundle: Bundle -> bundle.virtualButtonsLayout },
@@ -142,7 +135,6 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         monet = preferences.read(MONET),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         showFullscreenVirtualButtons = preferences.read(SHOW_FULLSCREEN_VIRTUAL_BUTTONS),
-        keepScreenOnWhenStreaming = preferences.read(KEEP_SCREEN_ON_WHEN_STREAMING),
         devicePreviewCardHeightDp = preferences.read(DEVICE_PREVIEW_CARD_HEIGHT_DP),
         previewVirtualButtonShowText = preferences.read(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT),
         virtualButtonsLayout = preferences.read(VIRTUAL_BUTTONS_LAYOUT),

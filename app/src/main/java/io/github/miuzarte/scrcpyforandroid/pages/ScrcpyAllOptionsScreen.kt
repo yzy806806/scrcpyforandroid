@@ -264,14 +264,19 @@ internal fun ScrcpyAllOptionsPage(
     val videoEncoderDropdownItems = rememberSaveable(videoEncoders, listRefreshVersion) {
         listOf("") + videoEncoders
     }
-    val videoEncoderIndex = rememberSaveable(soBundle.videoEncoder, videoEncoders, listRefreshVersion) {
-        (videoEncoders.indexOf(soBundle.videoEncoder) + 1).coerceAtLeast(0)
-    }
+    val videoEncoderIndex =
+        rememberSaveable(soBundle.videoEncoder, videoEncoders, listRefreshVersion) {
+            (videoEncoders.indexOf(soBundle.videoEncoder) + 1).coerceAtLeast(0)
+        }
 
     val audioEncoderDropdownItems = rememberSaveable(audioEncoders, listRefreshVersion) {
         listOf("") + audioEncoders
     }
-    val audioEncoderIndex = rememberSaveable(soBundle.audioEncoder, audioEncoders, listRefreshVersion) {
+    val audioEncoderIndex = rememberSaveable(
+        soBundle.audioEncoder,
+        audioEncoders,
+        listRefreshVersion
+    ) {
         (audioEncoders.indexOf(soBundle.audioEncoder) + 1).coerceAtLeast(0)
     }
 
@@ -418,6 +423,77 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                     // enabled = control || video,
+                )
+                SuperSlider(
+                    title = "投屏过程中受控机的息屏时间",
+                    summary = "--screen-off-timeout",
+                    value = soBundle.screenOffTimeout.coerceAtLeast(0).toFloat(),
+                    onValueChange = {
+                        soBundle = soBundle.copy(
+                            screenOffTimeout = it.roundToInt()
+                                .takeIf { value -> value > 0 }
+                                ?.toLong() ?: -1
+                        )
+                    },
+                    valueRange = 0f..600f,
+                    steps = 600 - 1,
+                    unit = "s",
+                    zeroStateText = "默认",
+                    displayText =
+                        if (soBundle.screenOffTimeout <= 0) "默认"
+                        else soBundle.screenOffTimeout.toString(),
+                    inputInitialValue =
+                        if (soBundle.screenOffTimeout <= 0) ""
+                        else soBundle.screenOffTimeout.toString(),
+                    inputFilter = { it.filter(Char::isDigit) },
+                    inputValueRange = 0f..86400f,
+                    onInputConfirm = {
+                        soBundle = soBundle.copy(
+                            screenOffTimeout = it.toLongOrNull()
+                                ?.takeIf { value -> value > 0 }
+                                ?: -1
+                        )
+                    },
+                )
+                SuperSwitch(
+                    title = "开始投屏时不唤醒屏幕",
+                    summary = "--no-power-on",
+                    checked = !soBundle.powerOn,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            powerOn = !it
+                        )
+                    },
+                )
+                SuperSwitch(
+                    title = "结束投屏时息屏",
+                    summary = "--power-off-on-close",
+                    checked = soBundle.powerOffOnClose,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            powerOffOnClose = it
+                        )
+                    },
+                )
+                SuperSwitch(
+                    title = "显示物理触控",
+                    summary = "--show-touches",
+                    checked = soBundle.showTouches,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            showTouches = it
+                        )
+                    },
+                )
+                SuperSwitch(
+                    title = "投屏时保持本机屏幕唤醒",
+                    summary = "--disable-screensaver",
+                    checked = soBundle.disableScreensaver,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            disableScreensaver = it
+                        )
+                    },
                 )
             }
         }
@@ -781,6 +857,26 @@ internal fun ScrcpyAllOptionsPage(
                             onCheckedChange = {
                                 soBundle = soBundle.copy(
                                     cameraHighSpeed = it
+                                )
+                            },
+                        )
+                        SuperSwitch(
+                            title = "关闭虚拟显示器时保留内容",
+                            summary = "--no-vd-destroy-content",
+                            checked = !soBundle.vdDestroyContent,
+                            onCheckedChange = {
+                                soBundle = soBundle.copy(
+                                    vdDestroyContent = !it
+                                )
+                            },
+                        )
+                        SuperSwitch(
+                            title = "禁用虚拟显示器系统装饰",
+                            summary = "--no-vd-system-decorations",
+                            checked = !soBundle.vdSystemDecorations,
+                            onCheckedChange = {
+                                soBundle = soBundle.copy(
+                                    vdSystemDecorations = !it
                                 )
                             },
                         )

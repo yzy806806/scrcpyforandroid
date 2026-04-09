@@ -1,7 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
+import android.app.Activity
 import android.util.Log
+import android.view.WindowManager
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -22,6 +24,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
@@ -92,7 +95,6 @@ fun DeviceTabScreen(
     snackbar: SnackbarController,
     scrollBehavior: ScrollBehavior,
     onOpenVirtualButtonOrder: () -> Unit,
-    onSessionStartedChange: (Boolean) -> Unit,
     onOpenReorderDevices: () -> Unit,
     onOpenAdvancedPage: () -> Unit,
     onOpenFullscreenPage: (Scrcpy.Session.SessionInfo) -> Unit,
@@ -142,7 +144,6 @@ fun DeviceTabScreen(
             scrcpy = scrcpy,
             snackbar = snackbar,
             scrollBehavior = scrollBehavior,
-            onSessionStartedChange = onSessionStartedChange,
             onOpenAdvancedPage = onOpenAdvancedPage,
             onOpenFullscreenPage = onOpenFullscreenPage,
         )
@@ -157,13 +158,14 @@ fun DeviceTabPage(
     scrcpy: Scrcpy,
     snackbar: SnackbarController,
     scrollBehavior: ScrollBehavior,
-    onSessionStartedChange: (Boolean) -> Unit,
     onOpenAdvancedPage: () -> Unit,
     onOpenFullscreenPage: (Scrcpy.Session.SessionInfo) -> Unit,
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
     val haptics = rememberAppHaptics()
+    val activity = remember(context) { context as? Activity }
 
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
@@ -213,6 +215,23 @@ fun DeviceTabPage(
 
     // read only
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
+
+    fun setKeepScreenOn(enabled: Boolean) {
+        val window = activity?.window ?: return
+        window.decorView.post {
+            if (enabled) {
+                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            } else {
+                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            }
+        }
+    }
+
+    DisposableEffect(activity) {
+        onDispose {
+            setKeepScreenOn(false)
+        }
+    }
 
     // Run adb operations on a dedicated single thread.
     // Try to avoid blocking UI/recomposition and keeps adb call ordering deterministic.
@@ -323,6 +342,7 @@ fun DeviceTabPage(
     ) {
         // Also stops scrcpy.
         runCatching { scrcpy.stop() }
+        setKeepScreenOn(false)
         runCatching { adbService.disconnect() }
         adbConnected = false
         currentTargetHost = ""
@@ -706,7 +726,6 @@ fun DeviceTabPage(
             sessionInfoCodec = null
             sessionInfoControlEnabled = false
         }
-        onSessionStartedChange(sessionInfo != null)
     }
 
     fun sendVirtualButtonAction(action: VirtualButtonAction) {
@@ -920,6 +939,9 @@ fun DeviceTabPage(
                         runBusy("启动 scrcpy") {
                             val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
                             val session = scrcpy.start(options)
+                            if (options.disableScreensaver) {
+                                setKeepScreenOn(true)
+                            }
                             sessionInfo = session.copy(
                                 host = currentTargetHost,
                                 port = currentTargetPort
@@ -949,6 +971,7 @@ fun DeviceTabPage(
                     onStop = {
                         runBusy("停止 scrcpy") {
                             scrcpy.stop()
+                            setKeepScreenOn(false)
                             sessionInfo = null
                             statusLine = "${currentTarget!!.host}:${currentTarget.port}"
                             logEvent("scrcpy 已停止")

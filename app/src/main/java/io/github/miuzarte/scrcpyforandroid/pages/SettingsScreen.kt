@@ -194,14 +194,6 @@ fun SettingsPage(
                         asBundle = asBundle.copy(fullscreenDebugInfo = it)
                     },
                 )
-                SuperSwitch(
-                    title = "投屏时保持屏幕常亮",
-                    summary = "Scrcpy 启动后保持本机屏幕常亮，避免锁屏导致 ADB 断开",
-                    checked = asBundle.keepScreenOnWhenStreaming,
-                    onCheckedChange = {
-                        asBundle = asBundle.copy(keepScreenOnWhenStreaming = it)
-                    },
-                )
                 SuperSlider(
                     title = "预览卡高度",
                     summary = "设备页预览卡高度",

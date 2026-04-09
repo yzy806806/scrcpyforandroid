@@ -17,6 +17,8 @@ import java.util.Locale
 object EventLogger {
     private const val LOG_TAG = "EventLogger"
 
+    const val MAX_LINES = 512
+
     private val _eventLog: SnapshotStateList<String> = mutableStateListOf()
 
     /**
@@ -36,8 +38,8 @@ object EventLogger {
         _eventLog.add(0, "[$timestamp] $message")
 
         // Rotate logs if exceeds max size
-        if (_eventLog.size > Defaults.EVENT_LOG_LINES) {
-            _eventLog.removeRange(Defaults.EVENT_LOG_LINES, _eventLog.size)
+        if (_eventLog.size > MAX_LINES) {
+            _eventLog.removeRange(MAX_LINES, _eventLog.size)
         }
 
         // Log to Android logcat
