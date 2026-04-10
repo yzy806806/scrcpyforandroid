@@ -25,7 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors
 import top.yukonga.miuix.kmp.basic.Icon
@@ -67,7 +67,7 @@ internal fun StatusCardLayout(
     spec: StatusCardSpec,
     busyLabel: String?,
 ) {
-    val haptics = rememberAppHaptics()
+    val haptics = LocalAppHaptics.current
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -91,7 +91,7 @@ internal fun StatusCardLayout(
                     contentAlignment = Alignment.BottomEnd,
                 ) {
                     Icon(
-                        imageVector = spec.big.icon,
+                        spec.big.icon,
                         contentDescription = null,
                         modifier = Modifier.size(170.dp),
                         tint = spec.big.iconTint,
@@ -153,7 +153,7 @@ internal fun StatusCardLayout(
 
 @Composable
 private fun StatusMetricCard(spec: StatusSmallCardSpec, modifier: Modifier) {
-    val haptics = rememberAppHaptics()
+    val haptics = LocalAppHaptics.current
     Card(
         modifier = modifier,
         insideMargin = PaddingValues(UiSpacing.Large),

@@ -76,7 +76,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
-import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
@@ -352,7 +352,6 @@ internal fun VirtualButtonCard(
 @Composable
 internal fun ConfigPanel(
     busy: Boolean,
-    snackbar: SnackbarController,
     audioForwardingSupported: Boolean,
     cameraMirroringSupported: Boolean,
     adbConnecting: Boolean,
@@ -365,6 +364,8 @@ internal fun ConfigPanel(
     onDisconnect: () -> Unit = {},
 ) {
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+
+    val snackbar = LocalSnackbarController.current
 
     val sessionStarted = sessionInfo != null
 

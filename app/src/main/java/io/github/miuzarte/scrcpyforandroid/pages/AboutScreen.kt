@@ -74,9 +74,8 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import androidx.compose.ui.graphics.BlendMode as ComposeBlendMode
 
 @Composable
-internal fun AboutScreen(
-    onBack: () -> Unit,
-) {
+internal fun AboutScreen() {
+    val navigator = LocalRootNavigator.current
     val topAppBarScrollBehavior = MiuixScrollBehavior()
     val lazyListState = rememberLazyListState()
     var logoHeightPx by remember { mutableIntStateOf(0) }
@@ -102,9 +101,9 @@ internal fun AboutScreen(
                 titleColor = colorScheme.onSurface.copy(alpha = scrollProgress),
                 defaultWindowInsetsPadding = false,
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = navigator.pop) {
                         Icon(
-                            imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                            Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "返回",
                         )
                     }

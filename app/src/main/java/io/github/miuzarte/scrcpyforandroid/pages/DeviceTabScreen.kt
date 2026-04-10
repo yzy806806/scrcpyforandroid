@@ -2,6 +2,7 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
 import android.app.Activity
+import android.content.pm.ActivityInfo
 import android.util.Log
 import android.view.WindowManager
 import androidx.compose.foundation.layout.PaddingValues
@@ -28,7 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
@@ -37,7 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
-import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
@@ -90,13 +91,10 @@ fun DeviceTabScreen(
     nativeCore: NativeCoreFacade,
     adbService: NativeAdbService,
     scrcpy: Scrcpy,
-    snackbar: SnackbarController,
     scrollBehavior: ScrollBehavior,
-    onOpenVirtualButtonOrder: () -> Unit,
     onOpenReorderDevices: () -> Unit,
-    onOpenAdvancedPage: () -> Unit,
-    onOpenFullscreenPage: () -> Unit,
 ) {
+    val navigator = LocalRootNavigator.current
     var showThreePointMenu by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
@@ -121,7 +119,7 @@ fun DeviceTabScreen(
                             showThreePointMenu = false
                         },
                         onOpenVirtualButtonOrder = {
-                            onOpenVirtualButtonOrder()
+                            navigator.push(RootScreen.VirtualButtonOrder)
                             showThreePointMenu = false
                         },
                         canClearLogs = EventLogger.hasLogs(),
@@ -140,10 +138,7 @@ fun DeviceTabScreen(
             nativeCore = nativeCore,
             adbService = adbService,
             scrcpy = scrcpy,
-            snackbar = snackbar,
             scrollBehavior = scrollBehavior,
-            onOpenAdvancedPage = onOpenAdvancedPage,
-            onOpenFullscreenPage = onOpenFullscreenPage,
         )
     }
 }
@@ -154,16 +149,17 @@ fun DeviceTabPage(
     nativeCore: NativeCoreFacade,
     adbService: NativeAdbService,
     scrcpy: Scrcpy,
-    snackbar: SnackbarController,
     scrollBehavior: ScrollBehavior,
-    onOpenAdvancedPage: () -> Unit,
-    onOpenFullscreenPage: () -> Unit,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
-    val haptics = rememberAppHaptics()
     val activity = remember(context) { context as? Activity }
+
+    val haptics = LocalAppHaptics.current
+    val navigator = LocalRootNavigator.current
+    val fullscreenNavigationState = LocalFullscreenNavigationState.current
+    val snackbar = LocalSnackbarController.current
 
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
@@ -869,12 +865,11 @@ fun DeviceTabPage(
                 SectionSmallTitle("Scrcpy")
                 ConfigPanel(
                     busy = busy,
-                    snackbar = snackbar,
                     audioForwardingSupported = audioForwardingSupported,
                     cameraMirroringSupported = cameraMirroringSupported,
                     adbConnecting = adbConnecting,
                     isQuickConnected = isQuickConnected,
-                    onOpenAdvanced = onOpenAdvancedPage,
+                    onOpenAdvanced = { navigator.push(RootScreen.Advanced) },
                     onStartStopHaptic = { haptics.contextClick() },
                     onStart = {
                         runBusy("启动 scrcpy") {
@@ -949,8 +944,16 @@ fun DeviceTabPage(
                             previewControlsVisible = !previewControlsVisible
                         },
                         onOpenFullscreen = {
-                            if (sessionInfo != null) {
-                                onOpenFullscreenPage()
+                            val currentSession = sessionInfo
+                            if (currentSession != null) {
+                                fullscreenNavigationState.setOrientation(
+                                    if (currentSession.width >= currentSession.height) {
+                                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+                                    } else {
+                                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+                                    }
+                                )
+                                navigator.push(RootScreen.Fullscreen)
                             }
                         },
                     )

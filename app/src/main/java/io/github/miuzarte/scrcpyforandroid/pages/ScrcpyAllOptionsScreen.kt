@@ -42,7 +42,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
-import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
 import kotlinx.coroutines.CoroutineScope
@@ -69,17 +69,17 @@ import kotlin.math.roundToInt
 
 @Composable
 internal fun ScrcpyAllOptionsScreen(
-    onBack: () -> Unit,
     scrollBehavior: ScrollBehavior,
-    snackbar: SnackbarController,
     scrcpy: Scrcpy,
 ) {
+    val snackbar = LocalSnackbarController.current
+    val navigator = LocalRootNavigator.current
     Scaffold(
         topBar = {
             TopAppBar(
                 title = "所有参数",
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = navigator.pop) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "返回"
@@ -94,7 +94,6 @@ internal fun ScrcpyAllOptionsScreen(
         ScrcpyAllOptionsPage(
             contentPadding = contentPadding,
             scrollBehavior = scrollBehavior,
-            snackbar = snackbar,
             scrcpy = scrcpy,
         )
     }
@@ -104,12 +103,12 @@ internal fun ScrcpyAllOptionsScreen(
 internal fun ScrcpyAllOptionsPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
-    snackbar: SnackbarController,
     scrcpy: Scrcpy,
 ) {
     val focusManager = LocalFocusManager.current
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
+    val snackbar = LocalSnackbarController.current
 
     var refreshBusy by rememberSaveable { mutableStateOf(false) }
     var listRefreshVersion by rememberSaveable { mutableIntStateOf(0) }

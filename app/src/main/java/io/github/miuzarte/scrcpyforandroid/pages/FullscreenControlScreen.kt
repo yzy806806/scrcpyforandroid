@@ -25,7 +25,7 @@ import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
@@ -42,16 +42,16 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 
 @Composable
 fun FullscreenControlScreen(
-    onBack: () -> Unit,
     scrcpy: Scrcpy,
     nativeCore: NativeCoreFacade,
     onVideoSizeChanged: (width: Int, height: Int) -> Unit,
 ) {
-    BackHandler(enabled = true, onBack = onBack)
+    val navigator = LocalRootNavigator.current
+    BackHandler(enabled = true, onBack = navigator.pop)
 
     val context = LocalContext.current
 
-    val haptics = rememberAppHaptics()
+    val haptics = LocalAppHaptics.current
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
@@ -154,7 +154,7 @@ fun FullscreenControlScreen(
             FullscreenControlScreen(
                 session = session,
                 nativeCore = nativeCore,
-                onDismiss = onBack,
+                onDismiss = navigator.pop,
                 showDebugInfo = fullscreenDebugInfo,
                 currentFps = currentFps,
                 enableBackHandler = false,

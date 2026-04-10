@@ -20,7 +20,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import sh.calvin.reorderable.ReorderableColumn
 import sh.calvin.reorderable.ReorderableRow
 import top.yukonga.miuix.kmp.basic.Card
@@ -50,7 +50,7 @@ class ReorderableList(
 
     @Composable
     operator fun invoke() {
-        val haptics = rememberAppHaptics()
+        val haptics = LocalAppHaptics.current
         val items = itemsProvider()
         when (orientation) {
             Orientation.Column -> {
@@ -81,7 +81,7 @@ class ReorderableList(
                                         horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)
                                     ) {
                                         if (item.icon != null) Icon(
-                                            imageVector = item.icon,
+                                            item.icon,
                                             contentDescription = item.title
                                         )
                                         Column {

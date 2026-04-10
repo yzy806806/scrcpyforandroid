@@ -37,16 +37,16 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun VirtualButtonOrderScreen(
-    onBack: () -> Unit,
     scrollBehavior: ScrollBehavior,
 ) {
+    val navigator = LocalRootNavigator.current
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             TopAppBar(
                 title = "虚拟按钮排序",
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
+                    IconButton(onClick = navigator.pop) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = "返回"

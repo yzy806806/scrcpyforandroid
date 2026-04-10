@@ -11,16 +11,15 @@ import androidx.activity.compose.PredictiveBackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.spring
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -46,10 +45,12 @@ import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
-import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
@@ -90,21 +91,19 @@ sealed interface RootScreen : NavKey {
 
 @Composable
 fun MainScreen() {
+    // Environment
     val context = LocalContext.current
     val appContext = context.applicationContext
-    val scope = rememberCoroutineScope()
-    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
-
     val activity = remember(context) { context as? Activity }
     val initialOrientation = remember(activity) {
         activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
     }
-    DisposableEffect(activity) {
-        onDispose {
-            activity?.requestedOrientation = initialOrientation
-        }
-    }
 
+    // Scopes
+    val scope = rememberCoroutineScope()
+    val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+
+    // Core services
     val nativeCore = remember(appContext) {
         NativeCoreFacade.get(appContext)
     }
@@ -112,6 +111,7 @@ fun MainScreen() {
         NativeAdbService(appContext)
     }
 
+    // Global controllers provided to the compose tree
     val snackHostState = remember { SnackbarHostState() }
     val snackbarController = remember(scope, snackHostState) {
         SnackbarController(
@@ -119,6 +119,9 @@ fun MainScreen() {
             hostState = snackHostState,
         )
     }
+    val haptics = rememberAppHaptics()
+
+    // Root navigation and UI chrome state
     val saveableStateHolder = rememberSaveableStateHolder()
     val tabs = remember { MainBottomTabDestination.entries }
     val pagerState = rememberPagerState(
@@ -127,6 +130,19 @@ fun MainScreen() {
     val currentTab = tabs[pagerState.currentPage]
     val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
+    var showReorderDevices by rememberSaveable { mutableStateOf(false) }
+    var fullscreenOrientation by rememberSaveable {
+        mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
+    }
+    var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
+
+    DisposableEffect(activity) {
+        onDispose {
+            activity?.requestedOrientation = initialOrientation
+        }
+    }
+
+    // Scroll behaviors
     val devicesPageScrollBehavior = MiuixScrollBehavior(
         canScroll = { currentTab == MainBottomTabDestination.Device })
     val settingsPageScrollBehavior = MiuixScrollBehavior(
@@ -140,17 +156,23 @@ fun MainScreen() {
             }
         })
 
-    fun popRoot() {
-        if (rootBackStack.size > 1)
-            rootBackStack.removeAt(rootBackStack.lastIndex)
+    // Navigation helpers
+    val rootNavigator = remember {
+        RootNavigator(
+            push = { rootBackStack.add(it) },
+            pop = {
+                if (rootBackStack.size > 1)
+                    rootBackStack.removeAt(rootBackStack.lastIndex)
+            },
+        )
+    }
+    val fullscreenNavigationState = remember {
+        FullscreenNavigationState(
+            setOrientation = { fullscreenOrientation = it }
+        )
     }
 
-    // Unified back behavior:
-    // 1) pop inner route
-    // 2) switch tab back to Device
-    // 3) double-back to exit and disconnect adb/scrcpy
-    var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
-
+    // Shared settings bundles
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
     var asBundle by rememberSaveable(asBundleShared) { mutableStateOf(asBundleShared) }
@@ -197,6 +219,7 @@ fun MainScreen() {
         }
     }
 
+    // Scrcpy instance and session state
     val customServerUri = asBundle.customServerUri
         .ifBlank { null }
     val customServerVersion = asBundle.customServerVersion
@@ -220,6 +243,35 @@ fun MainScreen() {
     }
     val currentSession by scrcpy.currentSessionState.collectAsState()
 
+    // Side-effect launchers and composition locals
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        }
+        asBundle = asBundle.copy(customServerUri = uri.toString())
+    }
+    val serverPicker = remember(picker) {
+        ServerPicker {
+            picker.launch(
+                arrayOf(
+                    "application/java-archive",
+                    "application/octet-stream",
+                    "*/*"
+                )
+            )
+        }
+    }
+
+    // Derived flags
+    val canNavigateBack = rootBackStack.size > 1
+            || pagerState.currentPage != MainBottomTabDestination.Device.ordinal
+
     LaunchedEffect(asBundle.lastUpdateCheckAt) {
         val now = System.currentTimeMillis()
         if (now - asBundle.lastUpdateCheckAt < AppUpdateChecker.CHECK_INTERVAL_MS) return@LaunchedEffect
@@ -231,7 +283,7 @@ fun MainScreen() {
 
     fun handleBackNavigation() {
         if (rootBackStack.size > 1) {
-            popRoot()
+            rootNavigator.pop()
         } else if (pagerState.currentPage != MainBottomTabDestination.Device.ordinal) {
             scope.launch {
                 pagerState.animateScrollToPage(
@@ -259,14 +311,6 @@ fun MainScreen() {
             }
         }
     }
-
-    var showReorderDevices by rememberSaveable { mutableStateOf(false) }
-    var fullscreenOrientation by rememberSaveable {
-        mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-    }
-
-    val canNavigateBack = rootBackStack.size > 1
-            || pagerState.currentPage != MainBottomTabDestination.Device.ordinal
 
     BackHandler(enabled = currentRootScreen !is RootScreen.Fullscreen) {
         handleBackNavigation()
@@ -317,18 +361,6 @@ fun MainScreen() {
     LaunchedEffect(asBundle.adbKeyName) {
         adbService.keyName = asBundle.adbKeyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
     }
-    val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri == null) return@rememberLauncherForActivityResult
-        runCatching {
-            context.contentResolver.takePersistableUriPermission(
-                uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
-            )
-        }
-        asBundle = asBundle.copy(customServerUri = uri.toString())
-    }
 
     val rootEntryProvider = entryProvider<NavKey> {
         entry(RootScreen.Home) {
@@ -371,39 +403,13 @@ fun MainScreen() {
                                 nativeCore = nativeCore,
                                 adbService = adbService,
                                 scrcpy = scrcpy,
-                                snackbar = snackbarController,
                                 scrollBehavior = devicesPageScrollBehavior,
-                                onOpenVirtualButtonOrder = { rootBackStack.add(RootScreen.VirtualButtonOrder) },
                                 onOpenReorderDevices = { showReorderDevices = true },
-                                onOpenAdvancedPage = { rootBackStack.add(RootScreen.Advanced) },
-                                onOpenFullscreenPage = {
-                                    currentSession?.let { session ->
-                                        fullscreenOrientation =
-                                            if (session.width >= session.height) {
-                                                ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                            } else {
-                                                ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                                            }
-                                        rootBackStack.add(RootScreen.Fullscreen)
-                                    }
-                                },
                             )
 
                             MainBottomTabDestination.Settings -> SettingsScreen(
                                 scrollBehavior = settingsPageScrollBehavior,
-                                snackbar = snackbarController,
                                 onOpenReorderDevices = { showReorderDevices = true },
-                                onOpenVirtualButtonOrder = { rootBackStack.add(RootScreen.VirtualButtonOrder) },
-                                onOpenAbout = { rootBackStack.add(RootScreen.About) },
-                                onPickServer = {
-                                    picker.launch(
-                                        arrayOf(
-                                            "application/java-archive",
-                                            "application/octet-stream",
-                                            "*/*"
-                                        )
-                                    )
-                                },
                             )
                         }
                     }
@@ -418,29 +424,23 @@ fun MainScreen() {
 
         entry(RootScreen.Advanced) {
             ScrcpyAllOptionsScreen(
-                onBack = ::popRoot,
                 scrollBehavior = advancedPageScrollBehavior,
-                snackbar = snackbarController,
                 scrcpy = scrcpy,
             )
         }
 
         entry(RootScreen.About) {
-            AboutScreen(
-                onBack = ::popRoot,
-            )
+            AboutScreen()
         }
 
         entry(RootScreen.VirtualButtonOrder) {
             VirtualButtonOrderScreen(
-                onBack = ::popRoot,
                 scrollBehavior = advancedPageScrollBehavior,
             )
         }
 
         entry(RootScreen.Fullscreen) {
             FullscreenControlScreen(
-                onBack = ::popRoot,
                 scrcpy = scrcpy,
                 nativeCore = nativeCore,
                 onVideoSizeChanged = { width, height ->
@@ -465,9 +465,17 @@ fun MainScreen() {
     val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
 
     MiuixTheme(controller = themeController) {
-        NavDisplay(
-            entries = rootEntries,
-            onBack = ::popRoot,
-        )
+        CompositionLocalProvider(
+            LocalRootNavigator provides rootNavigator,
+            LocalSnackbarController provides snackbarController,
+            LocalAppHaptics provides haptics,
+            LocalFullscreenNavigationState provides fullscreenNavigationState,
+            LocalServerPicker provides serverPicker,
+        ) {
+            NavDisplay(
+                entries = rootEntries,
+                onBack = rootNavigator.pop,
+            )
+        }
     }
 }

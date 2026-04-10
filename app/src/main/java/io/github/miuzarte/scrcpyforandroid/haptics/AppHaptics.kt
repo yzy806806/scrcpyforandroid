@@ -4,6 +4,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 
@@ -28,6 +29,10 @@ data class AppHaptics(
     val toggleOn: () -> Unit,
     val virtualKey: () -> Unit,
 )
+
+val LocalAppHaptics = staticCompositionLocalOf<AppHaptics> {
+    error("No AppHaptics provided")
+}
 
 @Composable
 fun rememberAppHaptics(): AppHaptics {

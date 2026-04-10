@@ -36,7 +36,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
-import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.PreferenceMigration
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
@@ -64,11 +64,7 @@ import kotlin.system.exitProcess
 @Composable
 fun SettingsScreen(
     scrollBehavior: ScrollBehavior,
-    snackbar: SnackbarController,
     onOpenReorderDevices: () -> Unit,
-    onOpenVirtualButtonOrder: () -> Unit,
-    onOpenAbout: () -> Unit,
-    onPickServer: () -> Unit,
 ) {
     Scaffold(
         topBar = {
@@ -81,11 +77,7 @@ fun SettingsScreen(
         SettingsPage(
             contentPadding = pagePadding,
             scrollBehavior = scrollBehavior,
-            snackbar = snackbar,
             onOpenReorderDevices = onOpenReorderDevices,
-            onOpenVirtualButtonOrder = onOpenVirtualButtonOrder,
-            onOpenAbout = onOpenAbout,
-            onPickServer = onPickServer,
         )
     }
 }
@@ -94,11 +86,7 @@ fun SettingsScreen(
 fun SettingsPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
-    snackbar: SnackbarController,
     onOpenReorderDevices: () -> Unit,
-    onOpenVirtualButtonOrder: () -> Unit,
-    onOpenAbout: () -> Unit,
-    onPickServer: () -> Unit,
 ) {
     val context = LocalContext.current
     val appContext = context.applicationContext
@@ -110,6 +98,10 @@ fun SettingsPage(
 
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val scope = rememberCoroutineScope()
+
+    val snackbar = LocalSnackbarController.current
+    val navigator = LocalRootNavigator.current
+    val serverPicker = LocalServerPicker.current
 
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
@@ -257,7 +249,7 @@ fun SettingsPage(
                 ArrowPreference(
                     title = "虚拟按钮排序",
                     summary = "手动排序预览/全屏时的虚拟按钮，并选择哪些按钮展示在外",
-                    onClick = onOpenVirtualButtonOrder,
+                    onClick = { navigator.push(RootScreen.VirtualButtonOrder) },
                 )
                 SwitchPreference(
                     title = "全屏显示虚拟按钮",
@@ -307,13 +299,13 @@ fun SettingsPage(
                                             },
                                         ) {
                                             Icon(
-                                                imageVector = Icons.Rounded.Clear,
+                                                Icons.Rounded.Clear,
                                                 contentDescription = "清空",
                                             )
                                         }
-                                    IconButton(onClick = onPickServer) {
+                                    IconButton(onClick = serverPicker.pick) {
                                         Icon(
-                                            imageVector = Icons.Rounded.FileOpen,
+                                            Icons.Rounded.FileOpen,
                                             contentDescription = "选择文件",
                                         )
                                     }
@@ -474,7 +466,7 @@ fun SettingsPage(
                 ArrowPreference(
                     title = "关于",
                     summary = updateSummary,
-                    onClick = onOpenAbout,
+                    onClick = { navigator.push(RootScreen.About) },
                 )
             }
         }

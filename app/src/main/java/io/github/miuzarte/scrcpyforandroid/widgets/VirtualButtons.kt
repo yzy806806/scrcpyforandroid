@@ -33,7 +33,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiAndroidKeycodes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -171,7 +171,7 @@ class VirtualButtonBar(
         onAction: (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
     ) {
-        val haptics = rememberAppHaptics()
+        val haptics = LocalAppHaptics.current
         val activeContainerColor = MiuixTheme.colorScheme.primary
         val disabledContainerColor = MiuixTheme.colorScheme.primary.copy(alpha = 0.35f)
         val activeContentColor = MiuixTheme.colorScheme.onPrimary
@@ -236,7 +236,7 @@ class VirtualButtonBar(
         modifier: Modifier = Modifier,
     ) {
         val scope = rememberCoroutineScope()
-        val haptics = rememberAppHaptics()
+        val haptics = LocalAppHaptics.current
         var showMorePopup by remember { mutableStateOf(false) }
 
         Row(
@@ -293,7 +293,7 @@ class VirtualButtonBar(
         renderInRootScaffold: Boolean,
     ) {
         val scope = rememberCoroutineScope()
-        val haptics = rememberAppHaptics()
+        val haptics = LocalAppHaptics.current
         val spinnerItems = remember(moreActions) {
             moreActions.map { action ->
                 SpinnerEntry(

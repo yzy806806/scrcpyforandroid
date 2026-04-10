@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
@@ -28,4 +29,8 @@ class SnackbarController(
             )
         }
     }
+}
+
+val LocalSnackbarController = staticCompositionLocalOf<SnackbarController> {
+    error("No SnackbarController provided")
 }
