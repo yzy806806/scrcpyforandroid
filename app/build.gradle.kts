@@ -14,11 +14,7 @@ val configuredAbiList = (project.findProperty("abiList") as String?)
 
 android {
     namespace = "io.github.miuzarte.scrcpyforandroid"
-    compileSdk {
-        version = release(36) {
-            minorApiLevel = 1
-        }
-    }
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
@@ -91,7 +87,8 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.extended)
     implementation(libs.androidx.navigation3.runtime)
     implementation(libs.material)
-    implementation(libs.miuix)
+    implementation(libs.miuix.ui)
+    implementation(libs.miuix.preference)
     implementation(libs.miuix.icons)
     implementation(libs.miuix.navigation3.ui)
     implementation("io.github.vvb2060.ndk:boringssl:20250114")

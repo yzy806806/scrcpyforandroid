@@ -33,7 +33,7 @@ import top.yukonga.miuix.kmp.basic.IconButton
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.extra.SuperSwitch
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 
 @Composable
 internal fun VirtualButtonOrderScreen(
@@ -106,7 +106,7 @@ internal fun VirtualButtonOrderPage(
         // 按钮显示文本开关
         item {
             Card {
-                SuperSwitch(
+                SwitchPreference(
                     title = "按钮显示文本",
                     summary = "超过3个建议关闭，只对预览卡下方的虚拟按钮生效",
                     checked = asBundle.previewVirtualButtonShowText,

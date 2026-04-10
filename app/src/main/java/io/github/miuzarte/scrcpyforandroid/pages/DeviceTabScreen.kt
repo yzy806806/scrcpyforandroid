@@ -73,7 +73,7 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.extra.SuperListPopup
+import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.net.InetSocketAddress
 import java.net.Socket
@@ -995,7 +995,7 @@ private fun DeviceMenuPopup(
     canClearLogs: Boolean,
     onClearLogs: () -> Unit,
 ) {
-    SuperListPopup(
+    OverlayListPopup(
         show = show,
         popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
         alignment = PopupPositionProvider.Align.TopEnd,

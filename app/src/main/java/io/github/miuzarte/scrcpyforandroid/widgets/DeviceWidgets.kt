@@ -95,10 +95,10 @@ import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.extra.SuperArrow
-import top.yukonga.miuix.kmp.extra.SuperDialog
-import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.extra.SuperSwitch
+import top.yukonga.miuix.kmp.overlay.OverlayDialog
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
@@ -220,7 +220,7 @@ internal fun PairingCard(
     val holdDownState = remember { mutableStateOf(false) }
 
     Card {
-        SuperArrow(
+        ArrowPreference(
             title = "使用配对码配对设备",
             onClick = {
                 showPairDialog.value = true
@@ -410,7 +410,7 @@ internal fun ConfigPanel(
     }
 
     Card {
-        SuperSwitch(
+        SwitchPreference(
             title = "音频转发",
             summary = "转发设备音频到本机 (Android 11+)",
             checked = soBundle.audio,
@@ -419,7 +419,7 @@ internal fun ConfigPanel(
                     && audioForwardingSupported,
         )
 
-        SuperDropdown(
+        OverlayDropdownPreference(
             title = "音频编码",
             summary = "--audio-codec",
             items = audioCodecItems,
@@ -465,7 +465,7 @@ internal fun ConfigPanel(
             )
         }
 
-        SuperDropdown(
+        OverlayDropdownPreference(
             title = "视频编码",
             summary = "--video-codec",
             items = videoCodecItems,
@@ -524,7 +524,7 @@ internal fun ConfigPanel(
             enabled = !sessionStarted,
         )
 
-        SuperArrow(
+        ArrowPreference(
             title = "更多参数",
             summary = "所有 scrcpy 参数",
             onClick = onOpenAdvanced,
@@ -617,7 +617,7 @@ private fun PairingDialog(
         }
     }
 
-    SuperDialog(
+    OverlayDialog(
         show = showDialog,
         title = "使用配对码配对设备",
         summary = "使用六位数的配对码配对新设备",

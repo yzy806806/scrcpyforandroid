@@ -41,7 +41,7 @@
 ## 构建
 
 - JDK 17+
-- Android SDK（含 `compileSdk 36` / `buildTools 36.0.0`）
+- Android SDK（含 `compileSdk 37` / `buildTools 36.0.0`）
 - Android NDK `28.2.13676358`
 
 ```bash

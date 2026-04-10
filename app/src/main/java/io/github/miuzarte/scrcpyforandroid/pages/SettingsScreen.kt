@@ -56,9 +56,9 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.extra.SuperArrow
-import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.extra.SuperSwitch
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 
@@ -193,7 +193,7 @@ fun SettingsPage(
         item {
             SectionSmallTitle("主题", showLeadingSpacer = false)
             Card {
-                SuperDropdown(
+                OverlayDropdownPreference(
                     title = "外观模式",
                     summary = ThemeModes.baseOptions
                         .getOrNull(
@@ -213,7 +213,7 @@ fun SettingsPage(
                         asBundle = asBundle.copy(themeBaseIndex = it)
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "Monet",
                     summary = "开启后使用 Monet 动态配色",
                     checked = asBundle.monet,
@@ -227,7 +227,7 @@ fun SettingsPage(
         item {
             SectionSmallTitle("投屏")
             Card {
-                SuperSwitch(
+                SwitchPreference(
                     title = "启用调试信息",
                     summary = "在全屏界面悬浮显示分辨率、帧率和触点信息",
                     checked = asBundle.fullscreenDebugInfo,
@@ -259,17 +259,17 @@ fun SettingsPage(
                         }
                     },
                 )
-                SuperArrow(
+                ArrowPreference(
                     title = "快速设备排序",
                     summary = "手动排序设备页的快速设备",
                     onClick = onOpenReorderDevices,
                 )
-                SuperArrow(
+                ArrowPreference(
                     title = "虚拟按钮排序",
                     summary = "手动排序预览/全屏时的虚拟按钮，并选择哪些按钮展示在外",
                     onClick = onOpenVirtualButtonOrder,
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "全屏显示虚拟按钮",
                     summary = "在全屏控制页底部显示返回键、主页键等虚拟按钮",
                     checked = asBundle.showFullscreenVirtualButtons,
@@ -420,7 +420,7 @@ fun SettingsPage(
                         )
                     }
                 }
-                SuperSwitch(
+                SwitchPreference(
                     title = "配对时自动启用发现服务",
                     summary = "打开配对弹窗后自动搜索可用配对端口",
                     checked = asBundle.adbPairingAutoDiscoverOnDialogOpen,
@@ -430,7 +430,7 @@ fun SettingsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "自动重连已配对设备",
                     summary = "自动发现开启无线调试的设备，更新快速设备的随机端口并尝试连接（效果比较随缘）",
                     checked = asBundle.adbAutoReconnectPairedDevice,
@@ -448,7 +448,7 @@ fun SettingsPage(
             // 应用启动时就会执行迁移与旧数据的删除
             SectionSmallTitle("应用", showLeadingSpacer = false)
             Card {
-                SuperArrow(
+                ArrowPreference(
                     title = "恢复旧版本配置",
                     summary = "从旧版本的 SharedPreferences 恢复至 DataStore",
                     onClick = {
@@ -481,7 +481,7 @@ fun SettingsPage(
         item {
             SectionSmallTitle("关于", showLeadingSpacer = false)
             Card {
-                SuperArrow(
+                ArrowPreference(
                     title = "仓库发布页",
                     summary = "$updateSummary\n${AppUpdateChecker.REPO_URL.removePrefix("https://")}",
                     onClick = {

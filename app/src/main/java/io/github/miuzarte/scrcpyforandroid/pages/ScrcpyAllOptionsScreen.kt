@@ -61,10 +61,10 @@ import top.yukonga.miuix.kmp.basic.SpinnerEntry
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
-import top.yukonga.miuix.kmp.extra.SuperArrow
-import top.yukonga.miuix.kmp.extra.SuperDropdown
-import top.yukonga.miuix.kmp.extra.SuperSpinner
-import top.yukonga.miuix.kmp.extra.SuperSwitch
+import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
+import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import kotlin.math.roundToInt
 
 @Composable
@@ -374,7 +374,7 @@ internal fun ScrcpyAllOptionsPage(
 
         item {
             Card {
-                SuperSwitch(
+                SwitchPreference(
                     title = "启动后关闭屏幕",
                     summary = "--turn-screen-off",
                     checked = soBundle.turnScreenOff,
@@ -390,7 +390,7 @@ internal fun ScrcpyAllOptionsPage(
                         }
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "禁用控制",
                     summary = "--no-control",
                     checked = !soBundle.control,
@@ -402,7 +402,7 @@ internal fun ScrcpyAllOptionsPage(
                     // 拦不住同时点, 弃用
                     // enabled = audio || video,
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "禁用视频",
                     summary = "--no-video",
                     checked = !soBundle.video,
@@ -413,7 +413,7 @@ internal fun ScrcpyAllOptionsPage(
                     },
                     // enabled = audio || control,
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "禁用音频",
                     summary = "--no-audio",
                     checked = !soBundle.audio,
@@ -455,7 +455,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "开始投屏时不唤醒屏幕",
                     summary = "--no-power-on",
                     checked = !soBundle.powerOn,
@@ -465,7 +465,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "结束投屏时息屏",
                     summary = "--power-off-on-close",
                     checked = soBundle.powerOffOnClose,
@@ -475,7 +475,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "显示物理触控",
                     summary = "--show-touches",
                     checked = soBundle.showTouches,
@@ -485,7 +485,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "投屏时保持本机屏幕唤醒",
                     summary = "--disable-screensaver",
                     checked = soBundle.disableScreensaver,
@@ -500,7 +500,7 @@ internal fun ScrcpyAllOptionsPage(
 
         item {
             Card {
-                SuperDropdown(
+                OverlayDropdownPreference(
                     title = "音频编码",
                     summary = "--audio-codec",
                     items = audioCodecItems,
@@ -545,7 +545,7 @@ internal fun ScrcpyAllOptionsPage(
                     },
                 )
 
-                SuperDropdown(
+                OverlayDropdownPreference(
                     title = "视频编码",
                     summary = "--video-codec",
                     items = videoCodecItems,
@@ -604,7 +604,7 @@ internal fun ScrcpyAllOptionsPage(
 
         item {
             Card {
-                SuperDropdown(
+                OverlayDropdownPreference(
                     title = "视频来源",
                     summary = "--video-source",
                     items = videoSourceItems,
@@ -709,7 +709,7 @@ internal fun ScrcpyAllOptionsPage(
                                 .fillMaxWidth()
                                 .padding(all = UiSpacing.Large),
                         )
-                        SuperDropdown(
+                        OverlayDropdownPreference(
                             title = "摄像头朝向",
                             summary = "--camera-facing",
                             items = cameraFacingItems,
@@ -722,11 +722,11 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperArrow(
+                        ArrowPreference(
                             title = "获取 Camera Sizes",
                             summary = "--list-camera-sizes",
                             onClick = {
-                                if (refreshBusy) return@SuperArrow
+                                if (refreshBusy) return@ArrowPreference
                                 scope.launch {
                                     refreshBusy = true
                                     snackbar.show("获取中")
@@ -744,7 +744,7 @@ internal fun ScrcpyAllOptionsPage(
                                 }
                             },
                         )
-                        SuperDropdown(
+                        OverlayDropdownPreference(
                             title = "摄像头分辨率",
                             summary = "--camera-size",
                             items = cameraSizeDropdownItems,
@@ -850,7 +850,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperSwitch(
+                        SwitchPreference(
                             title = "高帧率模式",
                             summary = "--camera-high-speed",
                             checked = soBundle.cameraHighSpeed,
@@ -860,7 +860,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperSwitch(
+                        SwitchPreference(
                             title = "关闭虚拟显示器时保留内容",
                             summary = "--no-vd-destroy-content",
                             checked = !soBundle.vdDestroyContent,
@@ -870,7 +870,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperSwitch(
+                        SwitchPreference(
                             title = "禁用虚拟显示器系统装饰",
                             summary = "--no-vd-system-decorations",
                             checked = !soBundle.vdSystemDecorations,
@@ -888,7 +888,7 @@ internal fun ScrcpyAllOptionsPage(
 
         item {
             Card {
-                SuperDropdown(
+                OverlayDropdownPreference(
                     title = "音频来源",
                     summary = "--audio-source",
                     items = audioSourceItems,
@@ -899,7 +899,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "音频双路输出",
                     summary = "--audio-dup",
                     checked = soBundle.audioDup,
@@ -909,7 +909,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "仅转发不播放",
                     summary = "--no-audio-playback",
                     checked = !soBundle.audioPlayback,
@@ -919,7 +919,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSwitch(
+                SwitchPreference(
                     title = "音频转发失败时终止",
                     summary = "--require-audio",
                     checked = soBundle.requireAudio,
@@ -934,11 +934,11 @@ internal fun ScrcpyAllOptionsPage(
 
         item {
             Card {
-                SuperArrow(
+                ArrowPreference(
                     title = "获取编码器列表",
                     summary = "--list-encoders",
                     onClick = {
-                        if (refreshBusy) return@SuperArrow
+                        if (refreshBusy) return@ArrowPreference
                         scope.launch {
                             refreshBusy = true
                             snackbar.show("获取中")
@@ -956,8 +956,8 @@ internal fun ScrcpyAllOptionsPage(
                         }
                     },
                 )
-                // TODO: 在 SuperSpinner / SuperDropdown 支持展开状态回调后, 在展开时触发获取
-                SuperSpinner(
+                // TODO: 在 OverlaySpinnerPreference / OverlayDropdownPreference 支持展开状态回调后, 在展开时触发获取
+                OverlaySpinnerPreference(
                     title = "视频编码器",
                     summary = "--video-encoder",
                     items = videoEncoderEntries,
@@ -982,7 +982,7 @@ internal fun ScrcpyAllOptionsPage(
                         .fillMaxWidth()
                         .padding(all = UiSpacing.Large),
                 )
-                SuperSpinner(
+                OverlaySpinnerPreference(
                     title = "音频编码器",
                     summary = "--audio-encoder",
                     items = audioEncoderEntries,

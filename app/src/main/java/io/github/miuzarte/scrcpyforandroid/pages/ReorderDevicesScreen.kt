@@ -24,7 +24,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.extra.SuperBottomSheet
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 
 @Composable
 fun ReorderDevicesScreen(
@@ -70,7 +70,7 @@ fun ReorderDevicesScreen(
         }
     }
 
-    SuperBottomSheet(
+    OverlayBottomSheet(
         show = show,
         title = "快速设备排序",
         onDismissRequest = onDismissRequest,
