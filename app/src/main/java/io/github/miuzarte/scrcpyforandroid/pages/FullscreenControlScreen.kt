@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.app.Activity
+import android.util.Log
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -144,7 +145,11 @@ fun FullscreenControlScreen(
                 nativeCore.session?.injectKeycode(1, keycode)
             }
         }.onFailure { e ->
-            android.util.Log.w("FullscreenControlPage", "sendKeycode failed for keycode=$keycode", e)
+            Log.w(
+                "FullscreenControlPage",
+                "sendKeycode failed for keycode=$keycode",
+                e
+            )
         }
     }
 

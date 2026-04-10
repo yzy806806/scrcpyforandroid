@@ -503,6 +503,63 @@ fun DeviceTabPage(
         }
     }
 
+    LaunchedEffect(adbConnected, currentTargetHost, currentTargetPort) {
+        if (!adbConnected || currentTargetHost.isBlank()) return@LaunchedEffect
+
+        // Keep-alive loop for current target.
+        // On failure: try to reconnect once; if failed, fully disconnect and reset UI state.
+        val host = currentTargetHost
+        val port = currentTargetPort
+        while (adbConnected && currentTargetHost == host && currentTargetPort == port) {
+            delay(ADB_KEEPALIVE_INTERVAL_MS)
+            val alive = runCatching { keepAliveCheck(host, port) }.getOrElse { false }
+            if (alive) continue
+
+            logEvent("ADB 长连接中断，尝试自动重连: $host:$port", Log.WARN)
+            try {
+                connectWithTimeout(host, port)
+                adbConnected = true
+                statusLine = "$host:$port"
+                logEvent("ADB 自动重连成功: $host:$port")
+                snackbar.show("ADB 自动重连成功")
+            } catch (e: Exception) {
+                disconnectAdbConnection()
+                statusLine = "ADB 连接断开"
+                logEvent("ADB 自动重连失败: $e", Log.ERROR)
+                snackbar.show("ADB 自动重连失败")
+                break
+            }
+        }
+    }
+
+    suspend fun startScrcpySession() {
+        val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
+        val session = scrcpy.start(options)
+        if (options.disableScreensaver) {
+            setKeepScreenOn(true)
+        }
+        statusLine = "scrcpy 运行中"
+        @SuppressLint("DefaultLocale")
+        val videoDetail =
+            if (!options.video) "off"
+            else if (soBundleShared.videoBitRate <= 0) "${session.codec?.string ?: "null"} ${session.width}x${session.height} @default"
+            else "${session.codec?.string ?: "null"} ${session.width}x${session.height} " +
+                    "@${String.format("%.1f", soBundleShared.videoBitRate / 1_000_000f)}Mbps"
+
+        val audioDetail =
+            if (!soBundleShared.audio) "off"
+            else if (soBundleShared.audioBitRate <= 0) "${options.audioCodec} default source=${options.audioSource}"
+            else "${options.audioCodec} ${soBundleShared.audioBitRate / 1_000f}Kbps source=${options.audioSource}${if (!options.audioPlayback) "(no-playback)" else ""}"
+
+        logEvent(
+            "scrcpy 已启动: device=${session.deviceName}" +
+                    ", video=$videoDetail, audio=$audioDetail" +
+                    ", control=${options.control}, turnScreenOff=${options.turnScreenOff}" +
+                    ", maxSize=${options.maxSize}, maxFps=${options.maxFps}"
+        )
+        snackbar.show("scrcpy 已启动")
+    }
+
     suspend fun handleAdbConnected(host: String, port: Int) {
         currentTargetHost = host
         currentTargetPort = port
@@ -534,48 +591,28 @@ fun DeviceTabPage(
                     "sdk=${info.sdkInt}"
         )
         snackbar.show("ADB 已连接")
-    }
 
-    LaunchedEffect(adbConnected, currentTargetHost, currentTargetPort) {
-        if (!adbConnected || currentTargetHost.isBlank()) return@LaunchedEffect
-
-        // Keep-alive loop for current target.
-        // On failure: try to reconnect once; if failed, fully disconnect and reset UI state.
-        val host = currentTargetHost
-        val port = currentTargetPort
-        while (adbConnected && currentTargetHost == host && currentTargetPort == port) {
-            delay(ADB_KEEPALIVE_INTERVAL_MS)
-            val alive = runCatching { keepAliveCheck(host, port) }.getOrElse { false }
-            if (alive) continue
-
-            logEvent("ADB 长连接中断，尝试自动重连: $host:$port", Log.WARN)
-            try {
-                connectWithTimeout(host, port)
-                adbConnected = true
-                statusLine = "$host:$port"
-                logEvent("ADB 自动重连成功: $host:$port")
-                snackbar.show("ADB 自动重连成功")
-            } catch (e: Exception) {
-                disconnectAdbConnection()
-                statusLine = "ADB 连接断开"
-                logEvent("ADB 自动重连失败: $e", Log.ERROR)
-                snackbar.show("ADB 自动重连失败")
-                break
+        if (
+            savedShortcuts.get(host, port)?.startScrcpyOnConnect == true &&
+            sessionInfo == null
+        ) {
+            runBusy("启动 scrcpy") {
+                startScrcpySession()
             }
         }
     }
-
-    val adbPairingAutoDiscoverOnDialogOpen = asBundle.adbPairingAutoDiscoverOnDialogOpen
-    val adbAutoReconnectPairedDevice = asBundle.adbAutoReconnectPairedDevice
-    val adbMdnsLanDiscovery = asBundle.adbMdnsLanDiscovery
-    LaunchedEffect(adbConnected, adbAutoReconnectPairedDevice, adbMdnsLanDiscovery) {
-        if (adbConnected || !adbAutoReconnectPairedDevice) return@LaunchedEffect
+    LaunchedEffect(
+        adbConnected,
+        asBundle.adbAutoReconnectPairedDevice,
+        asBundle.adbMdnsLanDiscovery
+    ) {
+        if (adbConnected || !asBundle.adbAutoReconnectPairedDevice) return@LaunchedEffect
 
         // Background auto reconnect pipeline:
         // 1) try quick list targets with reachable TCP ports
         // 2) fallback to mDNS discovery
         val quickConnectTriedOnce = mutableSetOf<String>()
-        while (!adbConnected && adbAutoReconnectPairedDevice) {
+        while (!adbConnected) {
             if (busy || adbConnecting || sessionInfo != null) {
                 delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
                 continue
@@ -611,7 +648,7 @@ fun DeviceTabPage(
             val discovered = withContext(Dispatchers.IO) {
                 adbService.discoverConnectService(
                     timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
-                    includeLanDevices = adbMdnsLanDiscovery,
+                    includeLanDevices = asBundle.adbMdnsLanDiscovery,
                 )
             }
 
@@ -673,12 +710,6 @@ fun DeviceTabPage(
         }
     }
 
-    val devicePreviewCardHeightDp = asBundle.devicePreviewCardHeightDp
-    val previewVirtualButtonShowText = asBundle.previewVirtualButtonShowText
-
-    val audioBitRate = soBundleShared.audioBitRate
-    val videoBitRate = soBundleShared.videoBitRate
-
     // 设备
     LazyColumn(
         contentPadding = contentPadding,
@@ -708,7 +739,9 @@ fun DeviceTabPage(
                     adbConnecting && activeDeviceActionId == device.id
                 },
                 editingDeviceId = editingDeviceId,
-                onClick = {},
+                onClick = {
+                    snackbar.show("长按可编辑")
+                },
                 onLongClick = { device ->
                     val connected = adbConnected
                             && currentTarget?.host == device.host
@@ -716,7 +749,9 @@ fun DeviceTabPage(
                     if (connected) {
                         snackbar.show("无法修改已连接的设备")
                     } else {
-                        editingDeviceId = device.id
+                        editingDeviceId =
+                            if (editingDeviceId != device.id) device.id
+                            else null
                     }
                 },
                 onAction = { device ->
@@ -769,8 +804,8 @@ fun DeviceTabPage(
                         name = updated.name,
                         host = updated.host,
                         port = updated.port,
+                        startScrcpyOnConnect = updated.startScrcpyOnConnect,
                     )
-                    editingDeviceId = null
                 },
                 onEditorDelete = { device ->
                     savedShortcuts = savedShortcuts.remove(id = device.id)
@@ -833,10 +868,10 @@ fun DeviceTabPage(
                 // "使用配对码配对设备"
                 PairingCard(
                     busy = busy,
-                    autoDiscoverOnDialogOpen = adbPairingAutoDiscoverOnDialogOpen,
+                    autoDiscoverOnDialogOpen = asBundle.adbPairingAutoDiscoverOnDialogOpen,
                     onDiscoverTarget = {
                         adbService.discoverPairingService(
-                            includeLanDevices = adbMdnsLanDiscovery,
+                            includeLanDevices = asBundle.adbMdnsLanDiscovery,
                         )
                     },
                     onPair = { host, port, code ->
@@ -873,31 +908,7 @@ fun DeviceTabPage(
                     onStartStopHaptic = { haptics.contextClick() },
                     onStart = {
                         runBusy("启动 scrcpy") {
-                            val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
-                            val session = scrcpy.start(options)
-                            if (options.disableScreensaver) {
-                                setKeepScreenOn(true)
-                            }
-                            statusLine = "scrcpy 运行中"
-                            @SuppressLint("DefaultLocale")
-                            val videoDetail =
-                                if (!options.video) "off"
-                                else if (videoBitRate <= 0) "${session.codec?.string ?: "null"} ${session.width}x${session.height} @default"
-                                else "${session.codec?.string ?: "null"} ${session.width}x${session.height} " +
-                                        "@${String.format("%.1f", videoBitRate / 1_000_000f)}Mbps"
-
-                            val audioDetail =
-                                if (!soBundleShared.audio) "off"
-                                else if (audioBitRate <= 0) "${options.audioCodec} default source=${options.audioSource}"
-                                else "${options.audioCodec} ${audioBitRate / 1_000f}Kbps source=${options.audioSource}${if (!options.audioPlayback) "(no-playback)" else ""}"
-
-                            logEvent(
-                                "scrcpy 已启动: device=${session.deviceName}" +
-                                        ", video=$videoDetail, audio=$audioDetail" +
-                                        ", control=${options.control}, turnScreenOff=${options.turnScreenOff}" +
-                                        ", maxSize=${options.maxSize}, maxFps=${options.maxFps}"
-                            )
-                            snackbar.show("scrcpy 已启动")
+                            startScrcpySession()
                         }
                     },
                     onStop = {
@@ -938,7 +949,7 @@ fun DeviceTabPage(
                     PreviewCard(
                         sessionInfo = sessionInfo,
                         nativeCore = nativeCore,
-                        previewHeightDp = devicePreviewCardHeightDp.coerceAtLeast(120),
+                        previewHeightDp = asBundle.devicePreviewCardHeightDp.coerceAtLeast(120),
                         controlsVisible = previewControlsVisible,
                         onTapped = {
                             previewControlsVisible = !previewControlsVisible
@@ -964,7 +975,7 @@ fun DeviceTabPage(
                         busy = busy,
                         outsideActions = virtualButtonLayout.first,
                         moreActions = virtualButtonLayout.second,
-                        showText = previewVirtualButtonShowText,
+                        showText = asBundle.previewVirtualButtonShowText,
                         onAction = ::sendVirtualButtonAction,
                     )
                 }

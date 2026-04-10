@@ -11,9 +11,9 @@ class Preset<T : Comparable<T>>(val values: List<T>) {
     val lastIndex: Int get() = values.lastIndex
     val size: Int get() = values.size
     val indices: IntRange get() = values.indices
-    
+
     operator fun get(index: Int): T = values[index]
-    
+
     /**
      * Find the index of the exact value or the nearest preset.
      * For numeric types, finds the closest value by absolute difference.
@@ -21,13 +21,14 @@ class Preset<T : Comparable<T>>(val values: List<T>) {
     fun indexOfOrNearest(value: T): Int {
         val exact = values.indexOf(value)
         if (exact >= 0) return exact
-        
+
         // For numeric types, find nearest by comparing
         return values.withIndex().minByOrNull { (_, preset) ->
             when {
                 preset is Number && value is Number -> {
                     kotlin.math.abs(preset.toDouble() - value.toDouble())
                 }
+
                 else -> if (preset > value) 1.0 else -1.0
             }
         }?.index ?: 0
@@ -40,8 +41,8 @@ class Preset<T : Comparable<T>>(val values: List<T>) {
 fun Preset<Int>.indexOfOrNearest(raw: Int): Int {
     val exact = values.indexOf(raw)
     if (exact >= 0) return exact
-    val nearest = values.withIndex().minByOrNull { (_, preset) -> 
-        kotlin.math.abs(preset - raw) 
+    val nearest = values.withIndex().minByOrNull { (_, preset) ->
+        kotlin.math.abs(preset - raw)
     }
     return nearest?.index ?: 0
 }

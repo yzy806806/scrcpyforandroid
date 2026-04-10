@@ -3,7 +3,6 @@ package io.github.miuzarte.scrcpyforandroid.services
 import android.util.Log
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.snapshots.SnapshotStateList
-import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale

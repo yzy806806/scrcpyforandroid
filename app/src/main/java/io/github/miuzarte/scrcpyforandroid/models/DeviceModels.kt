@@ -38,6 +38,7 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
         host: String? = null,
         port: Int? = null,
         name: String? = null,
+        startScrcpyOnConnect: Boolean? = null,
         newPort: Int? = null,
         updateNameOnlyWhenEmpty: Boolean = false,
     ): DeviceShortcuts {
@@ -57,9 +58,15 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
         }
         val finalHost = if (updateById) host ?: old.host else old.host
         val finalPort = if (updateById) port ?: old.port else newPort ?: old.port
+        val finalStartScrcpyOnConnect = startScrcpyOnConnect ?: old.startScrcpyOnConnect
 
         // 若无任何变化，返回原实例
-        if (finalName == old.name && finalHost == old.host && finalPort == old.port)
+        if (
+            finalName == old.name
+            && finalHost == old.host
+            && finalPort == old.port
+            && finalStartScrcpyOnConnect == old.startScrcpyOnConnect
+        )
             return this
 
         val newList = devices.toMutableList().apply {
@@ -67,6 +74,7 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
                 name = finalName,
                 host = finalHost,
                 port = finalPort,
+                startScrcpyOnConnect = finalStartScrcpyOnConnect,
             )
         }
         return DeviceShortcuts(
@@ -119,13 +127,14 @@ data class DeviceShortcut(
     val name: String = "",
     val host: String,
     val port: Int = Defaults.ADB_PORT,
+    val startScrcpyOnConnect: Boolean = false,
 ) {
     val id: String get() = "$host:$port"
 
     fun marshalToString(
         separator: String = DEFAULT_SEPARATOR,
     ): String = listOf(
-        name.trim(), host.trim(), port.toString()
+        name.trim(), host.trim(), port.toString(), if (startScrcpyOnConnect) "1" else "0"
     ).joinToString(
         separator = separator
     )
@@ -136,16 +145,18 @@ data class DeviceShortcut(
             s: String,
             separator: String = DEFAULT_SEPARATOR,
         ): DeviceShortcut? {
-            val parts = s.split(separator, limit = 3)
+            val parts = s.split(separator)
             return when (parts.size) {
-                3 -> {
+                3, 4 -> {
                     val name = parts[0].trim()
                     val host = parts[1].trim()
                     val port = parts[2].trim().toIntOrNull() ?: Defaults.ADB_PORT
+                    val startScrcpyOnConnect = parts.getOrNull(3)?.trim() == "1"
                     if (host.isNotBlank()) DeviceShortcut(
                         name = name,
                         host = host,
                         port = port,
+                        startScrcpyOnConnect = startScrcpyOnConnect,
                     )
                     else null
                 }

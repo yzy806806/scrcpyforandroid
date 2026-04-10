@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
-import android.content.pm.ActivityInfo
 import androidx.compose.runtime.staticCompositionLocalOf
 
 class RootNavigator(

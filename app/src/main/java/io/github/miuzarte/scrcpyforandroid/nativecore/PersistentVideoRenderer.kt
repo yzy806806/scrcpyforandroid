@@ -87,7 +87,10 @@ class PersistentVideoRenderer {
 
     fun detachDisplaySurface(surface: Surface? = null, releaseSurface: Boolean = false) {
         val requestId = surface?.let { System.identityHashCode(it) }
-        Log.i(tag, "detachDisplaySurface(): request surfaceId=$requestId releaseSurface=$releaseSurface current=${displaySurfaceId}")
+        Log.i(
+            tag,
+            "detachDisplaySurface(): request surfaceId=$requestId releaseSurface=$releaseSurface current=${displaySurfaceId}"
+        )
         handler.post {
             if (released) return@post
             if (requestId != null && requestId != displaySurfaceId) return@post
@@ -190,7 +193,10 @@ class PersistentVideoRenderer {
             setOnFrameAvailableListener({
                 val n = frameAvailableCount.incrementAndGet()
                 if (n == 1L || n % 120L == 0L) {
-                    Log.i(tag, "onFrameAvailable(): available=$n consumed=${frameConsumedCount.get()} rendered=${frameRenderedCount.get()} display=${displaySurfaceId != null}")
+                    Log.i(
+                        tag,
+                        "onFrameAvailable(): available=$n consumed=${frameConsumedCount.get()} rendered=${frameRenderedCount.get()} display=${displaySurfaceId != null}"
+                    )
                 }
                 drawFrame()
             }, handler)
@@ -222,7 +228,10 @@ class PersistentVideoRenderer {
             .onSuccess {
                 val consumed = frameConsumedCount.incrementAndGet()
                 if (consumed == 1L || consumed % 120L == 0L) {
-                    Log.i(tag, "drawFrame(): consumed=$consumed available=${frameAvailableCount.get()} rendered=${frameRenderedCount.get()} display=${displaySurfaceId != null}")
+                    Log.i(
+                        tag,
+                        "drawFrame(): consumed=$consumed available=${frameAvailableCount.get()} rendered=${frameRenderedCount.get()} display=${displaySurfaceId != null}"
+                    )
                 }
             }
             .onFailure { Log.w(tag, "updateTexImage failed", it) }
@@ -258,7 +267,10 @@ class PersistentVideoRenderer {
         EGL14.eglSwapBuffers(eglDisplay, displayEglSurface)
         val rendered = frameRenderedCount.incrementAndGet()
         if (rendered == 1L || rendered % 120L == 0L) {
-            Log.i(tag, "drawFrame(): rendered=$rendered consumed=${frameConsumedCount.get()} available=${frameAvailableCount.get()} viewport=${width[0]}x${height[0]}")
+            Log.i(
+                tag,
+                "drawFrame(): rendered=$rendered consumed=${frameConsumedCount.get()} available=${frameAvailableCount.get()} viewport=${width[0]}x${height[0]}"
+            )
         }
     }
 

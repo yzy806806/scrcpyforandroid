@@ -229,7 +229,7 @@ data class ClientOptions(
     }
 
     fun fix(): ClientOptions {
-        when(videoSource) {
+        when (videoSource) {
             VideoSource.DISPLAY -> {
                 cameraId = ""
                 cameraFacing = CameraFacing.ANY
@@ -238,6 +238,7 @@ data class ClientOptions(
                 cameraFps = 0u
                 cameraHighSpeed = false
             }
+
             VideoSource.CAMERA -> {
                 displayId = 0
                 maxSize = 0u

@@ -97,6 +97,8 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.CheckboxLocation
+import top.yukonga.miuix.kmp.preference.CheckboxPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -435,23 +437,23 @@ internal fun ConfigPanel(
             enabled = !sessionStarted && soBundle.audio,
         )
         AnimatedVisibility(audioBitRateVisibility) {
-                SuperSlider(
-                    title = "音频码率",
-                    summary = "--audio-bit-rate",
-                    value = ScrcpyPresets.AudioBitRate
-                        .indexOfOrNearest(soBundle.audioBitRate / 1000)
-                        .toFloat(),
-                    onValueChange = { value ->
-                        val idx = value.roundToInt()
-                            .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
-                        soBundle = soBundle.copy(
-                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
-                        )
-                    },
-                    valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
-                    steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
-                    unit = "Kbps",
-                    zeroStateText = "默认",
+            SuperSlider(
+                title = "音频码率",
+                summary = "--audio-bit-rate",
+                value = ScrcpyPresets.AudioBitRate
+                    .indexOfOrNearest(soBundle.audioBitRate / 1000)
+                    .toFloat(),
+                onValueChange = { value ->
+                    val idx = value.roundToInt()
+                        .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
+                    soBundle = soBundle.copy(
+                        audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                    )
+                },
+                valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
+                steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
+                unit = "Kbps",
+                zeroStateText = "默认",
                 displayText = (soBundle.audioBitRate / 1_000).toString(),
                 inputInitialValue =
                     if (soBundle.audioBitRate <= 0) ""
@@ -963,15 +965,37 @@ internal fun DeviceTile(
     onEditorCancel: () -> Unit,
 ) {
     val haptics = rememberAppHaptics()
-    var name by rememberSaveable(device.id) { mutableStateOf(device.name) }
-    var host by rememberSaveable(device.id) { mutableStateOf(device.host) }
-    var port by rememberSaveable(device.id) { mutableStateOf(device.port.toString()) }
 
-    LaunchedEffect(device) {
-        name = device.name
-        host = device.host
-        port = device.port.toString()
+    var draft by remember(editing, device.id) {
+        mutableStateOf(if (editing) device else null)
     }
+    var originalDraft by remember(editing, device.id) {
+        mutableStateOf(if (editing) device else null)
+    }
+    var draftPortText by remember(editing, device.id) {
+        mutableStateOf(if (editing) device.port.toString() else null)
+    }
+
+    LaunchedEffect(editing, draft) {
+        val currentDraft = draft ?: return@LaunchedEffect
+        if (!editing) return@LaunchedEffect
+        delay(Settings.BUNDLE_SAVE_DELAY)
+        val trimmedHost = currentDraft.host.trim()
+        if (trimmedHost.isBlank()) return@LaunchedEffect
+        val updated = DeviceShortcut(
+            name = currentDraft.name.trim(),
+            host = trimmedHost,
+            port = currentDraft.port,
+            startScrcpyOnConnect = currentDraft.startScrcpyOnConnect,
+        )
+        if (updated != device) {
+            onEditorSave(updated)
+        }
+    }
+
+    val currentDraft = draft ?: device
+    val currentOriginalDraft = originalDraft ?: device
+    val currentDraftPortText = draftPortText ?: device.port.toString()
 
     Card(
         colors = CardDefaults.defaultColors(
@@ -1041,48 +1065,73 @@ internal fun DeviceTile(
                     text = if (!isConnected) "连接" else "断开",
                     onClick = onAction,
                     enabled = actionEnabled && !actionInProgress,
+                    colors = if (!isConnected && device.startScrcpyOnConnect) {
+                        ButtonDefaults.textButtonColorsPrimary()
+                    } else {
+                        ButtonDefaults.textButtonColors()
+                    },
                 )
             }
         }
 
         AnimatedVisibility(editing) {
             Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.ContentVertical)
-                    .padding(bottom = UiSpacing.ContentVertical),
-                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical)
+                modifier = Modifier.padding(vertical = UiSpacing.Large),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
             ) {
-                SuperTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = "设备名称",
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                SuperTextField(
-                    value = host,
-                    onValueChange = { host = it },
-                    label = "IP 地址",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                SuperTextField(
-                    value = port,
-                    onValueChange = { port = it.filter(Char::isDigit) },
-                    label = "端口",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                Column(
+                    modifier = Modifier.padding(horizontal = UiSpacing.Large),
+                    verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+                ) {
+                    SuperTextField(
+                        value = currentDraft.name,
+                        onValueChange = { draft = currentDraft.copy(name = it) },
+                        label = "设备名称",
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    SuperTextField(
+                        value = currentDraft.host,
+                        onValueChange = { draft = currentDraft.copy(host = it) },
+                        label = "IP 地址",
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    SuperTextField(
+                        value = currentDraftPortText,
+                        onValueChange = {
+                            draftPortText = it.filter(Char::isDigit)
+                            draft = currentDraft.copy(
+                                port = draftPortText?.toIntOrNull() ?: Defaults.ADB_PORT
+                            )
+                        },
+                        label = "端口",
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    CheckboxPreference(
+                        title = "连接后立即启动 scrcpy",
+                        checkboxLocation = CheckboxLocation.End,
+                        checked = currentDraft.startScrcpyOnConnect,
+                        onCheckedChange = {
+                            draft = currentDraft.copy(startScrcpyOnConnect = it)
+                        },
+                    )
+                }
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = UiSpacing.Large),
                     horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
                 ) {
                     TextButton(
                         text = "取消",
-                        onClick = onEditorCancel,
+                        onClick = {
+                            onEditorSave(currentOriginalDraft)
+                            onEditorCancel()
+                        },
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
@@ -1091,19 +1140,8 @@ internal fun DeviceTile(
                         modifier = Modifier.weight(1f),
                     )
                     TextButton(
-                        text = "保存",
-                        onClick = {
-                            val trimmedHost = host.trim()
-                            if (trimmedHost.isNotBlank()) {
-                                onEditorSave(
-                                    DeviceShortcut(
-                                        name = name.trim(),
-                                        host = trimmedHost,
-                                        port = port.toIntOrNull() ?: Defaults.ADB_PORT,
-                                    ),
-                                )
-                            }
-                        },
+                        text = "完成",
+                        onClick = onEditorCancel,
                         modifier = Modifier.weight(1f),
                         colors = ButtonDefaults.textButtonColorsPrimary(),
                     )
