@@ -86,8 +86,12 @@ fun FullscreenControlScreen(
             VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout)
         )
     }
+    val floatingActions = remember(buttonItems) {
+        (buttonItems.first + buttonItems.second).filter { it != io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction.MORE }
+    }
     val fullscreenDebugInfo = asBundle.fullscreenDebugInfo
     val showFullscreenVirtualButtons = asBundle.showFullscreenVirtualButtons
+    val showFullscreenFloatingButton = asBundle.showFullscreenFloatingButton
 
     val bar = remember(buttonItems) {
         VirtualButtonBar(
@@ -178,6 +182,18 @@ fun FullscreenControlScreen(
             if (showFullscreenVirtualButtons) {
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
+                    onAction = { action ->
+                        action.keycode?.let {
+                            sendKeycode(it)
+                        }
+                    },
+                )
+            }
+
+            if (showFullscreenFloatingButton) {
+                bar.FloatingBall(
+                    actions = floatingActions,
+                    modifier = Modifier.fillMaxSize(),
                     onAction = { action ->
                         action.keycode?.let {
                             sendKeycode(it)

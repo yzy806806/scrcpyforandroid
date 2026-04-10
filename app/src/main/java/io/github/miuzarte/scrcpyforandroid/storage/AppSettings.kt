@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Parcelable
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -27,7 +28,19 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         )
         val SHOW_FULLSCREEN_VIRTUAL_BUTTONS = Pair(
             booleanPreferencesKey("show_fullscreen_virtual_buttons"),
+            false
+        )
+        val SHOW_FULLSCREEN_FLOATING_BUTTON = Pair(
+            booleanPreferencesKey("show_fullscreen_floating_button"),
             true
+        )
+        val FULLSCREEN_FLOATING_BUTTON_X_FRACTION = Pair(
+            floatPreferencesKey("fullscreen_floating_button_x_fraction"),
+            0.84f
+        )
+        val FULLSCREEN_FLOATING_BUTTON_Y_FRACTION = Pair(
+            floatPreferencesKey("fullscreen_floating_button_y_fraction"),
+            0.72f
         )
         val DEVICE_PREVIEW_CARD_HEIGHT_DP = Pair(
             intPreferencesKey("device_preview_card_height_dp"),
@@ -82,6 +95,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     // Scrcpy Settings
     val fullscreenDebugInfo by setting(FULLSCREEN_DEBUG_INFO)
     val showFullscreenVirtualButtons by setting(SHOW_FULLSCREEN_VIRTUAL_BUTTONS)
+    val showFullscreenFloatingButton by setting(SHOW_FULLSCREEN_FLOATING_BUTTON)
+    val fullscreenFloatingButtonXFraction by setting(FULLSCREEN_FLOATING_BUTTON_X_FRACTION)
+    val fullscreenFloatingButtonYFraction by setting(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION)
     val devicePreviewCardHeightDp by setting(DEVICE_PREVIEW_CARD_HEIGHT_DP)
     val previewVirtualButtonShowText by setting(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT)
     val virtualButtonsLayout by setting(VIRTUAL_BUTTONS_LAYOUT)
@@ -104,6 +120,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val monet: Boolean,
         val fullscreenDebugInfo: Boolean,
         val showFullscreenVirtualButtons: Boolean,
+        val showFullscreenFloatingButton: Boolean,
+        val fullscreenFloatingButtonXFraction: Float,
+        val fullscreenFloatingButtonYFraction: Float,
         val devicePreviewCardHeightDp: Int,
         val previewVirtualButtonShowText: Boolean,
         val virtualButtonsLayout: String,
@@ -123,6 +142,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(MONET) { bundle: Bundle -> bundle.monet },
         bundleField(FULLSCREEN_DEBUG_INFO) { bundle: Bundle -> bundle.fullscreenDebugInfo },
         bundleField(SHOW_FULLSCREEN_VIRTUAL_BUTTONS) { bundle: Bundle -> bundle.showFullscreenVirtualButtons },
+        bundleField(SHOW_FULLSCREEN_FLOATING_BUTTON) { bundle: Bundle -> bundle.showFullscreenFloatingButton },
+        bundleField(FULLSCREEN_FLOATING_BUTTON_X_FRACTION) { bundle: Bundle -> bundle.fullscreenFloatingButtonXFraction },
+        bundleField(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION) { bundle: Bundle -> bundle.fullscreenFloatingButtonYFraction },
         bundleField(DEVICE_PREVIEW_CARD_HEIGHT_DP) { bundle: Bundle -> bundle.devicePreviewCardHeightDp },
         bundleField(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT) { bundle: Bundle -> bundle.previewVirtualButtonShowText },
         bundleField(VIRTUAL_BUTTONS_LAYOUT) { bundle: Bundle -> bundle.virtualButtonsLayout },
@@ -143,6 +165,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         monet = preferences.read(MONET),
         fullscreenDebugInfo = preferences.read(FULLSCREEN_DEBUG_INFO),
         showFullscreenVirtualButtons = preferences.read(SHOW_FULLSCREEN_VIRTUAL_BUTTONS),
+        showFullscreenFloatingButton = preferences.read(SHOW_FULLSCREEN_FLOATING_BUTTON),
+        fullscreenFloatingButtonXFraction = preferences.read(FULLSCREEN_FLOATING_BUTTON_X_FRACTION),
+        fullscreenFloatingButtonYFraction = preferences.read(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION),
         devicePreviewCardHeightDp = preferences.read(DEVICE_PREVIEW_CARD_HEIGHT_DP),
         previewVirtualButtonShowText = preferences.read(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT),
         virtualButtonsLayout = preferences.read(VIRTUAL_BUTTONS_LAYOUT),

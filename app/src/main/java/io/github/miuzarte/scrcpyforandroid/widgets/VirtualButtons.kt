@@ -1,14 +1,21 @@
 package io.github.miuzarte.scrcpyforandroid.widgets
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.VolumeDown
@@ -22,19 +29,31 @@ import androidx.compose.material.icons.rounded.Notifications
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiAndroidKeycodes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -214,9 +233,9 @@ class VirtualButtonBar(
                         }
                     }
                     if (action == VirtualButtonAction.MORE) {
-                        MorePopup(
+                        ActionPopup(
                             show = showMorePopup,
-                            moreActions = moreActions,
+                            actions = moreActions,
                             onDismiss = { showMorePopup = false },
                             onAction = {
                                 onAction(it)
@@ -268,9 +287,9 @@ class VirtualButtonBar(
                     }
 
                     if (action == VirtualButtonAction.MORE) {
-                        MorePopup(
+                        ActionPopup(
                             show = showMorePopup,
-                            moreActions = moreActions,
+                            actions = moreActions,
                             onDismiss = { showMorePopup = false },
                             onAction = {
                                 onAction(it)
@@ -285,17 +304,142 @@ class VirtualButtonBar(
     }
 
     @Composable
-    private fun MorePopup(
+    fun FloatingBall(
+        actions: List<VirtualButtonAction>,
+        onAction: suspend (VirtualButtonAction) -> Unit,
+        modifier: Modifier = Modifier,
+    ) {
+        val scope = rememberCoroutineScope()
+        val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+        val haptics = LocalAppHaptics.current
+        var showActions by remember { mutableStateOf(false) }
+        val asBundleShared by appSettings.bundleState.collectAsState()
+        val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
+        var offsetXFraction by rememberSaveable(asBundleShared.fullscreenFloatingButtonXFraction) {
+            mutableFloatStateOf(asBundleShared.fullscreenFloatingButtonXFraction)
+        }
+        var offsetYFraction by rememberSaveable(asBundleShared.fullscreenFloatingButtonYFraction) {
+            mutableFloatStateOf(asBundleShared.fullscreenFloatingButtonYFraction)
+        }
+        DisposableEffect(Unit) {
+            onDispose {
+                taskScope.launch {
+                    val latest = asBundleSharedLatest
+                    if (
+                        offsetXFraction != latest.fullscreenFloatingButtonXFraction ||
+                        offsetYFraction != latest.fullscreenFloatingButtonYFraction
+                    ) {
+                        appSettings.saveBundle(
+                            latest.copy(
+                                fullscreenFloatingButtonXFraction = offsetXFraction,
+                                fullscreenFloatingButtonYFraction = offsetYFraction,
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        BoxWithConstraints(
+            modifier = modifier.fillMaxSize(),
+        ) {
+            val ballSize = 48.dp
+            val ringSize = 24.dp
+            val ringWidth = 2.dp
+            val maxX = (maxWidth - ballSize).coerceAtLeast(0.dp)
+            val maxY = (maxHeight - ballSize).coerceAtLeast(0.dp)
+            val currentX =
+                maxX * offsetXFraction.coerceIn(0f, 1f)
+            val currentY =
+                maxY * offsetYFraction.coerceIn(0f, 1f)
+
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            currentX.roundToPx(),
+                            currentY.roundToPx(),
+                        )
+                    }
+                    .size(ballSize)
+                    .pointerInput(maxX, maxY) {
+                        var dragStartXFraction = offsetXFraction
+                        var dragStartYFraction = offsetYFraction
+                        detectDragGestures(
+                            onDragStart = {
+                                dragStartXFraction = offsetXFraction
+                                dragStartYFraction = offsetYFraction
+                            },
+                        ) { change, dragAmount ->
+                            change.consume()
+                            val nextX =
+                                (maxX.toPx() * dragStartXFraction + dragAmount.x).coerceIn(
+                                    0f,
+                                    maxX.toPx()
+                                )
+                            val nextY =
+                                (maxY.toPx() * dragStartYFraction + dragAmount.y).coerceIn(
+                                    0f,
+                                    maxY.toPx()
+                                )
+                            val nextXFraction = if (maxX > 0.dp) nextX / maxX.toPx() else 0f
+                            val nextYFraction = if (maxY > 0.dp) nextY / maxY.toPx() else 0f
+                            dragStartXFraction = nextXFraction
+                            dragStartYFraction = nextYFraction
+                            offsetXFraction = nextXFraction
+                            offsetYFraction = nextYFraction
+                        }
+                    },
+            ) {
+                Button(
+                    modifier = Modifier.fillMaxSize(),
+                    onClick = {
+                        haptics.contextClick()
+                        showActions = true
+                    },
+                    cornerRadius = ballSize / 2,
+                    minHeight = ballSize,
+                    insideMargin = PaddingValues(0.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        color = Color.Black.copy(alpha = 0.24f),
+                    ),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(ringSize)
+                            .clip(CircleShape)
+                            .border(ringWidth, Color.White, CircleShape),
+                    )
+                }
+
+                ActionPopup(
+                    show = showActions,
+                    actions = actions,
+                    onDismiss = { showActions = false },
+                    onAction = {
+                        scope.launch {
+                            onAction(it)
+                        }
+                        showActions = false
+                    },
+                    renderInRootScaffold = true,
+                )
+            }
+        }
+    }
+
+    @Composable
+    private fun ActionPopup(
         show: Boolean,
-        moreActions: List<VirtualButtonAction>,
+        actions: List<VirtualButtonAction>,
         onDismiss: () -> Unit,
         onAction: suspend (VirtualButtonAction) -> Unit,
         renderInRootScaffold: Boolean,
     ) {
         val scope = rememberCoroutineScope()
         val haptics = LocalAppHaptics.current
-        val spinnerItems = remember(moreActions) {
-            moreActions.map { action ->
+        val spinnerItems = remember(actions) {
+            actions.map { action ->
                 SpinnerEntry(
                     icon = {
                         Icon(
@@ -330,7 +474,7 @@ class VirtualButtonBar(
                         onSelectedIndexChange = { selectedIdx ->
                             haptics.confirm()
                             scope.launch {
-                                onAction(moreActions[selectedIdx])
+                                onAction(actions[selectedIdx])
                             }
                         },
                     )

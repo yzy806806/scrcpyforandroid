@@ -259,6 +259,14 @@ fun SettingsPage(
                         asBundle = asBundle.copy(showFullscreenVirtualButtons = it)
                     },
                 )
+                SwitchPreference(
+                    title = "全屏显示悬浮球",
+                    summary = "在全屏控制页显示可拖动的悬浮球，点击后弹出完整虚拟按键菜单",
+                    checked = asBundle.showFullscreenFloatingButton,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(showFullscreenFloatingButton = it)
+                    },
+                )
             }
         }
 
