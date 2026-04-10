@@ -42,12 +42,14 @@ import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.ui.NavDisplay
+import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
@@ -216,6 +218,15 @@ fun MainScreen() {
         )
     }
     val currentSession by scrcpy.currentSessionState.collectAsState()
+
+    LaunchedEffect(asBundle.lastUpdateCheckAt) {
+        val now = System.currentTimeMillis()
+        if (now - asBundle.lastUpdateCheckAt < AppUpdateChecker.CHECK_INTERVAL_MS) return@LaunchedEffect
+        taskScope.launch {
+            appSettings.updateBundle { it.copy(lastUpdateCheckAt = now) }
+            AppUpdateChecker.ensureChecked(BuildConfig.VERSION_NAME)
+        }
+    }
 
     fun handleBackNavigation() {
         if (rootBackStack.size > 1) {

@@ -10,12 +10,16 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import top.yukonga.miuix.kmp.basic.SmallTitle
 
 @Composable
-fun SectionSmallTitle(text: String, showLeadingSpacer: Boolean = true) {
+fun SectionSmallTitle(
+    text: String,
+    showLeadingSpacer: Boolean = true,
+    insideMargin: PaddingValues = PaddingValues(16.dp, 8.dp),
+) {
     if (showLeadingSpacer) {
         Spacer(Modifier.height(UiSpacing.SectionTitleLeadingGap))
     }
     SmallTitle(
         text = text,
-        insideMargin = PaddingValues(16.dp, 8.dp)
+        insideMargin = insideMargin,
     )
 }

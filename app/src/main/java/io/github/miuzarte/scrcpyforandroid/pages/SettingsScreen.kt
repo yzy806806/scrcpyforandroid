@@ -29,12 +29,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.core.net.toUri
+import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.PreferenceMigration
@@ -57,7 +59,6 @@ import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.extra.SuperArrow
 import top.yukonga.miuix.kmp.extra.SuperDropdown
 import top.yukonga.miuix.kmp.extra.SuperSwitch
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
 
@@ -100,6 +101,7 @@ fun SettingsPage(
     val context = LocalContext.current
     val appContext = context.applicationContext
     var needMigration by remember { mutableStateOf(false) }
+    val updateState by AppUpdateChecker.state.collectAsState()
     LaunchedEffect(Unit) {
         needMigration = PreferenceMigration(appContext).needsMigration()
     }
@@ -152,6 +154,37 @@ fun SettingsPage(
         )
     }
 
+    val updateSummary = remember(updateState) {
+        when (val state = updateState) {
+            AppUpdateChecker.State.Idle ->
+                "当前版本 ${BuildConfig.VERSION_NAME}"
+
+            AppUpdateChecker.State.Checking ->
+                "当前版本 ${BuildConfig.VERSION_NAME}，正在检查更新"
+
+            is AppUpdateChecker.State.Ready -> {
+                when {
+                    state.release.hasUpdate ->
+                        "当前版本 ${state.release.currentVersion}，发现新版本 ${state.release.latestVersion}"
+
+                    state.release.currentVersion == state.release.latestVersion.removePrefix("v")
+                            || state.release.currentVersion == state.release.latestVersion ->
+                        "当前版本 ${state.release.currentVersion}，已是最新版本"
+
+                    else ->
+                        "当前版本 ${state.release.currentVersion}，高于最新发布版本 ${state.release.latestVersion}"
+                }
+            }
+        }
+    }
+
+    val updateUrl = remember(updateState) {
+        when (val state = updateState) {
+            is AppUpdateChecker.State.Ready -> state.release.htmlUrl
+            else -> "https://github.com/Miuzarte/ScrcpyForAndroid/releases"
+        }
+    }
+
     // 设置
     LazyColumn(
         contentPadding = contentPadding,
@@ -163,11 +196,19 @@ fun SettingsPage(
                 SuperDropdown(
                     title = "外观模式",
                     summary = ThemeModes.baseOptions
-                        .getOrNull(asBundle.themeBaseIndex.coerceIn(0, ThemeModes.baseOptions.lastIndex))
+                        .getOrNull(
+                            asBundle.themeBaseIndex.coerceIn(
+                                0,
+                                ThemeModes.baseOptions.lastIndex
+                            )
+                        )
                         ?.label
                         ?: "跟随系统",
                     items = themeItems,
-                    selectedIndex = asBundle.themeBaseIndex.coerceIn(0, ThemeModes.baseOptions.lastIndex),
+                    selectedIndex = asBundle.themeBaseIndex.coerceIn(
+                        0,
+                        ThemeModes.baseOptions.lastIndex
+                    ),
                     onSelectedIndexChange = {
                         asBundle = asBundle.copy(themeBaseIndex = it)
                     },
@@ -441,13 +482,13 @@ fun SettingsPage(
             SectionSmallTitle("关于", showLeadingSpacer = false)
             Card {
                 SuperArrow(
-                    title = "前往仓库",
-                    summary = "github.com/Miuzarte/ScrcpyForAndroid",
+                    title = "仓库发布页",
+                    summary = "$updateSummary\n${AppUpdateChecker.REPO_URL.removePrefix("https://")}",
                     onClick = {
                         context.startActivity(
                             Intent(
                                 Intent.ACTION_VIEW,
-                                "https://github.com/Miuzarte/ScrcpyForAndroid".toUri(),
+                                updateUrl.toUri(),
                             )
                         )
                     },

@@ -5,6 +5,7 @@ import android.os.Parcelable
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import kotlinx.coroutines.flow.StateFlow
@@ -68,6 +69,10 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("adb_mdns_lan_discovery"),
             true
         )
+        val LAST_UPDATE_CHECK_AT = Pair(
+            longPreferencesKey("last_update_check_at"),
+            0L
+        )
     }
 
     // Theme Settings
@@ -91,6 +96,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val adbPairingAutoDiscoverOnDialogOpen by setting(ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN)
     val adbAutoReconnectPairedDevice by setting(ADB_AUTO_RECONNECT_PAIRED_DEVICE)
     val adbMdnsLanDiscovery by setting(ADB_MDNS_LAN_DISCOVERY)
+    val lastUpdateCheckAt by setting(LAST_UPDATE_CHECK_AT)
 
     @Parcelize
     data class Bundle(
@@ -108,6 +114,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val adbPairingAutoDiscoverOnDialogOpen: Boolean,
         val adbAutoReconnectPairedDevice: Boolean,
         val adbMdnsLanDiscovery: Boolean,
+        val lastUpdateCheckAt: Long,
     ) : Parcelable {
     }
 
@@ -126,6 +133,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN) { bundle: Bundle -> bundle.adbPairingAutoDiscoverOnDialogOpen },
         bundleField(ADB_AUTO_RECONNECT_PAIRED_DEVICE) { bundle: Bundle -> bundle.adbAutoReconnectPairedDevice },
         bundleField(ADB_MDNS_LAN_DISCOVERY) { bundle: Bundle -> bundle.adbMdnsLanDiscovery },
+        bundleField(LAST_UPDATE_CHECK_AT) { bundle: Bundle -> bundle.lastUpdateCheckAt },
     )
 
     val bundleState: StateFlow<Bundle> = createBundleState(::bundleFromPreferences)
@@ -147,6 +155,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         ),
         adbAutoReconnectPairedDevice = preferences.read(ADB_AUTO_RECONNECT_PAIRED_DEVICE),
         adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
+        lastUpdateCheckAt = preferences.read(LAST_UPDATE_CHECK_AT),
     )
 
     suspend fun loadBundle() = loadBundle(::bundleFromPreferences)
