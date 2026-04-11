@@ -29,9 +29,9 @@ class StreamActivity : ComponentActivity() {
         .setEnabled(false)
         .build()
 
-    // 是否处于 PiP。
-    // 这台设备上进入 PiP 时，动画事件比 onPictureInPictureModeChanged() 更稳定，
-    // 所以进入 PiP 直接由动画事件置为 true。
+    // 是否处于 PiP
+    // MIUI 上进入 PiP 时，动画事件比 onPictureInPictureModeChanged() 更稳定，
+    // 所以进入 PiP 直接由动画事件置为 true
     private val _pipModeState = MutableStateFlow(false)
     val pipModeState: StateFlow<Boolean> = _pipModeState
 

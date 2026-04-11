@@ -1,9 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.widgets
 
 import android.annotation.SuppressLint
-import android.graphics.SurfaceTexture
 import android.view.Surface
-import android.view.TextureView
+import android.view.SurfaceHolder
+import android.view.SurfaceView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -742,16 +742,16 @@ private fun PairingDialog(
  * ScrcpyVideoSurface
  *
  * Purpose:
- * - Hosts a `TextureView` and bridges its `Surface` to `nativeCore` for video rendering.
+ * - Hosts a `SurfaceView` and bridges its `Surface` to `nativeCore` for video rendering.
  * - Ensures only a single `Surface` instance is registered at any time under the
  *   stable `surfaceTag` ("video-main"). This reduces surface recreation bugs seen
  *   when preview/fullscreen used separate tags.
  *
  * Concurrency / lifecycle:
- * - `currentSurface` is only mutated on the UI thread via TextureView callbacks.
+ * - `currentSurface` is only mutated on the UI thread via SurfaceHolder callbacks.
  * - Registration to `nativeCore` is triggered from a [LaunchedEffect] when both
  *   `session` and `currentSurface` are available. Unregistration happens in
- *   `onSurfaceTextureDestroyed` and `DisposableEffect.onDispose` to guarantee
+ *   `surfaceDestroyed` and `DisposableEffect.onDispose` to guarantee
  *   cleanup even if the composable leaves composition.
  *
  * Reliability notes:
@@ -765,10 +765,21 @@ fun ScrcpyVideoSurface(
     target: VideoOutputTarget,
 ) {
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
+    var currentSurfaceView by remember { mutableStateOf<SurfaceView?>(null) }
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val currentTarget by VideoOutputTargetState.current.collectAsState()
+    val latestSession by rememberUpdatedState(session)
+    val latestCurrentTarget by rememberUpdatedState(currentTarget)
+
+    LaunchedEffect(session?.width, session?.height, currentSurfaceView) {
+        val surfaceView = currentSurfaceView ?: return@LaunchedEffect
+        val currentSession = session ?: return@LaunchedEffect
+        if (currentSession.width > 0 && currentSession.height > 0) {
+            surfaceView.holder.setFixedSize(currentSession.width, currentSession.height)
+        }
+    }
 
     LaunchedEffect(session, currentSurface, currentTarget, target) {
         val surface = currentSurface
@@ -811,44 +822,43 @@ fun ScrcpyVideoSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            TextureView(context).apply {
-                surfaceTextureListener = object : TextureView.SurfaceTextureListener {
-                    override fun onSurfaceTextureAvailable(
-                        surfaceTexture: SurfaceTexture,
-                        width: Int,
-                        height: Int
-                    ) {
-                        @SuppressLint("Recycle")
-                        val newSurface = Surface(surfaceTexture)
+            SurfaceView(context).apply {
+                currentSurfaceView = this
+                holder.addCallback(object : SurfaceHolder.Callback {
+                    override fun surfaceCreated(holder: SurfaceHolder) {
+                        val newSurface = holder.surface
+                        if (!newSurface.isValid) return
                         currentSurface = newSurface
                         // Register immediately when surface becomes available
-                        if (currentTarget == target && session != null) {
+                        if (latestCurrentTarget == target && latestSession != null) {
                             scope.launch {
                                 NativeCoreFacade.attachVideoSurface(newSurface)
                             }
                         }
                     }
 
-                    override fun onSurfaceTextureSizeChanged(
-                        surfaceTexture: SurfaceTexture,
+                    override fun surfaceChanged(
+                        holder: SurfaceHolder,
+                        format: Int,
                         width: Int,
-                        height: Int
-                    ) = Unit
+                        height: Int,
+                    ) {
+                        if (width <= 0 || height <= 0) return
+                        val surface = holder.surface
+                        if (!surface.isValid) return
+                        currentSurface = surface
+                    }
 
-                    override fun onSurfaceTextureDestroyed(surfaceTexture: SurfaceTexture): Boolean {
+                    override fun surfaceDestroyed(holder: SurfaceHolder) {
                         val surface = currentSurface
                         if (surface != null) {
                             taskScope.launch {
                                 NativeCoreFacade.detachVideoSurface(surface, releaseDecoder = false)
                             }
-                            surface.release()
                             currentSurface = null
                         }
-                        return true
                     }
-
-                    override fun onSurfaceTextureUpdated(surfaceTexture: SurfaceTexture) = Unit
-                }
+                })
             }
         },
         update = {},
