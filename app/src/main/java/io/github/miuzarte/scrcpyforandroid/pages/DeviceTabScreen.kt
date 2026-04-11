@@ -1,9 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
-import android.app.Activity
 import android.util.Log
-import android.view.WindowManager
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -38,6 +36,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
@@ -150,9 +149,9 @@ fun DeviceTabPage(
     scrcpy: Scrcpy,
 ) {
     val context = LocalContext.current
+
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
-    val activity = remember(context) { context as? Activity }
 
     val haptics = LocalAppHaptics.current
     val navigator = LocalRootNavigator.current
@@ -207,20 +206,9 @@ fun DeviceTabPage(
     // read only
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
 
-    fun setKeepScreenOn(enabled: Boolean) {
-        val window = activity?.window ?: return
-        window.decorView.post {
-            if (enabled) {
-                window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            } else {
-                window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-            }
-        }
-    }
-
-    DisposableEffect(activity) {
+    DisposableEffect(Unit) {
         onDispose {
-            setKeepScreenOn(false)
+            AppWakeLocks.release()
         }
     }
 
@@ -306,8 +294,8 @@ fun DeviceTabPage(
     ) {
         // Also stops scrcpy.
         runCatching { scrcpy.stop() }
-        setKeepScreenOn(false)
         runCatching { NativeAdbService.disconnect() }
+        AppWakeLocks.release()
         adbConnected = false
         currentTargetHost = ""
         currentTargetPort = Defaults.ADB_PORT
@@ -533,14 +521,12 @@ fun DeviceTabPage(
         val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
         val session = scrcpy.start(options)
         pendingScrollToPreview = true
-        if (openFullscreen) {
-            withContext(Dispatchers.Main) {
-                context.startActivity(StreamActivity.createIntent(context))
-            }
+        if (openFullscreen) withContext(Dispatchers.Main) {
+            context.startActivity(StreamActivity.createIntent(context))
         }
-        if (options.disableScreensaver) {
-            setKeepScreenOn(true)
-        }
+        if (options.disableScreensaver)
+            AppWakeLocks.acquire()
+
         statusLine = "scrcpy 运行中"
         @SuppressLint("DefaultLocale")
         val videoDetail =
@@ -934,7 +920,7 @@ fun DeviceTabPage(
                     onStop = {
                         runBusy("停止 scrcpy") {
                             scrcpy.stop()
-                            setKeepScreenOn(false)
+                            AppWakeLocks.release()
                             statusLine = "${currentTarget!!.host}:${currentTarget.port}"
                             logEvent("scrcpy 已停止")
                             snackbar.show("scrcpy 已停止")

@@ -8,6 +8,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
 import io.github.miuzarte.scrcpyforandroid.pages.MainScreen
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
+import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
 import io.github.miuzarte.scrcpyforandroid.storage.PreferenceMigration
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
@@ -17,9 +18,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // initialize settings singleton
         Storage.init(applicationContext)
         AppRuntime.init(applicationContext)
+        AppWakeLocks.init(applicationContext)
 
         val migration = PreferenceMigration(applicationContext)
         runBlocking {
