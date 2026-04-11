@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
-import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
 import android.os.Build
@@ -23,9 +22,14 @@ import java.util.concurrent.atomic.AtomicReference
  * Uses Android's `NsdManager` to resolve services and returns a host:port pair
  * when a suitable service is found within the provided timeout.
  */
-internal class AdbMdnsDiscoverer(context: Context) {
+internal object AdbMdnsDiscoverer {
 
-    private val nsdManager = context.getSystemService(NsdManager::class.java)
+    private lateinit var nsdManager: NsdManager
+
+    fun init(context: android.content.Context) {
+        if (::nsdManager.isInitialized) return
+        nsdManager = context.applicationContext.getSystemService(NsdManager::class.java)
+    }
 
     /**
      * Discover a device that advertises the ADB connect service via mDNS.
@@ -46,6 +50,7 @@ internal class AdbMdnsDiscoverer(context: Context) {
         timeoutMs: Long,
         includeLanDevices: Boolean,
     ): Pair<String, Int>? {
+        check(::nsdManager.isInitialized) { "AdbMdnsDiscoverer is not initialized" }
         val resultPort = AtomicInteger(-1)
         val resultHost = AtomicReference<String?>(null)
         val discoveryFinished = AtomicBoolean(false)
@@ -131,9 +136,7 @@ internal class AdbMdnsDiscoverer(context: Context) {
         true
     }
 
-    companion object {
-        private const val TAG = "AdbMdnsDiscoverer"
-        private const val TLS_CONNECT = "_adb-tls-connect._tcp"
-        private const val TLS_PAIRING = "_adb-tls-pairing._tcp"
-    }
+    private const val TAG = "AdbMdnsDiscoverer"
+    private const val TLS_CONNECT = "_adb-tls-connect._tcp"
+    private const val TLS_PAIRING = "_adb-tls-pairing._tcp"
 }

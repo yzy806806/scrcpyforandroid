@@ -8,6 +8,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
+/**
+ * TouchEventHandler
+ *
+ * Purpose:
+ * - Handles touch event processing for fullscreen control screen
+ * - Manages pointer tracking, coordinate mapping, and touch injection
+ */
 class TouchEventHandler(
     private val coroutineScope: CoroutineScope,
     private val session: Scrcpy.Session.SessionInfo,

@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
-import android.content.Context
 import android.os.Build
 import android.util.Base64
 import android.util.Log
@@ -43,7 +42,7 @@ import kotlin.concurrent.thread
  * This type is responsible for persisting the private key and performing
  * pairing/connect discovery helpers.
  */
-internal class DirectAdbTransport(private val context: Context) {
+internal object DirectAdbTransport {
 
     private val keys: Pair<PrivateKey, ByteArray> by lazy { runBlocking { loadOrCreate() } }
 
@@ -87,19 +86,17 @@ internal class DirectAdbTransport(private val context: Context) {
 
     fun discoverPairingService(
         timeoutMs: Long = 12_000,
-        includeLanDevices: Boolean = true
-    ): Pair<String, Int>? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        return AdbMdnsDiscoverer(context).discoverPairingService(timeoutMs, includeLanDevices)
-    }
+        includeLanDevices: Boolean = true,
+    ): Pair<String, Int>? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) null
+        else AdbMdnsDiscoverer.discoverPairingService(timeoutMs, includeLanDevices)
 
     fun discoverConnectService(
         timeoutMs: Long = 12_000,
-        includeLanDevices: Boolean = true
-    ): Pair<String, Int>? {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) return null
-        return AdbMdnsDiscoverer(context).discoverConnectService(timeoutMs, includeLanDevices)
-    }
+        includeLanDevices: Boolean = true,
+    ): Pair<String, Int>? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) null
+        else AdbMdnsDiscoverer.discoverConnectService(timeoutMs, includeLanDevices)
 
     /**
      * Load persisted RSA keypair from DataStore, or generate a new one.
@@ -200,9 +197,7 @@ internal class DirectAdbTransport(private val context: Context) {
         return buf.array()
     }
 
-    companion object {
-        private const val TAG = "DirectAdbTransport"
-    }
+    private const val TAG = "DirectAdbTransport"
 }
 
 /**
@@ -336,7 +331,9 @@ internal class DirectAdbConnection(
      */
     fun openStream(service: String): AdbSocketStream {
         val localId = nextLocalId.getAndIncrement()
-        val stream = AdbSocketStream(localId) { cmd, a0, a1, d -> sendMsg(cmd, a0, a1, d) }
+        val stream = AdbSocketStream(localId) { command, arg0, arg1, data ->
+            sendMsg(command, arg0, arg1, data)
+        }
         streams[localId] = stream
         sendMsg(A_OPEN, localId, 0, (service + "\u0000").toByteArray(Charsets.UTF_8))
         try {
@@ -349,7 +346,8 @@ internal class DirectAdbConnection(
     }
 
     fun shell(command: String): String =
-        openStream("shell:$command").use { it.inputStream.readBytes().toString(Charsets.UTF_8) }
+        openStream("shell:$command")
+            .use { it.inputStream.readBytes().toString(Charsets.UTF_8) }
 
     /**
      * Push raw bytes to a remote path using the minimal ADB "sync" protocol.
@@ -357,40 +355,41 @@ internal class DirectAdbConnection(
      * - Implements SEND/DATA/DONE/OKAY sequence and throws IOException on failure.
      */
     fun push(data: ByteArray, remotePath: String, unixMode: Int = 420) {
-        openStream("sync:").use { stream ->
-            val out = stream.outputStream
-            val inp = stream.inputStream
-            val pathMode = "$remotePath,$unixMode".toByteArray(Charsets.UTF_8)
+        openStream("sync:")
+            .use { stream ->
+                val out = stream.outputStream
+                val inp = stream.inputStream
+                val pathMode = "$remotePath,$unixMode".toByteArray(Charsets.UTF_8)
 
-            out.write("SEND".toByteArray(Charsets.US_ASCII))
-            out.writeIntLE(pathMode.size)
-            out.write(pathMode)
+                out.write("SEND".toByteArray(Charsets.US_ASCII))
+                out.writeIntLE(pathMode.size)
+                out.write(pathMode)
 
-            val chunkBuf = ByteArray(64 * 1024)
-            var offset = 0
-            while (offset < data.size) {
-                val len = minOf(chunkBuf.size, data.size - offset)
-                out.write("DATA".toByteArray(Charsets.US_ASCII))
-                out.writeIntLE(len)
-                out.write(data, offset, len)
-                offset += len
+                val chunkBuf = ByteArray(64 * 1024)
+                var offset = 0
+                while (offset < data.size) {
+                    val len = minOf(chunkBuf.size, data.size - offset)
+                    out.write("DATA".toByteArray(Charsets.US_ASCII))
+                    out.writeIntLE(len)
+                    out.write(data, offset, len)
+                    offset += len
+                }
+
+                out.write("DONE".toByteArray(Charsets.US_ASCII))
+                out.writeIntLE((System.currentTimeMillis() / 1000).toInt())
+                out.flush()
+
+                val idBuf = ByteArray(4).also { inp.readExact(it) }
+                val msgLen = inp.readIntLE()
+                val id = String(idBuf, Charsets.US_ASCII)
+                if (id != "OKAY") {
+                    val msg = if (msgLen > 0) ByteArray(msgLen).also { inp.readExact(it) }
+                        .toString(Charsets.UTF_8) else id
+                    throw IOException("ADB push failed: $msg")
+                } else if (msgLen > 0) {
+                    inp.skip(msgLen.toLong())
+                }
             }
-
-            out.write("DONE".toByteArray(Charsets.US_ASCII))
-            out.writeIntLE((System.currentTimeMillis() / 1000).toInt())
-            out.flush()
-
-            val idBuf = ByteArray(4).also { inp.readExact(it) }
-            val msgLen = inp.readIntLE()
-            val id = String(idBuf, Charsets.US_ASCII)
-            if (id != "OKAY") {
-                val msg = if (msgLen > 0) ByteArray(msgLen).also { inp.readExact(it) }
-                    .toString(Charsets.UTF_8) else id
-                throw IOException("ADB push failed: $msg")
-            } else if (msgLen > 0) {
-                inp.skip(msgLen.toLong())
-            }
-        }
     }
 
     fun isAlive(): Boolean {
@@ -568,7 +567,7 @@ internal class DirectAdbConnection(
  */
 class AdbSocketStream(
     val localId: Int,
-    private val sender: (cmd: Int, arg0: Int, arg1: Int, data: ByteArray) -> Unit,
+    private val sender: (cmd: Int, arg0: Int, arg1: Int, `data`: ByteArray) -> Unit,
 ) : Closeable {
 
     companion object {
@@ -619,12 +618,13 @@ class AdbSocketStream(
     }
 
     override fun close() {
-        if (!closed) {
-            closed = true
-            val r = remoteId
-            if (r != 0) runCatching { sender(A_CLSE, localId, r, ByteArray(0)) }
-            queue.offer(EndOfStreamMarker)
+        if (closed) return
+
+        closed = true
+        if (remoteId != 0) runCatching {
+            sender(A_CLSE, localId, remoteId, ByteArray(0))
         }
+        queue.offer(EndOfStreamMarker)
     }
 
     private inner class InStream : InputStream() {

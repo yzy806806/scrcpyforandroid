@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
-import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -19,8 +18,8 @@ import kotlin.time.Duration
  * 
  * All network operations are executed on Dispatchers.IO.
  */
-class NativeAdbService(appContext: Context) {
-    private val transport = DirectAdbTransport(appContext)
+object NativeAdbService {
+    private val transport = DirectAdbTransport
     private val mutex = Mutex()
 
     @Volatile
@@ -55,7 +54,7 @@ class NativeAdbService(appContext: Context) {
 
     suspend fun discoverPairingService(
         timeoutMs: Long = 12_000,
-        includeLanDevices: Boolean = true
+        includeLanDevices: Boolean = true,
     ): Pair<String, Int>? = mutex.withLock {
         return@withLock try {
             transport.discoverPairingService(timeoutMs, includeLanDevices)
@@ -67,7 +66,7 @@ class NativeAdbService(appContext: Context) {
 
     suspend fun discoverConnectService(
         timeoutMs: Long = 12_000,
-        includeLanDevices: Boolean = true
+        includeLanDevices: Boolean = true,
     ): Pair<String, Int>? = mutex.withLock {
         return@withLock try {
             transport.discoverConnectService(timeoutMs, includeLanDevices)
@@ -162,7 +161,5 @@ class NativeAdbService(appContext: Context) {
             ?: throw IllegalStateException("ADB not connected")
     }
 
-    companion object {
-        private const val TAG = "NativeAdbService"
-    }
+    private const val TAG = "NativeAdbService"
 }

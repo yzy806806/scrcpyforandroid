@@ -2,7 +2,6 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
 import android.app.Activity
-import android.content.pm.ActivityInfo
 import android.util.Log
 import android.view.WindowManager
 import androidx.compose.foundation.layout.PaddingValues
@@ -26,7 +25,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
+import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
@@ -36,6 +35,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
@@ -88,10 +88,8 @@ private const val ADB_TCP_PROBE_TIMEOUT_MS = 500
 
 @Composable
 fun DeviceTabScreen(
-    nativeCore: NativeCoreFacade,
-    adbService: NativeAdbService,
-    scrcpy: Scrcpy,
     scrollBehavior: ScrollBehavior,
+    scrcpy: Scrcpy,
     onOpenReorderDevices: () -> Unit,
 ) {
     val navigator = LocalRootNavigator.current
@@ -135,10 +133,8 @@ fun DeviceTabScreen(
     ) { pagePadding ->
         DeviceTabPage(
             contentPadding = pagePadding,
-            nativeCore = nativeCore,
-            adbService = adbService,
-            scrcpy = scrcpy,
             scrollBehavior = scrollBehavior,
+            scrcpy = scrcpy,
         )
     }
 }
@@ -146,10 +142,8 @@ fun DeviceTabScreen(
 @Composable
 fun DeviceTabPage(
     contentPadding: PaddingValues,
-    nativeCore: NativeCoreFacade,
-    adbService: NativeAdbService,
-    scrcpy: Scrcpy,
     scrollBehavior: ScrollBehavior,
+    scrcpy: Scrcpy,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -158,7 +152,6 @@ fun DeviceTabPage(
 
     val haptics = LocalAppHaptics.current
     val navigator = LocalRootNavigator.current
-    val fullscreenNavigationState = LocalFullscreenNavigationState.current
     val snackbar = LocalSnackbarController.current
 
     val asBundleShared by appSettings.bundleState.collectAsState()
@@ -281,11 +274,11 @@ fun DeviceTabPage(
      * Disconnect the current ADB connection and stop any running scrcpy session.
      *
      * Concurrency / thread boundary:
-     * - Native calls that may block are executed on ADB dispatcher using adbService.withAdbDispatcher.
+     * - Native calls that may block are executed on ADB dispatcher.
      * - This ensures UI coroutines are never blocked by synchronous native I/O.
      *
      * Side effects:
-     * - Calls `scrcpy.stop()` and `adbService.disconnect()` (best-effort).
+     * - Calls `scrcpy.stop()` and `NativeAdbService.disconnect()` (best-effort).
      * - Resets UI-visible connection state: `adbConnected`, `currentTargetHost/Port`,
      *   `sessionInfo`, device capability flags, `statusLine`, and `connectedDeviceLabel`.
      * - Updates the saved quick-device list via [savedShortcuts.update] when a target is provided.
@@ -307,7 +300,7 @@ fun DeviceTabPage(
         // Also stops scrcpy.
         runCatching { scrcpy.stop() }
         setKeepScreenOn(false)
-        runCatching { adbService.disconnect() }
+        runCatching { NativeAdbService.disconnect() }
         adbConnected = false
         currentTargetHost = ""
         currentTargetPort = Defaults.ADB_PORT
@@ -376,7 +369,7 @@ fun DeviceTabPage(
      */
     suspend fun connectWithTimeout(host: String, port: Int) {
         return withTimeout(ADB_CONNECT_TIMEOUT_MS) {
-            adbService.connect(host, port)
+            NativeAdbService.connect(host, port)
         }
     }
 
@@ -395,7 +388,7 @@ fun DeviceTabPage(
      */
     suspend fun keepAliveCheck(host: String, port: Int): Boolean {
         return withTimeout(ADB_KEEPALIVE_TIMEOUT_MS) {
-            val connected = adbService.isConnected()
+            val connected = NativeAdbService.isConnected()
             if (!connected) {
                 return@withTimeout false
             }
@@ -564,7 +557,7 @@ fun DeviceTabPage(
         currentTargetHost = host
         currentTargetPort = port
 
-        val info = fetchConnectedDeviceInfo(adbService, host, port)
+        val info = fetchConnectedDeviceInfo(NativeAdbService, host, port)
         val fullLabel = if (info.serial.isNotBlank()) {
             "${info.model} (${info.serial})"
         } else {
@@ -646,7 +639,7 @@ fun DeviceTabPage(
             }
 
             val discovered = withContext(Dispatchers.IO) {
-                adbService.discoverConnectService(
+                NativeAdbService.discoverConnectService(
                     timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
                     includeLanDevices = asBundle.adbMdnsLanDiscovery,
                 )
@@ -705,8 +698,8 @@ fun DeviceTabPage(
     fun sendVirtualButtonAction(action: VirtualButtonAction) {
         val keycode = action.keycode ?: return
         runBusy("发送 ${action.title}") {
-            nativeCore.session?.injectKeycode(0, keycode)
-            nativeCore.session?.injectKeycode(1, keycode)
+            scrcpy.injectKeycode(0, keycode)
+            scrcpy.injectKeycode(1, keycode)
         }
     }
 
@@ -870,7 +863,7 @@ fun DeviceTabPage(
                     busy = busy,
                     autoDiscoverOnDialogOpen = asBundle.adbPairingAutoDiscoverOnDialogOpen,
                     onDiscoverTarget = {
-                        adbService.discoverPairingService(
+                        NativeAdbService.discoverPairingService(
                             includeLanDevices = asBundle.adbMdnsLanDiscovery,
                         )
                     },
@@ -879,7 +872,7 @@ fun DeviceTabPage(
                             val resolvedHost = host.trim()
                             val resolvedPort = port.trim().toIntOrNull() ?: return@runBusy
                             val resolvedCode = code.trim()
-                            val ok = adbService.pair(
+                            val ok = NativeAdbService.pair(
                                 resolvedHost,
                                 resolvedPort,
                                 resolvedCode,
@@ -948,24 +941,13 @@ fun DeviceTabPage(
                 item {
                     PreviewCard(
                         sessionInfo = sessionInfo,
-                        nativeCore = nativeCore,
                         previewHeightDp = asBundle.devicePreviewCardHeightDp.coerceAtLeast(120),
                         controlsVisible = previewControlsVisible,
                         onTapped = {
                             previewControlsVisible = !previewControlsVisible
                         },
                         onOpenFullscreen = {
-                            val currentSession = sessionInfo
-                            if (currentSession != null) {
-                                fullscreenNavigationState.setOrientation(
-                                    if (currentSession.width >= currentSession.height) {
-                                        ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                                    } else {
-                                        ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                                    }
-                                )
-                                navigator.push(RootScreen.Fullscreen)
-                            }
+                            context.startActivity(StreamActivity.createIntent(context))
                         },
                     )
                 }

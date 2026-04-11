@@ -4,7 +4,6 @@ import android.annotation.SuppressLint
 import android.graphics.SurfaceTexture
 import android.view.Surface
 import android.view.TextureView
-import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -40,7 +39,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -51,20 +49,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.focus.FocusDirection
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
@@ -75,7 +72,6 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
-import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -250,7 +246,6 @@ internal fun PairingCard(
 @Composable
 internal fun PreviewCard(
     sessionInfo: Scrcpy.Session.SessionInfo?,
-    nativeCore: NativeCoreFacade,
     previewHeightDp: Int,
     controlsVisible: Boolean,
     onTapped: () -> Unit,
@@ -258,6 +253,27 @@ internal fun PreviewCard(
 ) {
     val haptics = rememberAppHaptics()
     val alpha by animateFloatAsState(if (controlsVisible) 1f else 0f, label = "preview-controls")
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> VideoOutputTargetState.set(VideoOutputTarget.PREVIEW)
+                Lifecycle.Event.ON_STOP ->
+                    if (VideoOutputTargetState.current.value == VideoOutputTarget.PREVIEW)
+                        VideoOutputTargetState.set(VideoOutputTarget.NONE)
+
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+            if (VideoOutputTargetState.current.value == VideoOutputTarget.PREVIEW) {
+                VideoOutputTargetState.set(VideoOutputTarget.NONE)
+            }
+        }
+    }
 
     Card {
         Box(
@@ -290,8 +306,8 @@ internal fun PreviewCard(
                 ) {
                     ScrcpyVideoSurface(
                         modifier = Modifier.fillMaxSize(),
-                        nativeCore = nativeCore,
                         session = sessionInfo,
+                        target = VideoOutputTarget.PREVIEW,
                     )
                 }
             }
@@ -304,7 +320,7 @@ internal fun PreviewCard(
                 ) {
                     Button(
                         onClick = {
-                            if (alpha > 0.1) {
+                            if (alpha > 0.1f) {
                                 haptics.contextClick()
                                 onOpenFullscreen()
                             }
@@ -465,6 +481,7 @@ internal fun ConfigPanel(
                         ?.takeIf { it >= 0 }
                         ?.let { soBundle = soBundle.copy(audioBitRate = it * 1000) }
                 },
+                enabled = !sessionStarted,
             )
         }
 
@@ -722,142 +739,6 @@ private fun PairingDialog(
 }
 
 /**
- * TouchEventHandler
- *
- * Purpose:
- * - Handles touch event processing for fullscreen control screen
- * - Manages pointer tracking, coordinate mapping, and touch injection
- */
-
-/**
- * FullscreenControlScreen
- *
- * Purpose:
- * - Presents a fullscreen interactive touch surface that maps Compose touch events
- *   to device coordinates and injects them via [onInjectTouch].
- * - Responsible for pointer tracking, multi-touch mapping, coordinate normalization,
- *   and lifetime of synthetic touch events sent to the device.
- *
- * Concurrency and side-effects:
- * - All heavy computations are local to the UI thread; injection itself is a quick
- *   callback (`onInjectTouch`) which delegates to native code elsewhere — keep that
- *   callback lightweight.
- * - Use `pointerInteropFilter` to receive raw MotionEvent instances for precise
- *   multi-touch handling and to map Android pointer IDs to device pointers.
- */
-@Composable
-fun FullscreenControlScreen(
-    session: Scrcpy.Session.SessionInfo,
-    nativeCore: NativeCoreFacade,
-    onDismiss: () -> Unit,
-    showDebugInfo: Boolean,
-    currentFps: Float,
-    enableBackHandler: Boolean = true,
-    onInjectTouch: suspend (action: Int, pointerId: Long, x: Int, y: Int, pressure: Float, buttons: Int) -> Unit,
-) {
-    BackHandler(enabled = enableBackHandler, onBack = onDismiss)
-    val coroutineScope = rememberCoroutineScope()
-    var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
-    val activePointerIds = remember { linkedSetOf<Int>() }
-    val activePointerPositions = remember { linkedMapOf<Int, Offset>() }
-    val activePointerDevicePositions = remember { linkedMapOf<Int, Pair<Int, Int>>() }
-    val pointerLabels = remember { linkedMapOf<Int, Int>() }
-    var nextPointerLabel by remember { mutableIntStateOf(1) }
-    var activeTouchCount by remember { mutableIntStateOf(0) }
-    var activeTouchDebug by remember { mutableStateOf("") }
-
-    val touchEventHandler = remember(session, touchAreaSize) {
-        TouchEventHandler(
-            coroutineScope = coroutineScope,
-            session = session,
-            touchAreaSize = touchAreaSize,
-            activePointerIds = activePointerIds,
-            activePointerPositions = activePointerPositions,
-            activePointerDevicePositions = activePointerDevicePositions,
-            pointerLabels = pointerLabels,
-            nextPointerLabel = nextPointerLabel,
-            onInjectTouch = onInjectTouch,
-            onActiveTouchCountChanged = { activeTouchCount = it },
-            onActiveTouchDebugChanged = { activeTouchDebug = it },
-            onNextPointerLabelChanged = { nextPointerLabel = it },
-        )
-    }
-
-    BoxWithConstraints(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black)
-            .pointerInteropFilter { event ->
-                touchEventHandler.handleMotionEvent(event)
-            }
-            .onSizeChanged { touchAreaSize = it },
-    ) {
-        val sessionAspect = if (session.height == 0) {
-            16f / 9f
-        } else {
-            session.width.toFloat() / session.height.toFloat()
-        }
-        val containerAspect = maxWidth.value / maxHeight.value
-        val fittedModifier = if (sessionAspect > containerAspect) {
-            Modifier
-                .fillMaxWidth()
-                .aspectRatio(sessionAspect)
-        } else {
-            Modifier
-                .fillMaxHeight()
-                .aspectRatio(sessionAspect)
-        }
-
-        Box(
-            modifier = Modifier
-                .align(Alignment.Center)
-                .then(fittedModifier),
-        ) {
-            ScrcpyVideoSurface(
-                modifier = Modifier.fillMaxSize(),
-                nativeCore = nativeCore,
-                session = session,
-            )
-        }
-
-        if (showDebugInfo) {
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(start = UiSpacing.ContentVertical, top = UiSpacing.ContentVertical)
-                    .background(Color.Black.copy(alpha = 0.5f))
-                    .padding(horizontal = UiSpacing.ContentVertical, vertical = UiSpacing.Medium),
-            ) {
-                Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.Tiny)) {
-                    Text(
-                        text = "分辨率: ${session.width}x${session.height}",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    @SuppressLint("DefaultLocale")
-                    Text(
-                        text = "FPS: ${String.format("%.1f", currentFps.coerceAtLeast(0f))}",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                    )
-                    Text(
-                        text = "触点: $activeTouchCount",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                    )
-                    if (activeTouchDebug.isNotEmpty()) Text(
-                        text = activeTouchDebug,
-                        color = Color.White,
-                        fontSize = 13.sp,
-                    )
-                }
-            }
-        }
-    }
-}
-
-/**
  * ScrcpyVideoSurface
  *
  * Purpose:
@@ -878,19 +759,38 @@ fun FullscreenControlScreen(
  *   referencing stale surfaces.
  */
 @Composable
-private fun ScrcpyVideoSurface(
+fun ScrcpyVideoSurface(
     modifier: Modifier,
-    nativeCore: NativeCoreFacade,
     session: Scrcpy.Session.SessionInfo?,
+    target: VideoOutputTarget,
 ) {
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val currentTarget by VideoOutputTargetState.current.collectAsState()
 
-    LaunchedEffect(session, currentSurface) {
+    LaunchedEffect(session, currentSurface, currentTarget, target) {
         val surface = currentSurface
-        if (session != null && surface != null && surface.isValid) {
-            nativeCore.attachVideoSurface(surface)
+        if (currentTarget == target && session != null && surface != null && surface.isValid) {
+            NativeCoreFacade.attachVideoSurface(surface)
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, session, currentSurface, currentTarget, target) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_START) {
+                val surface = currentSurface
+                if (currentTarget == target && session != null && surface != null && surface.isValid) {
+                    scope.launch {
+                        NativeCoreFacade.attachVideoSurface(surface)
+                    }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -898,7 +798,12 @@ private fun ScrcpyVideoSurface(
         onDispose {
             val surface = currentSurface
             if (surface != null) {
-                taskScope.launch { nativeCore.detachVideoSurface(surface, releaseDecoder = false) }
+                taskScope.launch {
+                    NativeCoreFacade.detachVideoSurface(
+                        surface,
+                        releaseDecoder = false
+                    )
+                }
             }
         }
     }
@@ -917,9 +822,9 @@ private fun ScrcpyVideoSurface(
                         val newSurface = Surface(surfaceTexture)
                         currentSurface = newSurface
                         // Register immediately when surface becomes available
-                        if (session != null) {
+                        if (currentTarget == target && session != null) {
                             scope.launch {
-                                nativeCore.attachVideoSurface(newSurface)
+                                NativeCoreFacade.attachVideoSurface(newSurface)
                             }
                         }
                     }
@@ -934,7 +839,7 @@ private fun ScrcpyVideoSurface(
                         val surface = currentSurface
                         if (surface != null) {
                             taskScope.launch {
-                                nativeCore.detachVideoSurface(surface, releaseDecoder = false)
+                                NativeCoreFacade.detachVideoSurface(surface, releaseDecoder = false)
                             }
                             surface.release()
                             currentSurface = null

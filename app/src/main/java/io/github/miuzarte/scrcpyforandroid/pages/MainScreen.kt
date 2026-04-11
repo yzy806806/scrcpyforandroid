@@ -2,7 +2,6 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.app.Activity
 import android.content.Intent
-import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.SystemClock
 import android.widget.Toast
@@ -24,7 +23,6 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,6 +47,7 @@ import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
@@ -86,7 +85,6 @@ sealed interface RootScreen : NavKey {
     data object Advanced : RootScreen
     data object About : RootScreen
     data object VirtualButtonOrder : RootScreen
-    data object Fullscreen : RootScreen
 }
 
 @Composable
@@ -95,21 +93,10 @@ fun MainScreen() {
     val context = LocalContext.current
     val appContext = context.applicationContext
     val activity = remember(context) { context as? Activity }
-    val initialOrientation = remember(activity) {
-        activity?.requestedOrientation ?: ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-    }
 
     // Scopes
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
-
-    // Core services
-    val nativeCore = remember(appContext) {
-        NativeCoreFacade.get(appContext)
-    }
-    val adbService = remember(appContext) {
-        NativeAdbService(appContext)
-    }
 
     // Global controllers provided to the compose tree
     val snackHostState = remember { SnackbarHostState() }
@@ -131,16 +118,7 @@ fun MainScreen() {
     val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
     var showReorderDevices by rememberSaveable { mutableStateOf(false) }
-    var fullscreenOrientation by rememberSaveable {
-        mutableIntStateOf(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT)
-    }
     var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
-
-    DisposableEffect(activity) {
-        onDispose {
-            activity?.requestedOrientation = initialOrientation
-        }
-    }
 
     // Scroll behaviors
     val devicesPageScrollBehavior = MiuixScrollBehavior(
@@ -164,11 +142,6 @@ fun MainScreen() {
                 if (rootBackStack.size > 1)
                     rootBackStack.removeAt(rootBackStack.lastIndex)
             },
-        )
-    }
-    val fullscreenNavigationState = remember {
-        FullscreenNavigationState(
-            setOrientation = { fullscreenOrientation = it }
         )
     }
 
@@ -228,19 +201,20 @@ fun MainScreen() {
         .ifBlank { AppSettings.SERVER_REMOTE_PATH.defaultValue }
     val scrcpy = remember(
         appContext,
-        adbService,
         customServerUri,
         customServerVersion,
         serverRemotePath,
     ) {
         Scrcpy(
             appContext = appContext,
-            adbService = adbService,
             customServerUri = customServerUri,
             serverVersion = customServerVersion,
             serverRemotePath = serverRemotePath,
-        )
+        ).also {
+            AppRuntime.scrcpy = it
+        }
     }
+
     val currentSession by scrcpy.currentSessionState.collectAsState()
 
     // Side-effect launchers and composition locals
@@ -305,20 +279,18 @@ fun MainScreen() {
             scope.launch {
                 withContext(Dispatchers.IO) {
                     runCatching { scrcpy.stop() }
-                    runCatching { adbService.disconnect() }
+                    runCatching { NativeAdbService.disconnect() }
                 }
                 activity?.finish()
             }
         }
     }
 
-    BackHandler(enabled = currentRootScreen !is RootScreen.Fullscreen) {
+    BackHandler {
         handleBackNavigation()
     }
 
-    PredictiveBackHandler(
-        enabled = canNavigateBack && currentRootScreen !is RootScreen.Fullscreen
-    ) { progress ->
+    PredictiveBackHandler(enabled = canNavigateBack) { progress ->
         try {
             progress.collect { }
             handleBackNavigation()
@@ -327,39 +299,19 @@ fun MainScreen() {
         }
     }
 
-    // Fullscreen route can force orientation based on stream ratio; all other routes are portrait.
-    LaunchedEffect(activity, currentRootScreen, fullscreenOrientation) {
-        val targetOrientation = when (currentRootScreen) {
-            is RootScreen.Fullscreen -> fullscreenOrientation
-            else -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-        }
-        activity?.requestedOrientation = targetOrientation
-    }
-
-    DisposableEffect(nativeCore, scrcpy) {
+    DisposableEffect(scrcpy) {
         val listener: (Int, Int) -> Unit = { width, height ->
             scrcpy.updateCurrentSessionSize(width, height)
         }
-        nativeCore.addVideoSizeListener(listener)
+        NativeCoreFacade.addVideoSizeListener(listener)
         onDispose {
-            nativeCore.removeVideoSizeListener(listener)
-        }
-    }
-
-    LaunchedEffect(currentRootScreen, currentSession?.width, currentSession?.height) {
-        if (currentRootScreen is RootScreen.Fullscreen) {
-            val session = currentSession ?: return@LaunchedEffect
-            fullscreenOrientation =
-                if (session.width >= session.height) {
-                    ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                } else {
-                    ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                }
+            NativeCoreFacade.removeVideoSizeListener(listener)
         }
     }
 
     LaunchedEffect(asBundle.adbKeyName) {
-        adbService.keyName = asBundle.adbKeyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
+        NativeAdbService.keyName =
+            asBundle.adbKeyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
     }
 
     val rootEntryProvider = entryProvider<NavKey> {
@@ -400,10 +352,8 @@ fun MainScreen() {
                     saveableStateHolder.SaveableStateProvider(tab.name) {
                         when (tab) {
                             MainBottomTabDestination.Device -> DeviceTabScreen(
-                                nativeCore = nativeCore,
-                                adbService = adbService,
-                                scrcpy = scrcpy,
                                 scrollBehavior = devicesPageScrollBehavior,
+                                scrcpy = scrcpy,
                                 onOpenReorderDevices = { showReorderDevices = true },
                             )
 
@@ -439,17 +389,6 @@ fun MainScreen() {
             )
         }
 
-        entry(RootScreen.Fullscreen) {
-            FullscreenControlScreen(
-                scrcpy = scrcpy,
-                nativeCore = nativeCore,
-                onVideoSizeChanged = { width, height ->
-                    fullscreenOrientation =
-                        if (width >= height) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-                        else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                },
-            )
-        }
     }
 
     val rootEntries = rememberDecoratedNavEntries(
@@ -469,7 +408,6 @@ fun MainScreen() {
             LocalRootNavigator provides rootNavigator,
             LocalSnackbarController provides snackbarController,
             LocalAppHaptics provides haptics,
-            LocalFullscreenNavigationState provides fullscreenNavigationState,
             LocalServerPicker provides serverPicker,
         ) {
             NavDisplay(

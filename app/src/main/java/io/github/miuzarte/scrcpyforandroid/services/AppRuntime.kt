@@ -1,0 +1,20 @@
+package io.github.miuzarte.scrcpyforandroid.services
+
+import android.content.Context
+import android.os.Build
+import androidx.annotation.RequiresApi
+import io.github.miuzarte.scrcpyforandroid.nativecore.AdbMdnsDiscoverer
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+
+// 用于不同 activity 之间传递实例
+object AppRuntime {
+    private lateinit var appContext: Context
+
+    @RequiresApi(Build.VERSION_CODES.R)
+    fun init(context: Context) {
+        appContext = context.applicationContext
+        AdbMdnsDiscoverer.init(appContext)
+    }
+
+    var scrcpy: Scrcpy? = null
+}

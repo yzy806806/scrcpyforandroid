@@ -10,11 +10,3 @@ class RootNavigator(
 val LocalRootNavigator = staticCompositionLocalOf<RootNavigator> {
     error("No RootNavigator provided")
 }
-
-class FullscreenNavigationState(
-    val setOrientation: (Int) -> Unit,
-)
-
-val LocalFullscreenNavigationState = staticCompositionLocalOf<FullscreenNavigationState> {
-    error("No FullscreenNavigationState provided")
-}

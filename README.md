@@ -25,6 +25,7 @@
 
 ## 已知问题
 
+- 关闭画中画后不会停止 scrcpy 串流，仍然需要回到应用中点击停止
 - 虚拟按键的截图实现方式为发送
 `keycode 120`，安卓官方([keycodes.h#349](https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h#349))的定义为
 `System Request / Print Screen key.`，不同的厂商有不同的实现，在某些类原生(`AxionOS`) 上的行为是软重启
@@ -60,6 +61,7 @@ specific abi:
 - JNI ADB 实现: [rikkaapps/shizuku](https://github.com/rikkaapps/shizuku), [vvb2060/ndk.boringssl](https://github.com/vvb2060), [lsposed/libcxx](https://github.com/lsposed/libcxx)
 - 界面组件: [YuKongA/miuix](https://github.com/compose-miuix-ui/miuix)
 - 界面设计参考: [tiann/KernelSU/manager](https://github.com/tiann/KernelSU/tree/main/manager)
+- 画中画实现参考: [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android)
 
 ## License
 

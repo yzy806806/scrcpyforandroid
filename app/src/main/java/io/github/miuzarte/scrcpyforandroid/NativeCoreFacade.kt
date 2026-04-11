@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid
 
-import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
@@ -21,11 +20,7 @@ import java.util.concurrent.CopyOnWriteArraySet
  * - Surface/Decoder management for video rendering
  * - Video size and FPS monitoring
  */
-class NativeCoreFacade private constructor() {
-    @Volatile
-    var session: Scrcpy.Session? = null
-        private set
-
+object NativeCoreFacade {
     private val sessionLifecycleMutex = Mutex()
     private val renderer = PersistentVideoRenderer()
     private var activeSurfaceId: Int? = null
@@ -118,25 +113,10 @@ class NativeCoreFacade private constructor() {
         }
     }
 
-    fun addVideoSizeListener(listener: (Int, Int) -> Unit) {
-        videoSizeListeners.add(listener)
-    }
-
-    fun removeVideoSizeListener(listener: (Int, Int) -> Unit) {
-        videoSizeListeners.remove(listener)
-    }
-
-    fun addVideoFpsListener(listener: (Float) -> Unit) {
-        videoFpsListeners.add(listener)
-    }
-
-    fun removeVideoFpsListener(listener: (Float) -> Unit) {
-        videoFpsListeners.remove(listener)
-    }
-
-    suspend fun scrcpyBackOrTurnScreenOn(action: Int = 0) {
-        session?.pressBackOrTurnScreenOn(action)
-    }
+    fun addVideoSizeListener(listener: (Int, Int) -> Unit) = videoSizeListeners.add(listener)
+    fun removeVideoSizeListener(listener: (Int, Int) -> Unit) = videoSizeListeners.remove(listener)
+    fun addVideoFpsListener(listener: (Float) -> Unit) = videoFpsListeners.add(listener)
+    fun removeVideoFpsListener(listener: (Float) -> Unit) = videoFpsListeners.remove(listener)
 
     /**
      * Called by Scrcpy.kt when a session starts.
@@ -146,7 +126,6 @@ class NativeCoreFacade private constructor() {
         session: Scrcpy.Session.SessionInfo,
         sessionMgr: Scrcpy.Session
     ) = sessionLifecycleMutex.withLock {
-        this.session = sessionMgr
         currentSessionInfo = session
         releaseAllDecoders()
         synchronized(bootstrapLock) {
@@ -185,7 +164,6 @@ class NativeCoreFacade private constructor() {
      * Cleans up decoders and resets state.
      */
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
-        session = null
         releaseAllDecoders()
         synchronized(bootstrapLock) {
             bootstrapPackets.clear()
@@ -194,21 +172,8 @@ class NativeCoreFacade private constructor() {
         currentSessionInfo = null
     }
 
-    companion object {
-        private const val TAG = "NativeCoreFacade"
-        private const val MAX_BOOTSTRAP_PACKETS = 90
-
-        @Volatile
-        private var instance: NativeCoreFacade? = null
-
-        // TODO ???
-        fun get(context: Context): NativeCoreFacade {
-            return instance ?: synchronized(this) {
-                instance ?: NativeCoreFacade().also { instance = it }
-            }
-        }
-
-    }
+    private const val TAG = "NativeCoreFacade"
+    private const val MAX_BOOTSTRAP_PACKETS = 90
 
     private data class CachedPacket(
         val data: ByteArray,

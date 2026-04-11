@@ -471,6 +471,7 @@ fun SettingsPage(
         item {
             SectionSmallTitle("")
             Card {
+                // TODO: 进入时无视自动更新检查的 CD, 主动触发一次
                 ArrowPreference(
                     title = "关于",
                     summary = updateSummary,

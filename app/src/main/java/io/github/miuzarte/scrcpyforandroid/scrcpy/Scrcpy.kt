@@ -52,14 +52,14 @@ import kotlin.random.nextUInt
  */
 class Scrcpy(
     private val appContext: Context,
-    private val adbService: NativeAdbService,
+
     private val serverAsset: String = DEFAULT_SERVER_ASSET,
     private val customServerUri: String? = null,
     private val serverVersion: String = DEFAULT_SERVER_VERSION,
     private val serverRemotePath: String = DEFAULT_REMOTE_PATH,
 ) {
-    private val session = Session(adbService)
-    private val nativeCore: NativeCoreFacade = NativeCoreFacade.get(appContext)
+
+    private val session = Session()
 
     private val _currentSessionState = MutableStateFlow<Session.SessionInfo?>(null)
     val currentSessionState: StateFlow<Session.SessionInfo?> = _currentSessionState.asStateFlow()
@@ -144,7 +144,7 @@ class Scrcpy(
 
             // Setup video consumer (notify NativeCoreFacade to setup decoders)
             if (options.video) {
-                nativeCore.onScrcpySessionStarted(info, session)
+                NativeCoreFacade.onScrcpySessionStarted(info, session)
             }
 
             // Setup audio player
@@ -192,7 +192,7 @@ class Scrcpy(
         Log.i(TAG, "stop(): Stopping scrcpy session")
 
         return@withContext try {
-            nativeCore.onScrcpySessionStopped()
+            NativeCoreFacade.onScrcpySessionStopped()
             session.clearVideoConsumer()
             session.clearAudioConsumer()
             session.stop()
@@ -208,14 +208,63 @@ class Scrcpy(
         }
     }
 
-    suspend fun close() {
-        stop()
-        adbService.close()
-    }
-
     fun isStarted(): Boolean = isRunning && session.isStarted()
 
     fun getCurrentSession(): Session.SessionInfo? = currentSessionState.value
+
+    suspend fun injectKeycode(
+        action: Int,
+        keycode: Int,
+        repeat: Int = 0,
+        metaState: Int = 0,
+    ) = session.injectKeycode(
+        action = action,
+        keycode = keycode,
+        repeat = repeat,
+        metaState = metaState,
+    )
+
+    suspend fun injectText(text: String) = session.injectText(text)
+
+    suspend fun injectTouch(
+        action: Int,
+        pointerId: Long,
+        x: Int,
+        y: Int,
+        screenWidth: Int,
+        screenHeight: Int,
+        pressure: Float,
+        actionButton: Int = 0,
+        buttons: Int = 0,
+    ) = session.injectTouch(
+        action = action,
+        pointerId = pointerId,
+        x = x,
+        y = y,
+        screenWidth = screenWidth,
+        screenHeight = screenHeight,
+        pressure = pressure,
+        actionButton = actionButton,
+        buttons = buttons,
+    )
+
+    suspend fun injectScroll(
+        x: Int,
+        y: Int,
+        screenWidth: Int,
+        screenHeight: Int,
+        hScroll: Float,
+        vScroll: Float,
+        buttons: Int,
+    ) = session.injectScroll(
+        x = x,
+        y = y,
+        screenWidth = screenWidth,
+        screenHeight = screenHeight,
+        hScroll = hScroll,
+        vScroll = vScroll,
+        buttons = buttons,
+    )
 
     fun updateCurrentSessionSize(width: Int, height: Int) {
         val current = _currentSessionState.value ?: return
@@ -399,7 +448,7 @@ class Scrcpy(
             extractUriToCache(customServerUri.toUri())
         }
 
-        adbService.push(serverJar.toPath(), serverRemotePath)
+        NativeAdbService.push(serverJar.toPath(), serverRemotePath)
 
         val scid = generateScid()
         val options = ClientOptions(
@@ -419,7 +468,7 @@ class Scrcpy(
         )
 
         Log.i(TAG, "listOptions(): cmd=$serverCommand")
-        adbService.shell("$serverCommand 2>&1")
+        NativeAdbService.shell("$serverCommand 2>&1")
     }
 
     private fun logListPreview(list: ListOptions, countSummary: String, output: String) {
@@ -553,7 +602,7 @@ class Scrcpy(
         options: ClientOptions,
         scid: UInt,
     ): Session.SessionInfo {
-        adbService.push(serverJar.toPath(), serverRemotePath)
+        NativeAdbService.push(serverJar.toPath(), serverRemotePath)
 
         val serverParams = options.toServerParams(scid)
 
@@ -605,7 +654,7 @@ class Scrcpy(
      * Session manager for scrcpy protocol.
      * Handles socket communication, video/audio streaming, and control input.
      */
-    class Session(private val adbService: NativeAdbService) {
+    class Session {
         private val mutex = Mutex()
 
         @Volatile
@@ -635,7 +684,7 @@ class Scrcpy(
             val socketName = socketNameFor(scid.toInt())
 
             try {
-                val serverStream = adbService.openShellStream(serverCommand)
+                val serverStream = NativeAdbService.openShellStream(serverCommand)
                 val serverLogThread = startServerLogThread(serverStream, socketName)
                 Thread.sleep(SERVER_BOOT_DELAY_MS)
 
@@ -1045,7 +1094,7 @@ class Scrcpy(
             var lastEx: Exception? = null
             repeat(CONNECT_RETRY_COUNT) { attempt ->
                 try {
-                    val stream = adbService.openAbstractSocket(socketName)
+                    val stream = NativeAdbService.openAbstractSocket(socketName)
                     if (expectDummyByte) {
                         val value = stream.inputStream.read()
                         if (value < 0) {
