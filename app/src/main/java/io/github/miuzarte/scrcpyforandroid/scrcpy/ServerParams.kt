@@ -73,7 +73,7 @@ data class ServerParams(
 
     var powerOffOnClose: Boolean,
 
-    // var downsizeOnError: Boolean,
+    var downsizeOnError: Boolean,
     // var tcpip: Boolean,
     // var tcpipDst: String,
     // var selectUsb: Boolean,
@@ -107,13 +107,12 @@ data class ServerParams(
         return (extraArgs.toList() + this.toList()).joinToString(SEPARATOR)
     }
 
-    fun toList(simplify: Boolean = false): MutableList<String> {
+    fun toList(preview: Boolean = false): MutableList<String> {
         val cmd = mutableListOf<String>()
 
-        if (!simplify) {
-            cmd.add("scid=${scid.toString(16)}")
-            cmd.add("log_level=${logLevel.string}")
-        }
+        if (!preview) cmd.add("scid=${scid.toString(16)}")
+
+        cmd.add("log_level=${logLevel.string}")
 
         if (!video) {
             cmd.add("video=false")
@@ -216,7 +215,7 @@ data class ServerParams(
             require(screenOffTimeout >= 0) {
                 "screen_off_timeout must be >= 0"
             }
-            cmd.add("screen_off_timeout=${screenOffTimeout.toMs()}")
+            cmd.add("screen_off_timeout=${screenOffTimeout.ms}")
         }
         if (videoCodecOptions.isNotBlank()) {
             validate(videoCodecOptions)
@@ -242,8 +241,6 @@ data class ServerParams(
         if (!clipBoardAutosync) {
             cmd.add("clipboard_autosync=false")
         }
-        // not implemented
-        val downsizeOnError = false
         if (!downsizeOnError) {
             cmd.add("downsize_on_error=false")
         }

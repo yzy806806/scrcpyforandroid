@@ -344,7 +344,7 @@ class Scrcpy(
             return getEncoders(forceRefresh).second
         }
 
-        private suspend fun getEncoders(forceRefresh: Boolean = false)
+        suspend fun getEncoders(forceRefresh: Boolean = false)
                 : Pair<List<EncoderInfo>, List<EncoderInfo>> {
             if (!forceRefresh && cachedVideoEncoders != null && cachedAudioEncoders != null)
                 return cachedVideoEncoders.orEmpty() to cachedAudioEncoders.orEmpty()
@@ -455,7 +455,7 @@ class Scrcpy(
             video = false,
             audio = false,
             control = false,
-            cleanUp = false,
+            cleanup = false,
             list = list,
         )
         val serverParams = options.toServerParams(scid)
@@ -1065,6 +1065,7 @@ class Scrcpy(
                                 }
                                 serverLogBuffer.addLast(line)
                             }
+                            logEvent(line)
                             Log.i(TAG, "[server:$socketName] $line")
                         }
                     }

@@ -15,6 +15,11 @@ class Shared {
         fun toMs(): Long = value / 1000
         fun toSec(): Long = value / 1_000_000
         fun toSecDouble(): Double = value / 1_000_000.0
+        val ns: Long get() = toNs()
+        val us: Long get() = toUs()
+        val ms: Long get() = toMs()
+        val sec: Long get() = toSec()
+        val secDouble: Double get() = toSecDouble()
 
         operator fun plus(other: Tick): Tick = Tick(value + other.value)
         operator fun minus(other: Tick): Tick = Tick(value - other.value)
@@ -38,17 +43,23 @@ class Shared {
         fun Duration.toTick(): Tick = Tick(this.inWholeMicroseconds)
     }
 
-    enum class ListOptions(val value: Int) {
-        NULL(0x0),
-        ENCODERS(0x1),     // --list-encoders
-        DISPLAYS(0x2),     // --list-displays
-        CAMERAS(0x4),      // --list-cameras
-        CAMERA_SIZES(0x8), // --list-camera-sizes
-        APPS(0x10);        // --list-apps
+    enum class ListOptions(val string: String, val value: Int) {
+        NULL("null", 0x0),
+        ENCODERS("encoders", 0x1),         // --list-encoders
+        DISPLAYS("displays", 0x2),         // --list-displays
+        CAMERAS("cameras", 0x4),           // --list-cameras
+        CAMERA_SIZES("camera_sizes", 0x8), // --list-camera-sizes
+        APPS("apps", 0x10);                // --list-apps
 
         infix fun or(other: ListOptions) = value or other.value
         infix fun and(other: ListOptions) = value and other.value
         infix fun has(other: ListOptions) = this and other != 0
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: NULL
+        }
     }
 
     enum class EncoderType(val s: String) {
@@ -62,6 +73,12 @@ class Shared {
         INFO("info"),
         WARN("warn"),
         ERROR("error");
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: VERBOSE
+        }
     }
 
     enum class Codec(
@@ -177,6 +194,12 @@ class Shared {
         UNLOCKED("unlocked"), // ignore
         LOCKED_VALUE("locked_value"), // "@${orientation.string}"
         LOCKED_INITIAL("locked_initial"); // "@"
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: UNLOCKED
+        }
     }
 
     enum class DisplayImePolicy(val string: String) {
@@ -184,5 +207,11 @@ class Shared {
         LOCAL("local"),
         FALLBACK("fallback"),
         HIDE("hide");
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: UNDEFINED
+        }
     }
 }

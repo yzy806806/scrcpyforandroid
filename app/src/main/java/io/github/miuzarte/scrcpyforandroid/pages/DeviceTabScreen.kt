@@ -36,6 +36,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
 import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
@@ -88,6 +89,13 @@ private const val ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS = 2_000L
 private const val ADB_TCP_PROBE_TIMEOUT_MS = 500
 private const val PREVIEW_CARD_ITEM_KEY = "preview_card"
 private const val PREVIEW_CARD_ITEM_INDEX = 3
+
+private data class StartAppRequest(
+    val packageName: String,
+    val displayId: Int?,
+    val forceStop: Boolean,
+    val matchedAppLabel: String? = null,
+)
 
 @Composable
 fun DeviceTabScreen(
@@ -517,11 +525,102 @@ fun DeviceTabPage(
         }
     }
 
+    suspend fun resolveStartAppRequest(
+        scrcpy: Scrcpy,
+        options: io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions,
+    ): StartAppRequest? {
+        val raw = options.startApp.trim()
+        if (raw.isBlank()) {
+            return null
+        }
+
+        var query = raw
+        val forceStop = query.startsWith("+")
+        if (forceStop) {
+            query = query.drop(1).trimStart()
+        }
+        require(query.isNotBlank()) { "应用名或包名不能为空" }
+
+        val displayId = when {
+            options.videoSource != VideoSource.DISPLAY -> null
+            options.displayId >= 0 -> options.displayId
+            else -> null
+        }
+
+        if (!query.startsWith("?")) {
+            return StartAppRequest(
+                packageName = query,
+                displayId = displayId,
+                forceStop = forceStop,
+            )
+        }
+
+        val searchName = query.drop(1).trim()
+        require(searchName.isNotBlank()) { "应用名称不能为空" }
+
+        val apps = scrcpy.listings.getApps(forceRefresh = false)
+        val matches = apps.filter { it.label.startsWith(searchName, ignoreCase = true) }
+
+        require(matches.isNotEmpty()) { "未找到应用名以 \"$searchName\" 开头的应用" }
+        require(matches.size == 1) {
+            "按名称匹配到多个应用: " +
+                    matches.take(5).joinToString { "${it.label} (${it.packageName})" }
+        }
+
+        return StartAppRequest(
+            packageName = matches[0].packageName,
+            displayId = displayId,
+            forceStop = forceStop,
+            matchedAppLabel = matches[0].label,
+        )
+    }
+
     suspend fun startScrcpySession(openFullscreen: Boolean = false) {
         val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
         val session = scrcpy.start(options)
         pendingScrollToPreview = true
-        if (openFullscreen) withContext(Dispatchers.Main) {
+        val startAppRequest = runCatching {
+            resolveStartAppRequest(scrcpy, options)
+        }.getOrElse { error ->
+            logEvent(
+                "启动应用请求无效: ${
+                    error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                }",
+                Log.WARN,
+                error,
+            )
+            null
+        }
+        startAppRequest?.let { request ->
+            if (options.newDisplay.isNotBlank() && request.displayId == null) {
+                logEvent(
+                    "当前实现无法获取 new display 的真实 displayId，应用会启动到默认显示",
+                    Log.WARN,
+                )
+            }
+            runCatching {
+                NativeAdbService.startApp(
+                    packageName = request.packageName,
+                    displayId = request.displayId,
+                    forceStop = request.forceStop,
+                )
+            }.onSuccess {
+                val appLabelPart = request.matchedAppLabel?.let { " ($it)" }.orEmpty()
+                logEvent(
+                    "已启动应用: ${request.packageName}$appLabelPart" +
+                            request.displayId?.let { " @display=$it" }.orEmpty()
+                )
+            }.onFailure { error ->
+                logEvent(
+                    "启动应用失败: ${request.packageName} (${
+                        error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
+                    })",
+                    Log.WARN,
+                    error,
+                )
+            }
+        }
+        if (options.fullscreen || openFullscreen) withContext(Dispatchers.Main) {
             context.startActivity(StreamActivity.createIntent(context))
         }
         if (options.disableScreensaver)
@@ -547,6 +646,15 @@ fun DeviceTabPage(
                     ", maxSize=${options.maxSize}, maxFps=${options.maxFps}"
         )
         snackbar.show("scrcpy 已启动")
+    }
+
+    suspend fun stopScrcpySession() {
+        val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
+        scrcpy.stop()
+        if (options.killAdbOnClose) {
+            // TODO
+            disconnectAdbConnection()
+        }
     }
 
     LaunchedEffect(pendingScrollToPreview, isPreviewCardVisible) {

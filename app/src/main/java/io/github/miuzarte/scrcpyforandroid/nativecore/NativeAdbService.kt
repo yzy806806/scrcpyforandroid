@@ -133,6 +133,41 @@ object NativeAdbService {
         response
     }
 
+    suspend fun startApp(
+        packageName: String,
+        displayId: Int? = null,
+        forceStop: Boolean = false,
+    ): String = mutex.withLock {
+        val normalizedPackageName = packageName.trim()
+        require(normalizedPackageName.isNotBlank()) { "package name is blank" }
+
+        if (forceStop) {
+            requireConnection().shell(
+                "am force-stop ${quoteShellArg(normalizedPackageName)}"
+            )
+        }
+
+        val resolveOutput = requireConnection().shell(
+            "cmd package resolve-activity --brief ${quoteShellArg(normalizedPackageName)}"
+        )
+        val componentName = resolveOutput
+            .lineSequence()
+            .map(String::trim)
+            .lastOrNull { '/' in it }
+            ?: throw IllegalStateException(
+                "Cannot resolve launch activity for $normalizedPackageName"
+            )
+
+        val displayArg = displayId
+            ?.takeIf { it >= 0 }
+            ?.let { " --display $it" }
+            .orEmpty()
+        val command = "am start-activity$displayArg -n ${quoteShellArg(componentName)}"
+        val response = requireConnection().shell(command)
+        Log.d(TAG, "startApp(): package=$normalizedPackageName component=$componentName")
+        response
+    }
+
     suspend fun openShellStream(command: String): AdbSocketStream = mutex.withLock {
         requireConnection().openStream("shell:$command")
     }
@@ -159,6 +194,10 @@ object NativeAdbService {
     private fun requireConnection(): DirectAdbConnection {
         return connection?.takeIf { it.isAlive() }
             ?: throw IllegalStateException("ADB not connected")
+    }
+
+    private fun quoteShellArg(value: String): String {
+        return "'" + value.replace("'", "'\\''") + "'"
     }
 
     private const val TAG = "NativeAdbService"

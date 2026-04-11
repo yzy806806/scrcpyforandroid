@@ -164,7 +164,7 @@ data class ClientOptions(
     // var clipboardAutosync: Boolean = true, // to server
 
     // --no-downsize-on-error
-    // var downsizeOnError: Boolean = true, // to server
+    var downsizeOnError: Boolean = true, // to server
 
     // var tcpip: Boolean, // to server
     // var tcpipDst: String = "", // to server
@@ -172,7 +172,7 @@ data class ClientOptions(
     // var selectTcpip: Boolean, // to server
 
     // --no-cleanup
-    var cleanUp: Boolean = true, // to server
+    var cleanup: Boolean = true, // to server
 
     // var startFpsCounter: Boolean,
 
@@ -225,6 +225,12 @@ data class ClientOptions(
         fun isAudioOnly(): Boolean = when (this) {
             M4A, MKA, OPUS, AAC, FLAC, WAV -> true
             else -> false
+        }
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: AUTO
         }
     }
 
@@ -552,7 +558,9 @@ data class ClientOptions(
 
             powerOffOnClose = powerOffOnClose,
 
-            cleanUp = cleanUp,
+            downsizeOnError = downsizeOnError,
+
+            cleanUp = cleanup,
             powerOn = powerOn,
 
             // killAdbOnClose == killAdbOnClose, // client side

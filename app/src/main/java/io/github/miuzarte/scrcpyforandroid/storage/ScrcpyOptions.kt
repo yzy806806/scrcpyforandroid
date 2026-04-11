@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions.RecordFormat
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
@@ -74,11 +75,11 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         )
         val LOG_LEVEL = Pair(
             stringPreferencesKey("log_level"),
-            "info",
+            LogLevel.INFO.string,
         )
         val VIDEO_CODEC = Pair(
             stringPreferencesKey("video_codec"),
-            "h264",
+            Codec.H264.string,
         )
         val AUDIO_CODEC = Pair(
             stringPreferencesKey("audio_codec"),
@@ -138,7 +139,7 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         )
         val DISPLAY_IME_POLICY = Pair(
             stringPreferencesKey("display_ime_policy"),
-            "undefined",
+            DisplayImePolicy.UNDEFINED.string,
         )
         val DISPLAY_ID = Pair(
             intPreferencesKey("display_id"),
@@ -184,6 +185,10 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             booleanPreferencesKey("power_off_on_close"),
             false,
         )
+        val DOWNSIZE_ON_ERROR = Pair(
+            booleanPreferencesKey("downsize_on_error"),
+            true,
+        )
         val CLEANUP = Pair(
             booleanPreferencesKey("cleanup"),
             true,
@@ -227,6 +232,14 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         val START_APP = Pair(
             stringPreferencesKey("start_app"),
             "",
+        )
+        val START_APP_CUSTOM = Pair(
+            stringPreferencesKey("start_app_custom"),
+            "",
+        )
+        val START_APP_USE_CUSTOM = Pair(
+            booleanPreferencesKey("start_app_use_custom"),
+            false,
         )
         val VD_DESTROY_CONTENT = Pair(
             booleanPreferencesKey("vd_destroy_content"),
@@ -334,6 +347,7 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         val stayAwake: Boolean,
         val disableScreensaver: Boolean,
         val powerOffOnClose: Boolean,
+        val downsizeOnError: Boolean,
         val cleanup: Boolean,
         val powerOn: Boolean,
         val video: Boolean,
@@ -345,6 +359,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         val audioDup: Boolean,
         val newDisplay: String,
         val startApp: String,
+        val startAppCustom: String,
+        val startAppUseCustom: Boolean,
         val vdDestroyContent: Boolean,
         val vdSystemDecorations: Boolean
     ) : Parcelable {
@@ -449,6 +465,7 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         stayAwake = preferences.read(STAY_AWAKE),
         disableScreensaver = preferences.read(DISABLE_SCREENSAVER),
         powerOffOnClose = preferences.read(POWER_OFF_ON_CLOSE),
+        downsizeOnError = preferences.read(DOWNSIZE_ON_ERROR),
         cleanup = preferences.read(CLEANUP),
         powerOn = preferences.read(POWER_ON),
         video = preferences.read(VIDEO),
@@ -460,6 +477,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         audioDup = preferences.read(AUDIO_DUP),
         newDisplay = preferences.read(NEW_DISPLAY),
         startApp = preferences.read(START_APP),
+        startAppCustom = preferences.read(START_APP_CUSTOM),
+        startAppUseCustom = preferences.read(START_APP_USE_CUSTOM),
         vdDestroyContent = preferences.read(VD_DESTROY_CONTENT),
         vdSystemDecorations = preferences.read(VD_SYSTEM_DECORATIONS),
     )
@@ -493,12 +512,12 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         cameraSize = if (!bundle.cameraSizeUseCustom) bundle.cameraSize else bundle.cameraSizeCustom,
         cameraAr = bundle.cameraAr,
         cameraFps = bundle.cameraFps.toUShort(),
-        logLevel = LogLevel.valueOf(bundle.logLevel.uppercase()),
+        logLevel = LogLevel.fromString(bundle.logLevel),
         videoCodec = Codec.fromString(bundle.videoCodec),
         audioCodec = Codec.fromString(bundle.audioCodec),
         videoSource = VideoSource.fromString(bundle.videoSource),
         audioSource = AudioSource.fromString(bundle.audioSource),
-        recordFormat = ClientOptions.RecordFormat.valueOf(bundle.recordFormat.uppercase()),
+        recordFormat = RecordFormat.fromString(bundle.recordFormat),
         cameraFacing = CameraFacing.fromString(bundle.cameraFacing),
         maxSize = bundle.maxSize.toUShort(),
         videoBitRate = bundle.videoBitRate,
@@ -506,12 +525,10 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         maxFps = bundle.maxFps,
         angle = bundle.angle,
         captureOrientation = Orientation.fromInt(bundle.captureOrientation),
-        captureOrientationLock = OrientationLock.valueOf(
-            bundle.captureOrientationLock.uppercase()
-        ),
+        captureOrientationLock = OrientationLock.fromString(bundle.captureOrientationLock),
         displayOrientation = Orientation.fromInt(bundle.displayOrientation),
         recordOrientation = Orientation.fromInt(bundle.recordOrientation),
-        displayImePolicy = DisplayImePolicy.valueOf(bundle.displayImePolicy.uppercase()),
+        displayImePolicy = DisplayImePolicy.fromString(bundle.displayImePolicy),
         displayId = bundle.displayId,
         screenOffTimeout = Tick(bundle.screenOffTimeout),
         showTouches = bundle.showTouches,
@@ -523,17 +540,18 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         stayAwake = bundle.stayAwake,
         disableScreensaver = bundle.disableScreensaver,
         powerOffOnClose = bundle.powerOffOnClose,
-        cleanUp = bundle.cleanup,
+        downsizeOnError = bundle.downsizeOnError,
+        cleanup = bundle.cleanup,
         powerOn = bundle.powerOn,
         video = bundle.video,
         audio = bundle.audio,
         requireAudio = bundle.requireAudio,
         killAdbOnClose = bundle.killAdbOnClose,
         cameraHighSpeed = bundle.cameraHighSpeed,
-        list = ListOptions.valueOf(bundle.list.uppercase()),
+        list = ListOptions.fromString(bundle.list),
         audioDup = bundle.audioDup,
         newDisplay = bundle.newDisplay,
-        startApp = bundle.startApp,
+        startApp = if (!bundle.startAppUseCustom) bundle.startApp else bundle.startAppCustom,
         vdDestroyContent = bundle.vdDestroyContent,
         vdSystemDecorations = bundle.vdSystemDecorations
     )
