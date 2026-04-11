@@ -7,8 +7,6 @@ import kotlinx.coroutines.flow.asStateFlow
 enum class VideoOutputTarget {
     NONE,
     PREVIEW,
-    FULLSCREEN,
-    PICTURE_IN_PICTURE,
 }
 
 object VideoOutputTargetState {

@@ -333,7 +333,6 @@ fun FullscreenControlPage(
                         )
                     },
                 session = session,
-                target = if (interactive) VideoOutputTarget.FULLSCREEN else VideoOutputTarget.PICTURE_IN_PICTURE,
             )
         }
 

@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,6 +87,8 @@ private const val ADB_KEEPALIVE_TIMEOUT_MS = 1_500L
 private const val ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS = 2_000L
 private const val ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS = 2_000L
 private const val ADB_TCP_PROBE_TIMEOUT_MS = 500
+private const val PREVIEW_CARD_ITEM_KEY = "preview_card"
+private const val PREVIEW_CARD_ITEM_INDEX = 3
 
 @Composable
 fun DeviceTabScreen(
@@ -241,6 +244,11 @@ fun DeviceTabPage(
     var cameraMirroringSupported by rememberSaveable { mutableStateOf(true) }
     var pendingScrollToPreview by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    val isPreviewCardVisible by remember(listState) {
+        derivedStateOf {
+            listState.layoutInfo.visibleItemsInfo.any { it.key == PREVIEW_CARD_ITEM_KEY }
+        }
+    }
 
     val currentTarget =
         if (currentTargetHost.isNotBlank())
@@ -557,13 +565,10 @@ fun DeviceTabPage(
         snackbar.show("scrcpy 已启动")
     }
 
-    LaunchedEffect(pendingScrollToPreview, sessionInfo) {
+    LaunchedEffect(pendingScrollToPreview, isPreviewCardVisible) {
         if (!pendingScrollToPreview) return@LaunchedEffect
-        val session = sessionInfo ?: return@LaunchedEffect
-        if (session.width <= 0 || session.height <= 0) return@LaunchedEffect
-        // status/device list/scrcpy panel are above the preview card
-        listState.animateScrollToItem(index = 3)
-        pendingScrollToPreview = false
+        if (isPreviewCardVisible) return@LaunchedEffect
+        listState.animateScrollToItem(PREVIEW_CARD_ITEM_INDEX)
     }
 
     suspend fun handleAdbConnected(host: String, port: Int) {
@@ -952,8 +957,9 @@ fun DeviceTabPage(
                 sessionInfo!!.width > 0 &&
                 sessionInfo!!.height > 0
             ) {
-                item {
+                item(key = PREVIEW_CARD_ITEM_KEY) {
                     PreviewCard(
+                        modifier = Modifier,
                         sessionInfo = sessionInfo,
                         previewHeightDp = asBundle.devicePreviewCardHeightDp.coerceAtLeast(120),
                         controlsVisible = previewControlsVisible,
@@ -963,6 +969,8 @@ fun DeviceTabPage(
                         onOpenFullscreen = {
                             context.startActivity(StreamActivity.createIntent(context))
                         },
+                        autoBringIntoView = pendingScrollToPreview,
+                        onAutoBringIntoViewConsumed = { pendingScrollToPreview = false },
                     )
                 }
 

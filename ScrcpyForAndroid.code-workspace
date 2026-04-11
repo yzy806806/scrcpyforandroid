@@ -21,12 +21,19 @@
 			"path": "../shizuku"
 		},
 		{
+			"name": "moonlight-android",
+			"path": "../moonlight-android"
+		},
+		{
 			"name": "KernelSU",
 			"path": "../KernelSU"
 		},
 		{
 			"name": "adblib",
 			"path": "../adblib"
+		},
+		{
+			"path": "../socialite"
 		}
 	],
 }

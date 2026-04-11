@@ -45,12 +45,6 @@ fun StreamScreen(activity: StreamActivity) {
     }
 
     DisposableEffect(isInPip) {
-        VideoOutputTargetState.set(
-            if (isInPip)
-                VideoOutputTarget.PICTURE_IN_PICTURE
-            else
-                VideoOutputTarget.FULLSCREEN
-        )
         onDispose {
             VideoOutputTargetState.set(VideoOutputTarget.PREVIEW)
         }

@@ -19,10 +19,6 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.ScrcpyForAndroid">
 
-        <receiver
-            android:name=".services.PictureInPictureActionReceiver"
-            android:exported="false" />
-
         <activity
             android:name=".MainActivity"
             android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"

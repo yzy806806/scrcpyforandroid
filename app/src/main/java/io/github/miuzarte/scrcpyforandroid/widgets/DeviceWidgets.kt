@@ -23,6 +23,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -245,15 +247,25 @@ internal fun PairingCard(
 
 @Composable
 internal fun PreviewCard(
+    modifier: Modifier,
     sessionInfo: Scrcpy.Session.SessionInfo?,
     previewHeightDp: Int,
     controlsVisible: Boolean,
     onTapped: () -> Unit,
     onOpenFullscreen: () -> Unit,
+    autoBringIntoView: Boolean = false,
+    onAutoBringIntoViewConsumed: () -> Unit = {},
 ) {
     val haptics = rememberAppHaptics()
     val alpha by animateFloatAsState(if (controlsVisible) 1f else 0f, label = "preview-controls")
     val lifecycleOwner = LocalLifecycleOwner.current
+    val bringIntoViewRequester = remember { BringIntoViewRequester() }
+
+    LaunchedEffect(autoBringIntoView) {
+        if (!autoBringIntoView) return@LaunchedEffect
+        bringIntoViewRequester.bringIntoView()
+        onAutoBringIntoViewConsumed()
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -275,7 +287,7 @@ internal fun PreviewCard(
         }
     }
 
-    Card {
+    Card(modifier = Modifier.bringIntoViewRequester(bringIntoViewRequester).then(modifier)) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -283,11 +295,11 @@ internal fun PreviewCard(
                 .pointerInput(sessionInfo) { detectTapGestures(onTap = { onTapped() }) },
         ) {
             BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val sessionAspect = if (sessionInfo == null || sessionInfo.height == 0) {
-                    16f / 9f
-                } else {
-                    sessionInfo.width.toFloat() / sessionInfo.height.toFloat()
-                }
+                val sessionAspect =
+                    if (sessionInfo == null || sessionInfo.height == 0)
+                        16f / 9f
+                    else sessionInfo.width.toFloat() / sessionInfo.height.toFloat()
+
                 val containerAspect = maxWidth.value / maxHeight.value
                 val fittedModifier = if (sessionAspect > containerAspect) {
                     Modifier
@@ -307,7 +319,6 @@ internal fun PreviewCard(
                     ScrcpyVideoSurface(
                         modifier = Modifier.fillMaxSize(),
                         session = sessionInfo,
-                        target = VideoOutputTarget.PREVIEW,
                     )
                 }
             }
@@ -762,7 +773,6 @@ private fun PairingDialog(
 fun ScrcpyVideoSurface(
     modifier: Modifier,
     session: Scrcpy.Session.SessionInfo?,
-    target: VideoOutputTarget,
 ) {
 
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
@@ -772,37 +782,29 @@ fun ScrcpyVideoSurface(
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
     var currentSurfaceView by remember { mutableStateOf<SurfaceView?>(null) }
 
-    val currentTarget by VideoOutputTargetState.current.collectAsState()
-    val latestCurrentTarget by rememberUpdatedState(currentTarget)
     val latestSession by rememberUpdatedState(session)
-    val latestRequestedTarget by rememberUpdatedState(target)
 
-    LaunchedEffect(session?.width, session?.height, currentSurfaceView, target) {
-        val surfaceView = currentSurfaceView ?: return@LaunchedEffect
-        if (target == VideoOutputTarget.PICTURE_IN_PICTURE) {
-            // In PiP, let SurfaceView buffer follow viewport to avoid stale portrait frame crop.
-            surfaceView.holder.setSizeFromLayout()
-            return@LaunchedEffect
+    LaunchedEffect(session, currentSurface) {
+        val surface = currentSurface ?: return@LaunchedEffect
+        if (session != null && surface.isValid) {
+            NativeCoreFacade.attachVideoSurface(surface)
         }
+    }
 
+    LaunchedEffect(session?.width, session?.height, currentSurfaceView) {
+        val surfaceView = currentSurfaceView ?: return@LaunchedEffect
         val currentSession = session ?: return@LaunchedEffect
+
         if (currentSession.width > 0 && currentSession.height > 0) {
             surfaceView.holder.setFixedSize(currentSession.width, currentSession.height)
         }
     }
 
-    LaunchedEffect(session, currentSurface, currentTarget, target) {
-        val surface = currentSurface ?: return@LaunchedEffect
-        if (currentTarget == target && session != null && surface.isValid) {
-            NativeCoreFacade.attachVideoSurface(surface)
-        }
-    }
-
-    DisposableEffect(lifecycleOwner, session, currentSurface, currentTarget, target) {
+    DisposableEffect(lifecycleOwner, session, currentSurface) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_START) {
                 val surface = currentSurface
-                if (currentTarget == target && session != null && surface != null && surface.isValid) {
+                if (session != null && surface != null && surface.isValid) {
                     scope.launch {
                         NativeCoreFacade.attachVideoSurface(surface)
                     }
@@ -820,10 +822,7 @@ fun ScrcpyVideoSurface(
             val surface = currentSurface
             if (surface != null) {
                 taskScope.launch {
-                    NativeCoreFacade.detachVideoSurface(
-                        surface,
-                        releaseDecoder = false
-                    )
+                    NativeCoreFacade.detachVideoSurface(surface)
                 }
             }
         }
@@ -840,7 +839,7 @@ fun ScrcpyVideoSurface(
                         if (!newSurface.isValid) return
                         currentSurface = newSurface
                         // Register immediately when surface becomes available
-                        if (latestCurrentTarget == target && latestSession != null) {
+                        if (latestSession != null) {
                             scope.launch {
                                 NativeCoreFacade.attachVideoSurface(newSurface)
                             }
@@ -857,7 +856,7 @@ fun ScrcpyVideoSurface(
                         if (!holder.surface.isValid) return
                         val surface = holder.surface
                         currentSurface = surface
-                        if (latestCurrentTarget == latestRequestedTarget && latestSession != null) {
+                        if (latestSession != null) {
                             scope.launch {
                                 NativeCoreFacade.attachVideoSurface(surface)
                             }
@@ -868,7 +867,7 @@ fun ScrcpyVideoSurface(
                         val surface = currentSurface
                         if (surface != null) {
                             taskScope.launch {
-                                NativeCoreFacade.detachVideoSurface(surface, releaseDecoder = false)
+                                NativeCoreFacade.detachVideoSurface(surface)
                             }
                             currentSurface = null
                         }

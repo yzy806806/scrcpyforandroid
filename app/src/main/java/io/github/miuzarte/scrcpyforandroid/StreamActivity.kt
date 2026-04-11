@@ -1,27 +1,25 @@
 package io.github.miuzarte.scrcpyforandroid
 
-import android.app.PendingIntent
 import android.app.PictureInPictureUiState
 import android.app.RemoteAction
 import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
-import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.annotation.RequiresApi
 import androidx.core.app.PictureInPictureParamsCompat
+import androidx.core.content.ContextCompat
 import androidx.core.pip.BasicPictureInPicture
 import io.github.miuzarte.scrcpyforandroid.pages.StreamScreen
 import io.github.miuzarte.scrcpyforandroid.services.PictureInPictureActionReceiver
-import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTarget
-import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTargetState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 class StreamActivity : ComponentActivity() {
     private val basicPip = BasicPictureInPicture(this)
+    private val pipActionReceiver = PictureInPictureActionReceiver()
+    private var isPipActionReceiverRegistered = false
 
     // 是否处于 pip
     // 回到全屏时会因重建而变回初始值
@@ -29,22 +27,11 @@ class StreamActivity : ComponentActivity() {
     val pipModeState: StateFlow<Boolean> = _pipModeState
 
     val pipStopAction: RemoteAction by lazy {
-        val intent = Intent(this, PictureInPictureActionReceiver::class.java)
-            .apply {
-                action = PictureInPictureActionReceiver.ACTION_STOP_SCRCPY
-                `package` = packageName
-            }
-        val pendingIntent = PendingIntent.getBroadcast(
-            this,
-            1,
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
         RemoteAction(
             Icon.createWithResource(this, android.R.drawable.ic_menu_close_clear_cancel),
             "停止投屏",
             "停止投屏",
-            pendingIntent,
+            PictureInPictureActionReceiver.createPendingIntent(this),
         )
     }
 
@@ -52,6 +39,8 @@ class StreamActivity : ComponentActivity() {
     // 都会重建 activity
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        registerPipActionReceiver()
 
         // 声明要画中画
         basicPip.setEnabled(true)
@@ -91,6 +80,11 @@ class StreamActivity : ComponentActivity() {
         basicPip.setPictureInPictureParams(params)
     }
 
+    override fun onDestroy() {
+        unregisterPipActionReceiver()
+        super.onDestroy()
+    }
+
     /*
     // 回到全屏也会停止, 暂时不做
     override fun onDestroy() {
@@ -110,22 +104,37 @@ class StreamActivity : ComponentActivity() {
     //+ onPictureInPictureUiStateChanged
     //- onUserLeaveHint
 
-    @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    // @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     override fun onPictureInPictureUiStateChanged(pipState: PictureInPictureUiState) {
         super.onPictureInPictureUiStateChanged(pipState)
 
+        _pipModeState.value = true
+
+        /*
         when {
             // 进入画中画
-            pipState.isTransitioningToPip -> if (!_pipModeState.value) {
-                _pipModeState.value = true
-                VideoOutputTargetState.set(VideoOutputTarget.PICTURE_IN_PICTURE)
-            }
+            pipState.isTransitioningToPip -> {}
             // 收进边缘
-            pipState.isStashed -> if (!_pipModeState.value) {
-                _pipModeState.value = true
-                VideoOutputTargetState.set(VideoOutputTarget.PICTURE_IN_PICTURE)
-            }
+            pipState.isStashed -> {}
         }
+         */
+    }
+
+    private fun registerPipActionReceiver() {
+        if (isPipActionReceiverRegistered) return
+        ContextCompat.registerReceiver(
+            this,
+            pipActionReceiver,
+            PictureInPictureActionReceiver.createIntentFilter(),
+            ContextCompat.RECEIVER_NOT_EXPORTED,
+        )
+        isPipActionReceiverRegistered = true
+    }
+
+    private fun unregisterPipActionReceiver() {
+        if (!isPipActionReceiverRegistered) return
+        unregisterReceiver(pipActionReceiver)
+        isPipActionReceiverRegistered = false
     }
 
     companion object {
