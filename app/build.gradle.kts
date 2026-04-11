@@ -16,6 +16,26 @@ android {
     namespace = "io.github.miuzarte.scrcpyforandroid"
     compileSdk = 37
 
+    signingConfigs {
+        create("release") {
+            val releaseStoreFile = System.getenv("RELEASE_STORE_FILE")
+            val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
+            val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+            val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+
+            if (!releaseStoreFile.isNullOrBlank()) {
+                storeFile = file(releaseStoreFile)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
+            }
+        }
+    }
+
     defaultConfig {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
@@ -49,6 +69,7 @@ android {
 
     buildTypes {
         release {
+            signingConfig = signingConfigs.getByName("release")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

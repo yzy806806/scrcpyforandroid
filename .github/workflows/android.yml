@@ -12,6 +12,11 @@ jobs:
   ci-build:
     if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
+    env:
+      RELEASE_STORE_FILE: /tmp/release.p12
+      RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -45,8 +50,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build debug and unsigned release APKs
-        run: ./gradlew clean assembleDebug assembleRelease
+      - name: Decode signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RELEASE_STORE_FILE"
+
+      - name: Build signed release APKs
+        run: ./gradlew clean assembleRelease
 
       - name: Collect CI APKs
         run: |
@@ -80,6 +91,11 @@ jobs:
   release-build:
     if: ${{ startsWith(github.ref, 'refs/tags/') }}
     runs-on: ubuntu-latest
+    env:
+      RELEASE_STORE_FILE: /tmp/release.p12
+      RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - uses: actions/checkout@v4
@@ -113,8 +129,14 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
-      - name: Build debug and unsigned release APKs
-        run: ./gradlew clean assembleDebug assembleRelease
+      - name: Decode signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RELEASE_STORE_FILE"
+
+      - name: Build signed release APKs
+        run: ./gradlew clean assembleRelease
 
       - name: Collect release assets
         run: |
@@ -148,8 +170,6 @@ jobs:
           download_base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
 
           {
-            echo "**release-unsigned** 为未签名构建，无法直接安装"
-            echo
             echo "| 架构 | 构建类型 | 文件 | SHA256 | 大小 |"
             echo "| --- | --- | --- | --- | --- |"
 
@@ -170,10 +190,7 @@ jobs:
                 arch="arm_all"
               fi
 
-              build_type="debug"
-              if [[ "$file_name" == *"unsigned"* ]]; then
-                build_type="release-unsigned"
-              fi
+              build_type="release"
 
               file_url="${download_base_url}/${file_name}"
               sha256_value="$(sha256sum "$apk" | awk '{print $1}')"
