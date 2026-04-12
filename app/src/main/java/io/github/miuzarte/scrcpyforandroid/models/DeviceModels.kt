@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.models
 
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 
 // Composable 用, 不可变 List
 class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> by devices {
@@ -40,6 +41,7 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
         name: String? = null,
         startScrcpyOnConnect: Boolean? = null,
         openFullscreenOnStart: Boolean? = null,
+        scrcpyProfileId: String? = null,
         newPort: Int? = null,
         updateNameOnlyWhenEmpty: Boolean = false,
     ): DeviceShortcuts {
@@ -51,38 +53,28 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
         val old = devices[idx]
         val updateById = id != null
 
-        // 确定最终的属性值
-        val finalName = when {
-            name == null -> old.name
-            updateNameOnlyWhenEmpty && old.name.isNotBlank() -> old.name
-            else -> name
-        }
-        val finalHost = if (updateById) host ?: old.host else old.host
-        val finalPort = if (updateById) port ?: old.port else newPort ?: old.port
-        val finalStartScrcpyOnConnect = startScrcpyOnConnect ?: old.startScrcpyOnConnect
-        val finalOpenFullscreenOnStart = openFullscreenOnStart ?: old.openFullscreenOnStart
+        val updated = DeviceShortcut(
+            name = when {
+                name == null -> old.name
+                updateNameOnlyWhenEmpty && old.name.isNotBlank() -> old.name
+                else -> name
+            },
+            host = if (updateById) host ?: old.host else old.host,
+            port = if (updateById) port ?: old.port else newPort ?: old.port,
+            startScrcpyOnConnect = startScrcpyOnConnect ?: old.startScrcpyOnConnect,
+            openFullscreenOnStart = openFullscreenOnStart ?: old.openFullscreenOnStart,
+            scrcpyProfileId = scrcpyProfileId ?: old.scrcpyProfileId,
+        )
 
         // 若无任何变化，返回原实例
-        if (
-            finalName == old.name
-            && finalHost == old.host
-            && finalPort == old.port
-            && finalStartScrcpyOnConnect == old.startScrcpyOnConnect
-            && finalOpenFullscreenOnStart == old.openFullscreenOnStart
-        )
-            return this
+        if (updated == old) return this
 
-        val newList = devices.toMutableList().apply {
-            this[idx] = DeviceShortcut(
-                name = finalName,
-                host = finalHost,
-                port = finalPort,
-                startScrcpyOnConnect = finalStartScrcpyOnConnect,
-                openFullscreenOnStart = finalOpenFullscreenOnStart,
-            )
-        }
+        val newList = devices.toMutableList()
+            .apply {
+                this[idx] = updated
+            }
         return DeviceShortcuts(
-            if ((updateById && (finalHost != old.host || finalPort != old.port))
+            if ((updateById && (updated.host != old.host || updated.port != old.port))
                 || (newPort != null && newPort != old.port)
             )
                 newList.distinctBy { it.id }
@@ -133,6 +125,7 @@ data class DeviceShortcut(
     val port: Int = Defaults.ADB_PORT,
     val startScrcpyOnConnect: Boolean = false,
     val openFullscreenOnStart: Boolean = false,
+    val scrcpyProfileId: String = ScrcpyOptions.GLOBAL_PROFILE_ID,
 ) {
     val id: String get() = "$host:$port"
 
@@ -144,6 +137,7 @@ data class DeviceShortcut(
         port.toString(),
         if (startScrcpyOnConnect) "1" else "0",
         if (openFullscreenOnStart) "1" else "0",
+        scrcpyProfileId.trim(),
     ).joinToString(
         separator = separator
     )
@@ -156,19 +150,28 @@ data class DeviceShortcut(
         ): DeviceShortcut? {
             val parts = s.split(separator)
             return when (parts.size) {
-                3, 4, 5 -> {
+                3, 4, 5, 6 -> {
                     val name = parts[0].trim()
                     val host = parts[1].trim()
                     val port = parts[2].trim().toIntOrNull() ?: Defaults.ADB_PORT
-                    val startScrcpyOnConnect = parts.getOrNull(3)?.trim() == "1"
-                    val openFullscreenOnStart =
-                        startScrcpyOnConnect && parts.getOrNull(4)?.trim() == "1"
+
+                    val startScrcpyOnConnect = parts.getOrNull(3)
+                        ?.trim() == "1"
+                    val openFullscreenOnStart = startScrcpyOnConnect
+                            && parts.getOrNull(4)
+                        ?.trim() == "1"
+                    val scrcpyProfileId = parts.getOrNull(5)
+                        ?.trim()
+                        .takeUnless { it.isNullOrBlank() }
+                        ?: ScrcpyOptions.GLOBAL_PROFILE_ID
+
                     if (host.isNotBlank()) DeviceShortcut(
                         name = name,
                         host = host,
                         port = port,
                         startScrcpyOnConnect = startScrcpyOnConnect,
                         openFullscreenOnStart = openFullscreenOnStart,
+                        scrcpyProfileId = scrcpyProfileId,
                     )
                     else null
                 }

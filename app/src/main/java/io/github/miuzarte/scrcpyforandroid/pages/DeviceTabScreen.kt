@@ -37,15 +37,18 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.widgets.ConfigPanel
 import io.github.miuzarte.scrcpyforandroid.widgets.DeviceTileList
 import io.github.miuzarte.scrcpyforandroid.widgets.PairingCard
@@ -213,6 +216,7 @@ fun DeviceTabPage(
 
     // read only
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
+    val scrcpyProfilesState by scrcpyProfiles.state.collectAsState()
 
     DisposableEffect(Unit) {
         onDispose {
@@ -234,6 +238,9 @@ fun DeviceTabPage(
     var editingDeviceId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeDeviceActionId by rememberSaveable { mutableStateOf<String?>(null) }
     var adbConnecting by rememberSaveable { mutableStateOf(false) }
+    var connectedScrcpyProfileId by rememberSaveable {
+        mutableStateOf(ScrcpyOptions.GLOBAL_PROFILE_ID)
+    }
 
     var audioForwardingSupported by rememberSaveable { mutableStateOf(true) }
     var cameraMirroringSupported by rememberSaveable { mutableStateOf(true) }
@@ -249,6 +256,14 @@ fun DeviceTabPage(
         if (currentTargetHost.isNotBlank())
             ConnectionTarget(currentTargetHost, currentTargetPort)
         else null
+
+    fun resolveScrcpyBundle(profileId: String): ScrcpyOptions.Bundle {
+        if (profileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
+            return soBundleShared
+        }
+        return scrcpyProfilesState.profiles.firstOrNull { it.id == profileId }?.bundle
+            ?: soBundleShared
+    }
 
     val sessionReconnectBlacklistHosts = remember { mutableSetOf<String>() }
 
@@ -307,6 +322,8 @@ fun DeviceTabPage(
         adbConnected = false
         currentTargetHost = ""
         currentTargetPort = Defaults.ADB_PORT
+        connectedScrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID
+        AppRuntime.currentConnectionTarget = null
         audioForwardingSupported = true
         cameraMirroringSupported = true
         statusLine = "未连接"
@@ -334,11 +351,19 @@ fun DeviceTabPage(
     }
 
     fun applyConnectedDeviceCapabilities(sdkInt: Int, release: String) {
+        val currentBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
         val audioSupported = sdkInt !in 0..<30
         audioForwardingSupported = audioSupported
-        if (!audioSupported && soBundleShared.audio) {
+        if (!audioSupported && currentBundle.audio) {
             scope.launch {
-                scrcpyOptions.updateBundle { it.copy(audio = false) }
+                if (connectedScrcpyProfileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
+                    scrcpyOptions.updateBundle { it.copy(audio = false) }
+                } else {
+                    scrcpyProfiles.updateBundle(
+                        connectedScrcpyProfileId,
+                        currentBundle.copy(audio = false),
+                    )
+                }
             }
             logEvent(
                 "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持音频转发，已自动关闭",
@@ -347,9 +372,16 @@ fun DeviceTabPage(
         }
         val cameraSupported = sdkInt !in 0..<31
         cameraMirroringSupported = cameraSupported
-        if (!cameraSupported && soBundleShared.videoSource == "camera") {
+        if (!cameraSupported && currentBundle.videoSource == "camera") {
             scope.launch {
-                scrcpyOptions.updateBundle { it.copy(videoSource = "display") }
+                if (connectedScrcpyProfileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
+                    scrcpyOptions.updateBundle { it.copy(videoSource = "display") }
+                } else {
+                    scrcpyProfiles.updateBundle(
+                        connectedScrcpyProfileId,
+                        currentBundle.copy(videoSource = "display"),
+                    )
+                }
             }
             logEvent(
                 "设备 Android ${release.ifBlank { "?" }} (SDK $sdkInt) 不支持 camera mirroring，已切换为 display",
@@ -576,7 +608,8 @@ fun DeviceTabPage(
     }
 
     suspend fun startScrcpySession(openFullscreen: Boolean = false) {
-        val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
+        val activeBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
+        val options = scrcpyOptions.toClientOptions(activeBundle).fix()
         val session = scrcpy.start(options)
         pendingScrollToPreview = true
         val startAppRequest = runCatching {
@@ -630,14 +663,14 @@ fun DeviceTabPage(
         @SuppressLint("DefaultLocale")
         val videoDetail =
             if (!options.video) "off"
-            else if (soBundleShared.videoBitRate <= 0) "${session.codec?.string ?: "null"} ${session.width}x${session.height} @default"
+            else if (activeBundle.videoBitRate <= 0) "${session.codec?.string ?: "null"} ${session.width}x${session.height} @default"
             else "${session.codec?.string ?: "null"} ${session.width}x${session.height} " +
-                    "@${String.format("%.1f", soBundleShared.videoBitRate / 1_000_000f)}Mbps"
+                    "@${String.format("%.1f", activeBundle.videoBitRate / 1_000_000f)}Mbps"
 
         val audioDetail =
-            if (!soBundleShared.audio) "off"
-            else if (soBundleShared.audioBitRate <= 0) "${options.audioCodec} default source=${options.audioSource}"
-            else "${options.audioCodec} ${soBundleShared.audioBitRate / 1_000f}Kbps source=${options.audioSource}${if (!options.audioPlayback) "(no-playback)" else ""}"
+            if (!activeBundle.audio) "off"
+            else if (activeBundle.audioBitRate <= 0) "${options.audioCodec} default source=${options.audioSource}"
+            else "${options.audioCodec} ${activeBundle.audioBitRate / 1_000f}Kbps source=${options.audioSource}${if (!options.audioPlayback) "(no-playback)" else ""}"
 
         logEvent(
             "scrcpy 已启动: device=${session.deviceName}" +
@@ -649,7 +682,8 @@ fun DeviceTabPage(
     }
 
     suspend fun stopScrcpySession() {
-        val options = scrcpyOptions.toClientOptions(soBundleShared).fix()
+        val activeBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
+        val options = scrcpyOptions.toClientOptions(activeBundle).fix()
         scrcpy.stop()
         if (options.killAdbOnClose) {
             // TODO
@@ -667,9 +701,12 @@ fun DeviceTabPage(
         host: String, port: Int,
         autoStartScrcpy: Boolean = false,
         autoEnterFullScreen: Boolean = false,
+        scrcpyProfileId: String = ScrcpyOptions.GLOBAL_PROFILE_ID,
     ) {
         currentTargetHost = host
         currentTargetPort = port
+        connectedScrcpyProfileId = scrcpyProfileId
+        AppRuntime.currentConnectionTarget = ConnectionTarget(host, port)
 
         val info = fetchConnectedDeviceInfo(NativeAdbService, host, port)
         val fullLabel = if (info.serial.isNotBlank()) {
@@ -739,7 +776,11 @@ fun DeviceTabPage(
                         savedShortcuts = savedShortcuts.update(
                             host = target.host, port = target.port,
                         )
-                        handleAdbConnected(target.host, target.port)
+                        handleAdbConnected(
+                            target.host,
+                            target.port,
+                            scrcpyProfileId = target.scrcpyProfileId,
+                        )
                         logEvent("ADB 快速探测连接成功: ${target.host}:${target.port}")
                     } catch (_: Exception) {
                     }
@@ -796,7 +837,11 @@ fun DeviceTabPage(
                 savedShortcuts = savedShortcuts.update(
                     host = discoveredHost, port = discoveredPort,
                 )
-                handleAdbConnected(discoveredHost, discoveredPort)
+                handleAdbConnected(
+                    discoveredHost,
+                    discoveredPort,
+                    scrcpyProfileId = knownDevice.scrcpyProfileId,
+                )
                 logEvent("ADB 自动重连成功: $discoveredHost:$discoveredPort")
             } catch (_: Exception) {
             }
@@ -888,6 +933,7 @@ fun DeviceTabPage(
                                     autoStartScrcpy = device.startScrcpyOnConnect,
                                     autoEnterFullScreen = device.startScrcpyOnConnect
                                             && device.openFullscreenOnStart,
+                                    scrcpyProfileId = device.scrcpyProfileId,
                                 )
                             } catch (e: Exception) {
                                 statusLine = "ADB 连接失败"
@@ -919,6 +965,7 @@ fun DeviceTabPage(
                         port = updated.port,
                         startScrcpyOnConnect = updated.startScrcpyOnConnect,
                         openFullscreenOnStart = updated.openFullscreenOnStart,
+                        scrcpyProfileId = updated.scrcpyProfileId,
                     )
                 },
                 onEditorDelete = { device ->
@@ -966,7 +1013,11 @@ fun DeviceTabPage(
                                 savedShortcuts = savedShortcuts.update(
                                     host = target.host, port = target.port,
                                 )
-                                handleAdbConnected(target.host, target.port)
+                                handleAdbConnected(
+                                    target.host,
+                                    target.port,
+                                    scrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID,
+                                )
                             } catch (e: Exception) {
                                 statusLine = "ADB 连接失败"
                                 logEvent("ADB 连接失败: $e", Log.ERROR)

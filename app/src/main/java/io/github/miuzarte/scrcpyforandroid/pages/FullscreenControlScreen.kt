@@ -51,7 +51,6 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.widgets.ScrcpyVideoSurface
-import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTarget
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
 import kotlinx.coroutines.CoroutineScope

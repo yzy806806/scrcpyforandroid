@@ -13,5 +13,6 @@ object Storage {
     val appSettings: AppSettings by lazy { AppSettings(appContext) }
     val quickDevices: QuickDevices by lazy { QuickDevices(appContext) }
     val scrcpyOptions: ScrcpyOptions by lazy { ScrcpyOptions(appContext) }
+    val scrcpyProfiles: ScrcpyProfiles by lazy { ScrcpyProfiles(appContext) }
     val adbClientData: AdbClientData by lazy { AdbClientData(appContext) }
 }

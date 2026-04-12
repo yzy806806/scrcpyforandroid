@@ -75,6 +75,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
@@ -919,6 +920,8 @@ internal fun DeviceTile(
     onEditorCancel: () -> Unit,
 ) {
     val haptics = rememberAppHaptics()
+    val snackbar = LocalSnackbarController.current
+    val scrcpyProfilesState by Storage.scrcpyProfiles.state.collectAsState()
 
     var draft by remember(editing, device.id) {
         mutableStateOf(if (editing) device else null)
@@ -943,6 +946,7 @@ internal fun DeviceTile(
             startScrcpyOnConnect = currentDraft.startScrcpyOnConnect,
             openFullscreenOnStart = currentDraft.startScrcpyOnConnect
                     && currentDraft.openFullscreenOnStart,
+            scrcpyProfileId = currentDraft.scrcpyProfileId,
         )
         if (updated != device) {
             onEditorSave(updated)
@@ -952,6 +956,15 @@ internal fun DeviceTile(
     val currentDraft = draft ?: device
     val currentOriginalDraft = originalDraft ?: device
     val currentDraftPortText = draftPortText ?: device.port.toString()
+    val profileNames = remember(scrcpyProfilesState.profiles) {
+        scrcpyProfilesState.profiles.map { it.name }
+    }
+    val profileIds = remember(scrcpyProfilesState.profiles) {
+        scrcpyProfilesState.profiles.map { it.id }
+    }
+    val profileDropdownIndex = remember(currentDraft.scrcpyProfileId, profileIds) {
+        profileIds.indexOf(currentDraft.scrcpyProfileId).coerceAtLeast(0)
+    }
 
     Card(
         colors = CardDefaults.defaultColors(
@@ -1087,6 +1100,20 @@ internal fun DeviceTile(
                             },
                         )
                     }
+                    OverlayDropdownPreference(
+                        title = "Scrcpy 配置",
+                        items = profileNames,
+                        selectedIndex = profileDropdownIndex,
+                        onSelectedIndexChange = {
+                            val profileId = profileIds.getOrElse(it) {
+                                ScrcpyOptions.GLOBAL_PROFILE_ID
+                            }
+                            val profileName = profileNames.getOrElse(it) { "全局" }
+                            val deviceName = currentDraft.name.ifBlank { currentDraft.host }
+                            draft = currentDraft.copy(scrcpyProfileId = profileId)
+                            snackbar.show("$deviceName 已切换到配置 $profileName")
+                        },
+                    )
                 }
                 Row(
                     modifier = Modifier

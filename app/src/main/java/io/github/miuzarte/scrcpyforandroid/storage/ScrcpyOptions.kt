@@ -25,6 +25,9 @@ import kotlinx.parcelize.Parcelize
 
 class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
     companion object {
+        const val GLOBAL_PROFILE_ID = "global"
+        const val GLOBAL_PROFILE_NAME = "全局"
+
         val CROP = Pair(
             stringPreferencesKey("crop"),
             "",
@@ -249,6 +252,65 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             booleanPreferencesKey("vd_system_decorations"),
             true,
         )
+
+        fun defaultBundle() = Bundle(
+            crop = CROP.defaultValue,
+            recordFilename = RECORD_FILENAME.defaultValue,
+            videoCodecOptions = VIDEO_CODEC_OPTIONS.defaultValue,
+            audioCodecOptions = AUDIO_CODEC_OPTIONS.defaultValue,
+            videoEncoder = VIDEO_ENCODER.defaultValue,
+            audioEncoder = AUDIO_ENCODER.defaultValue,
+            cameraId = CAMERA_ID.defaultValue,
+            cameraSize = CAMERA_SIZE.defaultValue,
+            cameraSizeCustom = CAMERA_SIZE_CUSTOM.defaultValue,
+            cameraSizeUseCustom = CAMERA_SIZE_USE_CUSTOM.defaultValue,
+            cameraAr = CAMERA_AR.defaultValue,
+            cameraFps = CAMERA_FPS.defaultValue,
+            logLevel = LOG_LEVEL.defaultValue,
+            videoCodec = VIDEO_CODEC.defaultValue,
+            audioCodec = AUDIO_CODEC.defaultValue,
+            videoSource = VIDEO_SOURCE.defaultValue,
+            audioSource = AUDIO_SOURCE.defaultValue,
+            recordFormat = RECORD_FORMAT.defaultValue,
+            cameraFacing = CAMERA_FACING.defaultValue,
+            maxSize = MAX_SIZE.defaultValue,
+            videoBitRate = VIDEO_BIT_RATE.defaultValue,
+            audioBitRate = AUDIO_BIT_RATE.defaultValue,
+            maxFps = MAX_FPS.defaultValue,
+            angle = ANGLE.defaultValue,
+            captureOrientation = CAPTURE_ORIENTATION.defaultValue,
+            captureOrientationLock = CAPTURE_ORIENTATION_LOCK.defaultValue,
+            displayOrientation = DISPLAY_ORIENTATION.defaultValue,
+            recordOrientation = RECORD_ORIENTATION.defaultValue,
+            displayImePolicy = DISPLAY_IME_POLICY.defaultValue,
+            displayId = DISPLAY_ID.defaultValue,
+            screenOffTimeout = SCREEN_OFF_TIMEOUT.defaultValue,
+            showTouches = SHOW_TOUCHES.defaultValue,
+            fullscreen = FULLSCREEN.defaultValue,
+            control = CONTROL.defaultValue,
+            videoPlayback = VIDEO_PLAYBACK.defaultValue,
+            audioPlayback = AUDIO_PLAYBACK.defaultValue,
+            turnScreenOff = TURN_SCREEN_OFF.defaultValue,
+            stayAwake = STAY_AWAKE.defaultValue,
+            disableScreensaver = DISABLE_SCREENSAVER.defaultValue,
+            powerOffOnClose = POWER_OFF_ON_CLOSE.defaultValue,
+            downsizeOnError = DOWNSIZE_ON_ERROR.defaultValue,
+            cleanup = CLEANUP.defaultValue,
+            powerOn = POWER_ON.defaultValue,
+            video = VIDEO.defaultValue,
+            audio = AUDIO.defaultValue,
+            requireAudio = REQUIRE_AUDIO.defaultValue,
+            killAdbOnClose = KILL_ADB_ON_CLOSE.defaultValue,
+            cameraHighSpeed = CAMERA_HIGH_SPEED.defaultValue,
+            list = LIST.defaultValue,
+            audioDup = AUDIO_DUP.defaultValue,
+            newDisplay = NEW_DISPLAY.defaultValue,
+            startApp = START_APP.defaultValue,
+            startAppCustom = START_APP_CUSTOM.defaultValue,
+            startAppUseCustom = START_APP_USE_CUSTOM.defaultValue,
+            vdDestroyContent = VD_DESTROY_CONTENT.defaultValue,
+            vdSystemDecorations = VD_SYSTEM_DECORATIONS.defaultValue,
+        )
     }
 
     val crop by setting(CROP)
@@ -424,7 +486,7 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
 
     val bundleState: StateFlow<Bundle> = createBundleState(::bundleFromPreferences)
 
-    private fun bundleFromPreferences(preferences: Preferences) = Bundle(
+    private fun bundleFromPreferences(preferences: Preferences) = defaultBundle().copy(
         crop = preferences.read(CROP),
         recordFilename = preferences.read(RECORD_FILENAME),
         videoCodecOptions = preferences.read(VIDEO_CODEC_OPTIONS),

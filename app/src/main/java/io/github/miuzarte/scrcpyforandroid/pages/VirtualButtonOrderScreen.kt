@@ -127,8 +127,27 @@ internal fun VirtualButtonOrderPage(
                             icon = action.icon,
                             title = if (action.keycode == null) action.title else "${action.title} (${action.keycode})",
                             subtitle = if (item.showOutside) "显示在外部" else "显示在更多菜单内",
-                            checked = item.showOutside,
-                            checkboxEnabled = action != VirtualButtonAction.MORE,
+                            endActions = listOf(
+                                ReorderableList.EndAction.Checkbox(
+                                    checked = item.showOutside,
+                                    enabled = action != VirtualButtonAction.MORE,
+                                    onClick = {
+                                        val checked = !item.showOutside
+                                        buttonItems = buttonItems.map { current ->
+                                            if (current.action.id == action.id) {
+                                                current.copy(showOutside = checked)
+                                            } else {
+                                                current
+                                            }
+                                        }
+                                        asBundle = asBundle.copy(
+                                            virtualButtonsLayout = VirtualButtonActions.encodeStoredLayout(
+                                                buttonItems
+                                            )
+                                        )
+                                    },
+                                )
+                            ),
                         )
                     }
                 },
@@ -136,19 +155,6 @@ internal fun VirtualButtonOrderPage(
                 onSettle = { fromIndex, toIndex ->
                     buttonItems = buttonItems.toMutableList().apply {
                         add(toIndex, removeAt(fromIndex))
-                    }
-                    asBundle = asBundle.copy(
-                        virtualButtonsLayout = VirtualButtonActions.encodeStoredLayout(buttonItems)
-                    )
-                },
-                showCheckbox = true,
-                onCheckboxChange = { id, checked ->
-                    buttonItems = buttonItems.map { item ->
-                        if (item.action.id == id) {
-                            item.copy(showOutside = checked)
-                        } else {
-                            item
-                        }
                     }
                     asBundle = asBundle.copy(
                         virtualButtonsLayout = VirtualButtonActions.encodeStoredLayout(buttonItems)

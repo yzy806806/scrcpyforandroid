@@ -1,11 +1,14 @@
 package io.github.miuzarte.scrcpyforandroid.widgets
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.DragIndicator
@@ -34,18 +37,31 @@ class ReorderableList(
     private val orientation: Orientation = Orientation.Column,
     private val onSettle: (fromIndex: Int, toIndex: Int) -> Unit = { _, _ -> },
     private val modifier: Modifier = Modifier,
-    private val showCheckbox: Boolean = false,
-    private val onCheckboxChange: ((String, Boolean) -> Unit)? = null,
 ) {
     enum class Orientation { Column, Row; }
+
+    sealed interface EndAction {
+        data class Icon(
+            val icon: ImageVector,
+            val contentDescription: String,
+            val onClick: () -> Unit,
+        ) : EndAction
+
+        data class Checkbox(
+            val checked: Boolean,
+            val enabled: Boolean = true,
+            val onClick: () -> Unit,
+        ) : EndAction
+    }
 
     data class Item(
         val id: String,
         val icon: ImageVector? = null,
         val title: String,
         val subtitle: String,
-        val checked: Boolean = true,
-        val checkboxEnabled: Boolean = true,
+        val onClick: (() -> Unit)? = null,
+        val dragEnabled: Boolean = true,
+        val endActions: List<EndAction> = emptyList(),
     )
 
     @Composable
@@ -69,6 +85,7 @@ class ReorderableList(
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
+                                        .height(IntrinsicSize.Min)
                                         .padding(
                                             horizontal = UiSpacing.CardTitle,
                                             vertical = UiSpacing.FieldLabelBottom
@@ -77,6 +94,16 @@ class ReorderableList(
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
                                     Row(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .fillMaxHeight()
+                                            .then(
+                                                if (item.onClick != null) {
+                                                    Modifier.clickable(onClick = item.onClick)
+                                                } else {
+                                                    Modifier
+                                                }
+                                            ),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)
                                     ) {
@@ -101,32 +128,33 @@ class ReorderableList(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)
                                     ) {
-                                        if (showCheckbox) Checkbox(
-                                            state = if (item.checked) ToggleableState.On else ToggleableState.Off,
-                                            onClick = {
-                                                onCheckboxChange?.invoke(item.id, !item.checked)
-                                            },
-                                            enabled = item.checkboxEnabled
-                                        )
-                                        IconButton(
-                                            onClick = {
-                                                haptics.contextClick()
-                                            },
-                                            modifier = Modifier
-                                                .draggableHandle(
-                                                    onDragStarted = {
-                                                        haptics.longPress()
-                                                    },
-                                                    onDragStopped = {
-                                                        haptics.confirm()
-                                                    },
-                                                ),
-                                        ) {
-                                            Icon(
-                                                Icons.Rounded.DragIndicator,
-                                                contentDescription = "拖动排序",
-                                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                        item.endActions.forEach { action ->
+                                            EndActionView(
+                                                action = action,
+                                                fallbackContentDescription = item.title,
                                             )
+                                        }
+                                        if (item.dragEnabled) {
+                                            IconButton(
+                                                onClick = {
+                                                    haptics.contextClick()
+                                                },
+                                                modifier = Modifier
+                                                    .draggableHandle(
+                                                        onDragStarted = {
+                                                            haptics.longPress()
+                                                        },
+                                                        onDragStopped = {
+                                                            haptics.confirm()
+                                                        },
+                                                    ),
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.DragIndicator,
+                                                    contentDescription = "拖动排序",
+                                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                )
+                                            }
                                         }
                                     }
                                 }
@@ -158,35 +186,41 @@ class ReorderableList(
                                     horizontalAlignment = Alignment.CenterHorizontally,
                                 ) {
                                     Row(
+                                        modifier = Modifier.then(
+                                            if (item.onClick != null) {
+                                                Modifier.clickable(onClick = item.onClick)
+                                            } else {
+                                                Modifier
+                                            }
+                                        ),
                                         verticalAlignment = Alignment.CenterVertically,
                                     ) {
-                                        if (showCheckbox) {
-                                            Checkbox(
-                                                state = if (item.checked) ToggleableState.On else ToggleableState.Off,
-                                                onClick = {
-                                                    onCheckboxChange?.invoke(item.id, !item.checked)
-                                                },
-                                                enabled = item.checkboxEnabled
+                                        item.endActions.forEach { action ->
+                                            EndActionView(
+                                                action = action,
+                                                fallbackContentDescription = item.title,
                                             )
                                             Spacer(Modifier.padding(horizontal = 4.dp))
                                         }
-                                        IconButton(
-                                            onClick = {},
-                                            modifier = Modifier
-                                                .draggableHandle(
-                                                    onDragStarted = {
-                                                        haptics.longPress()
-                                                    },
-                                                    onDragStopped = {
-                                                        haptics.confirm()
-                                                    },
-                                                ),
-                                        ) {
-                                            Icon(
-                                                Icons.Rounded.DragIndicator,
-                                                contentDescription = "拖动排序",
-                                                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
-                                            )
+                                        if (item.dragEnabled) {
+                                            IconButton(
+                                                onClick = {},
+                                                modifier = Modifier
+                                                    .draggableHandle(
+                                                        onDragStarted = {
+                                                            haptics.longPress()
+                                                        },
+                                                        onDragStopped = {
+                                                            haptics.confirm()
+                                                        },
+                                                    ),
+                                            ) {
+                                                Icon(
+                                                    Icons.Rounded.DragIndicator,
+                                                    contentDescription = "拖动排序",
+                                                    tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+                                                )
+                                            }
                                         }
                                     }
                                     Spacer(Modifier.padding(UiSpacing.ContentVertical))
@@ -208,6 +242,32 @@ class ReorderableList(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun EndActionView(
+    action: ReorderableList.EndAction,
+    fallbackContentDescription: String,
+) {
+    when (action) {
+        is ReorderableList.EndAction.Checkbox -> Checkbox(
+            state = if (action.checked) ToggleableState.On else ToggleableState.Off,
+            onClick = action.onClick,
+            enabled = action.enabled,
+        )
+
+        is ReorderableList.EndAction.Icon -> IconButton(
+            onClick = action.onClick,
+        ) {
+            Icon(
+                action.icon,
+                contentDescription = action.contentDescription.ifBlank {
+                    fallbackContentDescription
+                },
+                tint = MiuixTheme.colorScheme.onSurfaceVariantSummary,
+            )
         }
     }
 }
