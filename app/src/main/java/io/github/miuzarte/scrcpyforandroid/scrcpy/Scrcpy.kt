@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -93,6 +94,8 @@ class Scrcpy(
             Regex("""--camera-id=(\S+)\s+\(([^,]+),\s*([0-9]+x[0-9]+),\s*fps=\[([0-9,\s]+)\]\)""")
         private val APP_REGEX =
             Regex("""^\s*([*-])\s+(.+?)\s{2,}([A-Za-z0-9._]+)\s*$""", RegexOption.MULTILINE)
+        private val RECENT_TASK_PACKAGE_REGEX =
+            Regex("""\bcmp=([A-Za-z0-9._]+)/""")
 
         fun generateScid(): UInt {
             // Only use 31 bits to avoid issues with signed values on the Java-side
@@ -308,6 +311,11 @@ class Scrcpy(
         private val camerasMutex = Mutex()
         private val cameraSizesMutex = Mutex()
         private val appsMutex = Mutex()
+        private val recentTasksMutex = Mutex()
+
+        private val _refreshBusy = MutableStateFlow(false)
+        private val _refreshVersion = MutableStateFlow(0)
+        private val _refreshCounter = MutableStateFlow(0)
 
         @Volatile
         private var cachedVideoEncoders: List<EncoderInfo>? = null
@@ -327,12 +335,23 @@ class Scrcpy(
         @Volatile
         private var cachedApps: List<AppInfo>? = null
 
+        @Volatile
+        private var cachedAppsByPackage: Map<String, AppInfo> = emptyMap()
+
+        @Volatile
+        private var cachedRecentTasks: List<RecentTaskInfo>? = null
+
+        val refreshBusyState: StateFlow<Boolean> = _refreshBusy.asStateFlow()
+        val refreshVersionState: StateFlow<Int> = _refreshVersion.asStateFlow()
         val videoEncoders: List<EncoderInfo> get() = cachedVideoEncoders.orEmpty()
         val audioEncoders: List<EncoderInfo> get() = cachedAudioEncoders.orEmpty()
         val displays: List<DisplayInfo> get() = cachedDisplays.orEmpty()
         val cameras: List<CameraInfo> get() = cachedCameras.orEmpty()
         val cameraSizes: List<String> get() = cachedCameraSizes.orEmpty()
         val apps: List<AppInfo> get() = cachedApps.orEmpty()
+        val recentTasks: List<RecentTaskInfo> get() = cachedRecentTasks.orEmpty()
+
+        fun findCachedApp(packageName: String): AppInfo? = cachedAppsByPackage[packageName]
 
         suspend fun getVideoEncoders(forceRefresh: Boolean = false): List<EncoderInfo> {
             cachedVideoEncoders?.takeUnless { forceRefresh }?.let { return it }
@@ -353,16 +372,18 @@ class Scrcpy(
                 if (!forceRefresh && cachedVideoEncoders != null && cachedAudioEncoders != null)
                     return@withLock cachedVideoEncoders.orEmpty() to cachedAudioEncoders.orEmpty()
 
-                val output = executeList(ListOptions.ENCODERS)
-                val (video, audio) = parseEncoders(output)
-                cachedVideoEncoders = video
-                cachedAudioEncoders = audio
-                logListPreview(
-                    list = ListOptions.ENCODERS,
-                    countSummary = "video=${video.size} audio=${audio.size}",
-                    output = output,
-                )
-                video to audio
+                runTrackedFetch {
+                    val output = executeList(ListOptions.ENCODERS)
+                    val (video, audio) = parseEncoders(output)
+                    cachedVideoEncoders = video
+                    cachedAudioEncoders = audio
+                    logListPreview(
+                        list = ListOptions.ENCODERS,
+                        countSummary = "video=${video.size} audio=${audio.size}",
+                        output = output,
+                    )
+                    video to audio
+                }
             }
         }
 
@@ -370,15 +391,17 @@ class Scrcpy(
             cachedDisplays?.takeUnless { forceRefresh }?.let { return it }
             return displaysMutex.withLock {
                 cachedDisplays?.takeUnless { forceRefresh } ?: run {
-                    val output = executeList(ListOptions.DISPLAYS)
-                    val parsed = parseDisplays(output)
-                    cachedDisplays = parsed
-                    logListPreview(
-                        list = ListOptions.DISPLAYS,
-                        countSummary = "displays=${parsed.size}",
-                        output = output,
-                    )
-                    parsed
+                    runTrackedFetch {
+                        val output = executeList(ListOptions.DISPLAYS)
+                        val parsed = parseDisplays(output)
+                        cachedDisplays = parsed
+                        logListPreview(
+                            list = ListOptions.DISPLAYS,
+                            countSummary = "displays=${parsed.size}",
+                            output = output,
+                        )
+                        parsed
+                    }
                 }
             }
         }
@@ -387,15 +410,17 @@ class Scrcpy(
             cachedCameras?.takeUnless { forceRefresh }?.let { return it }
             return camerasMutex.withLock {
                 cachedCameras?.takeUnless { forceRefresh } ?: run {
-                    val output = executeList(ListOptions.CAMERAS)
-                    val parsed = parseCameras(output)
-                    cachedCameras = parsed
-                    logListPreview(
-                        list = ListOptions.CAMERAS,
-                        countSummary = "cameras=${parsed.size}",
-                        output = output,
-                    )
-                    parsed
+                    runTrackedFetch {
+                        val output = executeList(ListOptions.CAMERAS)
+                        val parsed = parseCameras(output)
+                        cachedCameras = parsed
+                        logListPreview(
+                            list = ListOptions.CAMERAS,
+                            countSummary = "cameras=${parsed.size}",
+                            output = output,
+                        )
+                        parsed
+                    }
                 }
             }
         }
@@ -404,18 +429,20 @@ class Scrcpy(
             cachedCameraSizes?.takeUnless { forceRefresh }?.let { return it }
             return cameraSizesMutex.withLock {
                 cachedCameraSizes?.takeUnless { forceRefresh } ?: run {
-                    val output = executeList(ListOptions.CAMERA_SIZES)
-                    val parsed = parseCameraSizes(output)
-                        .sortedWith(compareByDescending { size ->
-                            size.substringBefore('x').toIntOrNull() ?: 0
-                        })
-                    cachedCameraSizes = parsed
-                    logListPreview(
-                        list = ListOptions.CAMERA_SIZES,
-                        countSummary = "sizes=${parsed.size}",
-                        output = output,
-                    )
-                    parsed
+                    runTrackedFetch {
+                        val output = executeList(ListOptions.CAMERA_SIZES)
+                        val parsed = parseCameraSizes(output)
+                            .sortedWith(compareByDescending { size ->
+                                size.substringBefore('x').toIntOrNull() ?: 0
+                            })
+                        cachedCameraSizes = parsed
+                        logListPreview(
+                            list = ListOptions.CAMERA_SIZES,
+                            countSummary = "sizes=${parsed.size}",
+                            output = output,
+                        )
+                        parsed
+                    }
                 }
             }
         }
@@ -424,19 +451,55 @@ class Scrcpy(
             cachedApps?.takeUnless { forceRefresh }?.let { return it }
             return appsMutex.withLock {
                 cachedApps?.takeUnless { forceRefresh } ?: run {
-                    val output = executeList(ListOptions.APPS)
-                    val parsed = parseApps(output)
-                    cachedApps = parsed
-                    logListPreview(
-                        list = ListOptions.APPS,
-                        countSummary = "apps=${parsed.size}",
-                        output = output,
-                    )
-                    parsed
+                    runTrackedFetch {
+                        val output = executeList(ListOptions.APPS)
+                        val parsed = parseApps(output)
+                        cachedApps = parsed
+                        cachedAppsByPackage = parsed.associateBy { it.packageName }
+                        cachedRecentTasks = cachedRecentTasks?.map { task ->
+                            task.copy(appLabel = cachedAppsByPackage[task.packageName]?.label)
+                        }
+                        logListPreview(
+                            list = ListOptions.APPS,
+                            countSummary = "apps=${parsed.size}",
+                            output = output,
+                        )
+                        parsed
+                    }
                 }
             }
         }
 
+        suspend fun getRecentTasks(forceRefresh: Boolean = false): List<RecentTaskInfo> {
+            cachedRecentTasks?.takeUnless { forceRefresh }?.let { return it }
+            return recentTasksMutex.withLock {
+                cachedRecentTasks?.takeUnless { forceRefresh } ?: run {
+                    runTrackedFetch {
+                        val output = NativeAdbService.shell("dumpsys activity recents")
+                        val parsed = parseRecentTasks(output).map { task ->
+                            task.copy(appLabel = cachedAppsByPackage[task.packageName]?.label)
+                        }
+                        cachedRecentTasks = parsed
+                        Log.i(TAG, "recentTasks(): parsed count=${parsed.size}")
+                        parsed
+                    }
+                }
+            }
+        }
+
+        private suspend fun <T> runTrackedFetch(block: suspend () -> T): T {
+            _refreshCounter.update { it + 1 }
+            _refreshBusy.value = true
+            return try {
+                block().also {
+                    _refreshVersion.update { it + 1 }
+                }
+            } finally {
+                val remaining = (_refreshCounter.value - 1).coerceAtLeast(0)
+                _refreshCounter.value = remaining
+                _refreshBusy.value = remaining > 0
+            }
+        }
     }
 
     private suspend fun executeList(list: ListOptions): String = withContext(Dispatchers.IO) {
@@ -570,6 +633,21 @@ class Scrcpy(
         return apps.toList()
     }
 
+    private fun parseRecentTasks(output: String): List<RecentTaskInfo> {
+        val packages = LinkedHashSet<String>()
+        RECENT_TASK_PACKAGE_REGEX.findAll(output).forEach { match ->
+            val packageName = match.groupValues[1].trim()
+            if (packageName.isNotBlank()) {
+                packages += packageName
+            }
+        }
+        return packages.map { packageName ->
+            RecentTaskInfo(
+                packageName = packageName,
+            )
+        }
+    }
+
     data class EncoderInfo(
         val codec: Codec,
         val id: String,
@@ -595,6 +673,11 @@ class Scrcpy(
         val system: Boolean,
         val label: String,
         val packageName: String,
+    )
+
+    data class RecentTaskInfo(
+        val packageName: String,
+        val appLabel: String? = null,
     )
 
     private suspend fun executeServer(

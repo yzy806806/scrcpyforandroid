@@ -2,14 +2,22 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
 import android.util.Log
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -22,14 +30,19 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.BlendModeColorFilter
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
-import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
@@ -60,7 +73,6 @@ import io.github.miuzarte.scrcpyforandroid.widgets.PreviewCard
 import io.github.miuzarte.scrcpyforandroid.widgets.QuickConnectCard
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.widgets.StatusCard
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonCard
 import kotlinx.coroutines.CoroutineScope
@@ -79,11 +91,20 @@ import top.yukonga.miuix.kmp.basic.ListPopupDefaults
 import top.yukonga.miuix.kmp.basic.PopupPositionProvider
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
+import top.yukonga.miuix.kmp.basic.SpinnerColors
+import top.yukonga.miuix.kmp.basic.SpinnerDefaults
+import top.yukonga.miuix.kmp.basic.SpinnerEntry
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.basic.Check
+import top.yukonga.miuix.kmp.icon.extended.Store
+import top.yukonga.miuix.kmp.icon.extended.Tune
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
+import androidx.compose.foundation.lazy.LazyColumn as FoundationLazyColumn
 
 private const val ADB_CONNECT_TIMEOUT_MS = 12_000L
 private const val ADB_KEEPALIVE_INTERVAL_MS = 3_000L
@@ -256,10 +277,12 @@ fun DeviceTabPage(
     var busy by rememberSaveable { mutableStateOf(false) }
     var adbSession by rememberSaveable { mutableStateOf(DeviceAdbSessionState()) }
     val sessionInfo by scrcpy.currentSessionState.collectAsState()
+    val listingsRefreshBusy by scrcpy.listings.refreshBusyState.collectAsState()
     var editingDeviceId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeDeviceActionId by rememberSaveable { mutableStateOf<String?>(null) }
     var adbConnecting by rememberSaveable { mutableStateOf(false) }
     var pendingScrollToPreview by rememberSaveable { mutableStateOf(false) }
+    var showRecentTasksSheet by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val isPreviewCardVisible by remember(listState) {
         derivedStateOf {
@@ -275,6 +298,7 @@ fun DeviceTabPage(
     val connectedScrcpyProfileId = adbSession.connectedScrcpyProfileId
     val audioForwardingSupported = adbSession.audioForwardingSupported
     val cameraMirroringSupported = adbSession.cameraMirroringSupported
+    val recentTasks = scrcpy.listings.recentTasks
 
     fun resolveScrcpyBundle(profileId: String): ScrcpyOptions.Bundle {
         if (profileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
@@ -611,13 +635,20 @@ fun DeviceTabPage(
         )
     }
 
-    suspend fun startScrcpySession(openFullscreen: Boolean = false) {
+    suspend fun startScrcpySession(
+        openFullscreen: Boolean = false,
+        startAppOverride: String? = null,
+    ) {
         val activeBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
         val options = scrcpyOptions.toClientOptions(activeBundle).fix()
-        val session = scrcpy.start(options)
+        val resolvedOptions = startAppOverride
+            ?.takeIf { it.isNotBlank() }
+            ?.let { options.copy(startApp = it) }
+            ?: options
+        val session = scrcpy.start(resolvedOptions)
         pendingScrollToPreview = true
         val startAppRequest = runCatching {
-            resolveStartAppRequest(scrcpy, options)
+            resolveStartAppRequest(scrcpy, resolvedOptions)
         }.getOrElse { error ->
             logEvent(
                 "启动应用请求无效: ${
@@ -629,7 +660,7 @@ fun DeviceTabPage(
             null
         }
         startAppRequest?.let { request ->
-            if (options.newDisplay.isNotBlank() && request.displayId == null) {
+            if (resolvedOptions.newDisplay.isNotBlank() && request.displayId == null) {
                 logEvent(
                     "当前实现无法获取 new display 的真实 displayId，应用会启动到默认显示",
                     Log.WARN,
@@ -657,30 +688,30 @@ fun DeviceTabPage(
                 )
             }
         }
-        if (options.fullscreen || openFullscreen) withContext(Dispatchers.Main) {
+        if (resolvedOptions.fullscreen || openFullscreen) withContext(Dispatchers.Main) {
             context.startActivity(StreamActivity.createIntent(context))
         }
-        if (options.disableScreensaver)
+        if (resolvedOptions.disableScreensaver)
             AppWakeLocks.acquire()
 
         adbSession = adbSession.copy(statusLine = "scrcpy 运行中")
         @SuppressLint("DefaultLocale")
         val videoDetail =
-            if (!options.video) "off"
+            if (!resolvedOptions.video) "off"
             else if (activeBundle.videoBitRate <= 0) "${session.codec?.string ?: "null"} ${session.width}x${session.height} @default"
             else "${session.codec?.string ?: "null"} ${session.width}x${session.height} " +
                     "@${String.format("%.1f", activeBundle.videoBitRate / 1_000_000f)}Mbps"
 
         val audioDetail =
             if (!activeBundle.audio) "off"
-            else if (activeBundle.audioBitRate <= 0) "${options.audioCodec} default source=${options.audioSource}"
-            else "${options.audioCodec} ${activeBundle.audioBitRate / 1_000f}Kbps source=${options.audioSource}${if (!options.audioPlayback) "(no-playback)" else ""}"
+            else if (activeBundle.audioBitRate <= 0) "${resolvedOptions.audioCodec} default source=${resolvedOptions.audioSource}"
+            else "${resolvedOptions.audioCodec} ${activeBundle.audioBitRate / 1_000f}Kbps source=${resolvedOptions.audioSource}${if (!resolvedOptions.audioPlayback) "(no-playback)" else ""}"
 
         logEvent(
             "scrcpy 已启动: device=${session.deviceName}" +
                     ", video=$videoDetail, audio=$audioDetail" +
-                    ", control=${options.control}, turnScreenOff=${options.turnScreenOff}" +
-                    ", maxSize=${options.maxSize}, maxFps=${options.maxFps}"
+                    ", control=${resolvedOptions.control}, turnScreenOff=${resolvedOptions.turnScreenOff}" +
+                    ", maxSize=${resolvedOptions.maxSize}, maxFps=${resolvedOptions.maxFps}"
         )
         snackbar.show("scrcpy 已启动")
     }
@@ -742,9 +773,32 @@ fun DeviceTabPage(
                     "sdk=${info.sdkInt}"
         )
         snackbar.show("ADB 已连接")
+        scope.launch(Dispatchers.IO) {
+            runCatching {
+                scrcpy.listings.getApps(forceRefresh = true)
+            }.onFailure { error ->
+                logEvent("获取应用列表失败: ${error.message}", Log.WARN, error)
+            }
+        }
 
         if (autoStartScrcpy && sessionInfo == null) runBusy("启动 scrcpy") {
             startScrcpySession(openFullscreen = autoStartScrcpy && autoEnterFullScreen)
+        }
+    }
+
+    LaunchedEffect(
+        adbConnected,
+        currentTarget?.host,
+        currentTarget?.port,
+        isAppInForeground,
+    ) {
+        if (!adbConnected || !isAppInForeground) return@LaunchedEffect
+        withContext(Dispatchers.IO) {
+            runCatching {
+                scrcpy.listings.getRecentTasks(forceRefresh = true)
+            }.onFailure { error ->
+                logEvent("获取最近任务失败: ${error.message}", Log.WARN, error)
+            }
         }
     }
 
@@ -992,6 +1046,33 @@ fun DeviceTabPage(
                     cameraMirroringSupported = cameraMirroringSupported,
                     adbConnecting = adbConnecting,
                     isQuickConnected = isQuickConnected,
+                    recentTasksEndAction = {
+                        Text(
+                            text = when {
+                                listingsRefreshBusy -> "..."
+                                recentTasks.isNotEmpty() -> recentTasks.size.toString()
+                                else -> "空"
+                            },
+                            color = MiuixTheme.colorScheme.onSurfaceVariantActions,
+                            fontSize = MiuixTheme.textStyles.body2.fontSize,
+                            modifier = Modifier.padding(end = UiSpacing.ContentVertical),
+                        )
+                    },
+                    onOpenRecentTasks = {
+                        showRecentTasksSheet = true
+                        if (recentTasks.isEmpty() && !listingsRefreshBusy) {
+                            scope.launch(Dispatchers.IO) {
+                                runCatching {
+                                    scrcpy.listings.getRecentTasks(forceRefresh = true)
+                                }.onFailure { error ->
+                                    logEvent("获取最近任务失败: ${error.message}", Log.WARN, error)
+                                    withContext(Dispatchers.Main) {
+                                        snackbar.show("获取最近任务失败")
+                                    }
+                                }
+                            }
+                        }
+                    },
                     onOpenAdvanced = { navigator.push(RootScreen.Advanced) },
                     onStartStopHaptic = { haptics.contextClick() },
                     onStart = {
@@ -1067,6 +1148,32 @@ fun DeviceTabPage(
 
         item { Spacer(Modifier.height(UiSpacing.PageBottom)) }
     }
+
+    RecentTasksBottomSheet(
+        show = showRecentTasksSheet,
+        tasks = recentTasks,
+        scrcpy = scrcpy,
+        refreshBusy = listingsRefreshBusy,
+        onDismissRequest = { showRecentTasksSheet = false },
+        onRefresh = {
+            scope.launch(Dispatchers.IO) {
+                runCatching {
+                    scrcpy.listings.getRecentTasks(forceRefresh = true)
+                }.onFailure { error ->
+                    logEvent("获取最近任务失败: ${error.message}", Log.WARN, error)
+                    withContext(Dispatchers.Main) {
+                        snackbar.show("获取最近任务失败")
+                    }
+                }
+            }
+        },
+        onLaunchTask = { task ->
+            showRecentTasksSheet = false
+            runBusy("启动 scrcpy") {
+                startScrcpySession(startAppOverride = task.packageName)
+            }
+        },
+    )
 }
 
 @Composable
@@ -1106,6 +1213,153 @@ private fun DeviceMenuPopup(
                 onSelectedIndexChange = { onClearLogs() },
             )
         }
+    }
+}
+
+@Composable
+private fun RecentTasksBottomSheet(
+    show: Boolean,
+    tasks: List<Scrcpy.RecentTaskInfo>,
+    scrcpy: Scrcpy,
+    refreshBusy: Boolean,
+    onDismissRequest: () -> Unit,
+    onRefresh: () -> Unit,
+    onLaunchTask: (Scrcpy.RecentTaskInfo) -> Unit,
+) {
+    val spinnerColors = SpinnerDefaults.spinnerColors()
+    OverlayBottomSheet(
+        show = show,
+        title = "最近任务",
+        onDismissRequest = onDismissRequest,
+        endAction = {
+            IconButton(
+                onClick = {
+                    if (!refreshBusy) {
+                        onRefresh()
+                    }
+                },
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Refresh,
+                    contentDescription = "刷新最近任务",
+                )
+            }
+        },
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+        ) {
+            when {
+                tasks.isEmpty() && refreshBusy -> {
+                    Text(
+                        text = "最近任务加载中",
+                        modifier = Modifier.padding(horizontal = UiSpacing.Large),
+                    )
+                }
+
+                tasks.isEmpty() -> {
+                    Text(
+                        text = "没有可用的最近任务",
+                        modifier = Modifier.padding(horizontal = UiSpacing.Large),
+                    )
+                }
+
+                else -> {
+                    FoundationLazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 420.dp),
+                    ) {
+                        items(tasks.size) { index ->
+                            val task = tasks[index]
+                            val app = scrcpy.listings.findCachedApp(task.packageName)
+                            val entry = SpinnerEntry(
+                                icon = { modifier ->
+                                    Icon(
+                                        imageVector = if (app?.system == true) MiuixIcons.Tune else MiuixIcons.Store,
+                                        contentDescription = task.packageName,
+                                        modifier = modifier,
+                                    )
+                                },
+                                title = app?.label?.takeIf { it.isNotBlank() } ?: task.packageName,
+                                summary = task.packageName,
+                            )
+                            RecentTaskSheetItem(
+                                entry = entry,
+                                entryCount = tasks.size,
+                                index = index,
+                                spinnerColors = spinnerColors,
+                                onClick = { onLaunchTask(task) },
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(UiSpacing.SheetBottom))
+        }
+    }
+}
+
+@Composable
+private fun RecentTaskSheetItem(
+    entry: SpinnerEntry,
+    entryCount: Int,
+    index: Int,
+    spinnerColors: SpinnerColors,
+    onClick: () -> Unit,
+) {
+    val additionalTopPadding = if (index == 0) 20.dp else 12.dp
+    val additionalBottomPadding = if (index == entryCount - 1) 20.dp else 12.dp
+    val checkColorFilter = remember {
+        BlendModeColorFilter(Color.Transparent, BlendMode.SrcIn)
+    }
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+        modifier = Modifier
+            .fillMaxWidth()
+            .drawBehind { drawRect(spinnerColors.containerColor) }
+            .clickable(onClick = onClick)
+            .padding(horizontal = 20.dp)
+            .padding(top = additionalTopPadding, bottom = additionalBottomPadding),
+    ) {
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Start,
+        ) {
+            entry.icon?.invoke(
+                Modifier
+                    .sizeIn(minWidth = 26.dp, minHeight = 26.dp)
+                    .padding(end = 12.dp)
+            )
+            Column {
+                entry.title?.let {
+                    Text(
+                        text = it,
+                        fontSize = MiuixTheme.textStyles.body1.fontSize,
+                        fontWeight = FontWeight.Medium,
+                        color = spinnerColors.contentColor,
+                    )
+                }
+                entry.summary?.let {
+                    Text(
+                        text = it,
+                        fontSize = MiuixTheme.textStyles.body2.fontSize,
+                        color = spinnerColors.summaryColor,
+                    )
+                }
+            }
+        }
+        Image(
+            imageVector = MiuixIcons.Basic.Check,
+            contentDescription = null,
+            modifier = Modifier
+                .padding(start = 12.dp)
+                .sizeIn(minWidth = 20.dp, minHeight = 20.dp),
+            colorFilter = checkColorFilter,
+        )
     }
 }
 

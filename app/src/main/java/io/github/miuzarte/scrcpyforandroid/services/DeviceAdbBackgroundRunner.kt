@@ -3,11 +3,11 @@ package io.github.miuzarte.scrcpyforandroid.services
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExecutorCoroutineDispatcher
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.Closeable
 import java.util.concurrent.Executors
-import kotlinx.coroutines.asCoroutineDispatcher
 
 internal class DeviceAdbBackgroundRunner : Closeable {
     private val executor = Executors.newSingleThreadExecutor { runnable ->

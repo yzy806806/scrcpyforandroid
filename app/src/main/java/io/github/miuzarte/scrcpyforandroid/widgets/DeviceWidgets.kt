@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -399,6 +400,8 @@ internal fun ConfigPanel(
     cameraMirroringSupported: Boolean,
     adbConnecting: Boolean,
     isQuickConnected: Boolean,
+    recentTasksEndAction: @Composable (RowScope.() -> Unit)? = null,
+    onOpenRecentTasks: (() -> Unit)? = null,
     onOpenAdvanced: () -> Unit,
     onStartStopHaptic: (() -> Unit)? = null,
     onStart: () -> Unit,
@@ -575,6 +578,16 @@ internal fun ConfigPanel(
             onClick = onOpenAdvanced,
             enabled = !sessionStarted,
         )
+        if (onOpenRecentTasks != null) {
+            ArrowPreference(
+                title = "最近任务",
+                endActions = {
+                    recentTasksEndAction?.invoke(this)
+                },
+                onClick = onOpenRecentTasks,
+                enabled = !busy && !adbConnecting,
+            )
+        }
 
         Row(
             modifier = Modifier

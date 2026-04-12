@@ -25,7 +25,6 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -401,8 +400,8 @@ internal fun ScrcpyAllOptionsPage(
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
     val snackbar = LocalSnackbarController.current
 
-    var refreshBusy by rememberSaveable { mutableStateOf(false) }
-    var listRefreshVersion by rememberSaveable { mutableIntStateOf(0) }
+    val refreshBusy by scrcpy.listings.refreshBusyState.collectAsState()
+    val listRefreshVersion by scrcpy.listings.refreshVersionState.collectAsState()
 
     var selectedProfileId by selectedProfileIdState
     val selectedProfileIdLatest by rememberUpdatedState(selectedProfileId)
@@ -1058,18 +1057,14 @@ internal fun ScrcpyAllOptionsPage(
                             onClick = {
                                 if (refreshBusy) return@ArrowPreference
                                 scope.launch {
-                                    refreshBusy = true
                                     snackbar.show("获取中")
                                     try {
                                         withContext(Dispatchers.IO) {
                                             scrcpy.listings.getDisplays(forceRefresh = true)
                                         }
-                                        listRefreshVersion += 1
                                         snackbar.show("获取成功")
                                     } catch (e: Exception) {
                                         snackbar.show("刷新失败: ${e.message}")
-                                    } finally {
-                                        refreshBusy = false
                                     }
                                 }
                             },
@@ -1158,18 +1153,14 @@ internal fun ScrcpyAllOptionsPage(
                             onClick = {
                                 if (refreshBusy) return@ArrowPreference
                                 scope.launch {
-                                    refreshBusy = true
                                     snackbar.show("获取中")
                                     try {
                                         withContext(Dispatchers.IO) {
                                             scrcpy.listings.getCameras(forceRefresh = true)
                                         }
-                                        listRefreshVersion += 1
                                         snackbar.show("获取成功")
                                     } catch (e: Exception) {
                                         snackbar.show("刷新失败: ${e.message}")
-                                    } finally {
-                                        refreshBusy = false
                                     }
                                 }
                             },
@@ -1206,18 +1197,14 @@ internal fun ScrcpyAllOptionsPage(
                             onClick = {
                                 if (refreshBusy) return@ArrowPreference
                                 scope.launch {
-                                    refreshBusy = true
                                     snackbar.show("获取中")
                                     try {
                                         withContext(Dispatchers.IO) {
                                             scrcpy.listings.getCameraSizes(forceRefresh = true)
                                         }
-                                        listRefreshVersion += 1
                                         snackbar.show("获取成功")
                                     } catch (e: Exception) {
                                         snackbar.show("刷新失败: ${e.message}")
-                                    } finally {
-                                        refreshBusy = false
                                     }
                                 }
                             },
@@ -1397,18 +1384,14 @@ internal fun ScrcpyAllOptionsPage(
                     onClick = {
                         if (refreshBusy) return@ArrowPreference
                         scope.launch {
-                            refreshBusy = true
                             snackbar.show("获取中")
                             try {
                                 withContext(Dispatchers.IO) {
                                     scrcpy.listings.getEncoders(forceRefresh = true)
                                 }
-                                listRefreshVersion += 1
                                 snackbar.show("获取成功")
                             } catch (e: Exception) {
                                 snackbar.show("刷新失败: ${e.message}")
-                            } finally {
-                                refreshBusy = false
                             }
                         }
                     },
@@ -1547,18 +1530,14 @@ internal fun ScrcpyAllOptionsPage(
                     onClick = {
                         if (refreshBusy) return@ArrowPreference
                         scope.launch {
-                            refreshBusy = true
                             snackbar.show("获取中")
                             try {
                                 withContext(Dispatchers.IO) {
                                     scrcpy.listings.getApps(forceRefresh = true)
                                 }
-                                listRefreshVersion += 1
                                 snackbar.show("获取成功")
                             } catch (e: Exception) {
                                 snackbar.show("刷新失败: ${e.message}")
-                            } finally {
-                                refreshBusy = false
                             }
                         }
                     },
