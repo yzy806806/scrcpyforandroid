@@ -7,14 +7,17 @@
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/64e24f71-0326-407a-a527-070586bbec9a" height="320" alt="Screenshot 1" />
-  <img src="https://github.com/user-attachments/assets/74170ada-6dee-4ec7-ab24-c5ef2a231a47" height="320" alt="Screenshot 2" />
-  <img src="https://github.com/user-attachments/assets/6301f2fb-624b-4209-b548-6f37b9bcedc8" height="320" alt="Screenshot 3" />
-  <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="320" alt="Screenshot 4" />
-  <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="320" alt="Screenshot 5" />
+  <img src="https://github.com/user-attachments/assets/ff7ea4ff-c868-46c8-83cf-df904e083a8f" height="300" alt="Screenshot 1" />
+  <img src="https://github.com/user-attachments/assets/06a171c4-0c6b-4ef3-b9ea-1c964800cb30" height="300" alt="Screenshot 2" />
+  <img src="https://github.com/user-attachments/assets/078dbd33-3cef-47cb-82d9-da12933d8930" height="300" alt="Screenshot 3" />
+  <img src="https://github.com/user-attachments/assets/3831d760-fcdf-4ce2-b999-10fc4d2b143b" height="300" alt="Screenshot 4" />
+  <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="300" alt="Screenshot 5" />
+  <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="300" alt="Screenshot 6" />
+  <img src="https://github.com/user-attachments/assets/456cf5c7-27eb-4522-9201-a106d84960f3" height="300" alt="Screenshot 7" />
 </p>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="160" alt="Screenshot 6" />
+  <img src="https://github.com/user-attachments/assets/558bd1b1-15d2-47f8-bdc5-aac9cca689f5" height="180" alt="Screenshot 8" />
+  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="180" alt="Screenshot 9" />
 </p>
 
 ## Features
@@ -22,6 +25,7 @@
 - 可替换 scrcpy-server
 - 利用 mDNS 服务实现自动连接启用无线调试的设备、自动发现等待配对设备的IP与端口
 - 自动横竖屏切换（算吗
+- 画中画
 
 ## 已知问题
 
@@ -61,7 +65,7 @@ specific abi:
 - [Genymobile/scrcpy](https://github.com/Genymobile/scrcpy)
 - JNI ADB 实现: [rikkaapps/shizuku](https://github.com/rikkaapps/shizuku), [vvb2060/ndk.boringssl](https://github.com/vvb2060), [lsposed/libcxx](https://github.com/lsposed/libcxx)
 - 界面组件: [YuKongA/miuix](https://github.com/compose-miuix-ui/miuix)
-- 界面设计参考: [tiann/KernelSU/manager](https://github.com/tiann/KernelSU/tree/main/manager)
+- 界面设计参考: [tiann/KernelSU/manager](https://github.com/tiann/KernelSU/tree/main/manager), [miuix/example](https://github.com/compose-miuix-ui/miuix/tree/main/example)
 - 画中画实现参考: [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android)
 
 ## License

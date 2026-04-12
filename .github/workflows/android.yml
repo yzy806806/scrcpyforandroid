@@ -170,6 +170,8 @@ jobs:
           download_base_url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
 
           {
+            echo "建议优先下载具有稳定签名的 **release** 构建"
+            echo
             echo "| 架构 | 构建类型 | 文件 | SHA256 | 大小 |"
             echo "| --- | --- | --- | --- | --- |"
 
