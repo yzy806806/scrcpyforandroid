@@ -480,6 +480,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         bundleField(AUDIO_DUP) { bundle: Bundle -> bundle.audioDup },
         bundleField(NEW_DISPLAY) { bundle: Bundle -> bundle.newDisplay },
         bundleField(START_APP) { bundle: Bundle -> bundle.startApp },
+        bundleField(START_APP_CUSTOM) { bundle: Bundle -> bundle.startAppCustom },
+        bundleField(START_APP_USE_CUSTOM) { bundle: Bundle -> bundle.startAppUseCustom },
         bundleField(VD_DESTROY_CONTENT) { bundle: Bundle -> bundle.vdDestroyContent },
         bundleField(VD_SYSTEM_DECORATIONS) { bundle: Bundle -> bundle.vdSystemDecorations },
     )

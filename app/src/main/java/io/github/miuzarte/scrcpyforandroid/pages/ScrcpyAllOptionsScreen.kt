@@ -83,7 +83,6 @@ import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
 import top.yukonga.miuix.kmp.basic.TabRow
-import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.basic.TextField
@@ -261,7 +260,9 @@ internal fun ScrcpyAllOptionsScreen(
                                 }
                             }
                         },
-                        modifier = Modifier.padding(bottom = UiSpacing.Medium).padding(horizontal = UiSpacing.Medium),
+                        modifier = Modifier
+                            .padding(bottom = UiSpacing.Medium)
+                            .padding(horizontal = UiSpacing.Medium),
                         minWidth = 96.dp,
                         maxWidth = 192.dp,
                         height = 48.dp,
@@ -1105,7 +1106,9 @@ internal fun ScrcpyAllOptionsPage(
                             showKeyPoints = true,
                             keyPoints = ScrcpyPresets.MaxSize.indices.map { it.toFloat() },
                             displayText = soBundle.maxSize.toString(),
-                            inputInitialValue = soBundle.maxSize.takeIf { it != 0 }?.toString()
+                            inputInitialValue = soBundle.maxSize
+                                .takeIf { it != 0 }
+                                ?.toString()
                                 ?: "",
                             inputFilter = { it.filter(Char::isDigit) },
                             inputValueRange = 0f..UInt.MAX_VALUE.toFloat(),
@@ -1245,8 +1248,9 @@ internal fun ScrcpyAllOptionsPage(
 
                                     else -> {
                                         // 选择列表中的实际分辨率
+                                        val selectedCameraSize = cameraSizes[it - 2]
                                         soBundle = soBundle.copy(
-                                            cameraSize = cameraSizeDropdownItems[it],
+                                            cameraSize = selectedCameraSize,
                                             cameraSizeUseCustom = false,
                                         )
                                         cameraSizeCustomInput = ""
@@ -1597,11 +1601,9 @@ internal fun ScrcpyAllOptionsPage(
                         value = startAppCustomInput,
                         onValueChange = { startAppCustomInput = it },
                         onFocusLost = {
-                            val matchedAppIndex = apps
-                                .indexOfFirst { it.packageName == startAppCustomInput }
-                            soBundle = if (matchedAppIndex >= 0) {
+                            soBundle = if (startAppCustomInput in apps.map { it.packageName }) {
                                 soBundle.copy(
-                                    startApp = apps[matchedAppIndex].packageName,
+                                    startApp = startAppCustomInput,
                                     startAppUseCustom = false,
                                 )
                             } else {
