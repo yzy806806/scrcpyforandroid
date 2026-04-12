@@ -1,7 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.models
 
+import android.os.Parcelable
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import kotlinx.parcelize.Parcelize
 
 // Composable 用, 不可变 List
 class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> by devices {
@@ -182,10 +184,11 @@ data class DeviceShortcut(
     }
 }
 
+@Parcelize
 data class ConnectionTarget(
     val host: String,
     val port: Int = Defaults.ADB_PORT,
-) {
+) : Parcelable {
     override fun toString(): String = "$host:$port"
 
     companion object {

@@ -16,7 +16,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -26,6 +25,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
@@ -33,16 +35,18 @@ import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
-import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
+import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbBackgroundRunner
+import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbConnectionCoordinator
+import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbSessionState
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
-import io.github.miuzarte.scrcpyforandroid.services.fetchConnectedDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
@@ -66,7 +70,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeout
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -81,8 +84,6 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import java.net.InetSocketAddress
-import java.net.Socket
 
 private const val ADB_CONNECT_TIMEOUT_MS = 12_000L
 private const val ADB_KEEPALIVE_INTERVAL_MS = 3_000L
@@ -163,6 +164,9 @@ fun DeviceTabPage(
 
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
+    val adbCoordinator = remember { DeviceAdbConnectionCoordinator() }
+    val adbBackgroundRunner = remember { DeviceAdbBackgroundRunner() }
+    val lifecycleOwner = LocalLifecycleOwner.current
 
     val haptics = LocalAppHaptics.current
     val navigator = LocalRootNavigator.current
@@ -218,9 +222,31 @@ fun DeviceTabPage(
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
     val scrcpyProfilesState by scrcpyProfiles.state.collectAsState()
 
+    var isAppInForeground by rememberSaveable { mutableStateOf(true) }
+
     DisposableEffect(Unit) {
         onDispose {
             AppWakeLocks.release()
+        }
+    }
+    DisposableEffect(adbBackgroundRunner) {
+        onDispose {
+            adbBackgroundRunner.close()
+        }
+    }
+    DisposableEffect(lifecycleOwner) {
+        isAppInForeground =
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> isAppInForeground = true
+                Lifecycle.Event.ON_STOP -> isAppInForeground = false
+                else -> Unit
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -228,22 +254,11 @@ fun DeviceTabPage(
     // Try to avoid blocking UI/recomposition and keeps adb call ordering deterministic.
 
     var busy by rememberSaveable { mutableStateOf(false) }
-    var statusLine by rememberSaveable { mutableStateOf("未连接") }
-    var adbConnected by rememberSaveable { mutableStateOf(false) }
-    var isQuickConnected by rememberSaveable { mutableStateOf(false) }
-    var currentTargetHost by rememberSaveable { mutableStateOf("") }
-    var currentTargetPort by rememberSaveable { mutableIntStateOf(Defaults.ADB_PORT) }
-    var connectedDeviceLabel by rememberSaveable { mutableStateOf("未连接") }
+    var adbSession by rememberSaveable { mutableStateOf(DeviceAdbSessionState()) }
     val sessionInfo by scrcpy.currentSessionState.collectAsState()
     var editingDeviceId by rememberSaveable { mutableStateOf<String?>(null) }
     var activeDeviceActionId by rememberSaveable { mutableStateOf<String?>(null) }
     var adbConnecting by rememberSaveable { mutableStateOf(false) }
-    var connectedScrcpyProfileId by rememberSaveable {
-        mutableStateOf(ScrcpyOptions.GLOBAL_PROFILE_ID)
-    }
-
-    var audioForwardingSupported by rememberSaveable { mutableStateOf(true) }
-    var cameraMirroringSupported by rememberSaveable { mutableStateOf(true) }
     var pendingScrollToPreview by rememberSaveable { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val isPreviewCardVisible by remember(listState) {
@@ -252,10 +267,14 @@ fun DeviceTabPage(
         }
     }
 
-    val currentTarget =
-        if (currentTargetHost.isNotBlank())
-            ConnectionTarget(currentTargetHost, currentTargetPort)
-        else null
+    val adbConnected = adbSession.isConnected
+    val statusLine = adbSession.statusLine
+    val isQuickConnected = adbSession.isQuickConnected
+    val currentTarget = adbSession.currentTarget
+    val connectedDeviceLabel = adbSession.connectedDeviceLabel
+    val connectedScrcpyProfileId = adbSession.connectedScrcpyProfileId
+    val audioForwardingSupported = adbSession.audioForwardingSupported
+    val cameraMirroringSupported = adbSession.cameraMirroringSupported
 
     fun resolveScrcpyBundle(profileId: String): ScrcpyOptions.Bundle {
         if (profileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
@@ -317,17 +336,10 @@ fun DeviceTabPage(
     ) {
         // Also stops scrcpy.
         runCatching { scrcpy.stop() }
-        runCatching { NativeAdbService.disconnect() }
+        runCatching { adbCoordinator.disconnect() }
         AppWakeLocks.release()
-        adbConnected = false
-        currentTargetHost = ""
-        currentTargetPort = Defaults.ADB_PORT
-        connectedScrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID
+        adbSession = DeviceAdbSessionState()
         AppRuntime.currentConnectionTarget = null
-        audioForwardingSupported = true
-        cameraMirroringSupported = true
-        statusLine = "未连接"
-        connectedDeviceLabel = "未连接"
         clearQuickOnlineForTarget?.let { target ->
             if (target.host.isNotBlank())
                 savedShortcuts = savedShortcuts.update(
@@ -353,7 +365,7 @@ fun DeviceTabPage(
     fun applyConnectedDeviceCapabilities(sdkInt: Int, release: String) {
         val currentBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
         val audioSupported = sdkInt !in 0..<30
-        audioForwardingSupported = audioSupported
+        adbSession = adbSession.copy(audioForwardingSupported = audioSupported)
         if (!audioSupported && currentBundle.audio) {
             scope.launch {
                 if (connectedScrcpyProfileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
@@ -371,7 +383,7 @@ fun DeviceTabPage(
             )
         }
         val cameraSupported = sdkInt !in 0..<31
-        cameraMirroringSupported = cameraSupported
+        adbSession = adbSession.copy(cameraMirroringSupported = cameraSupported)
         if (!cameraSupported && currentBundle.videoSource == "camera") {
             scope.launch {
                 if (connectedScrcpyProfileId == ScrcpyOptions.GLOBAL_PROFILE_ID) {
@@ -403,9 +415,7 @@ fun DeviceTabPage(
      *   indefinitely. Use a small, caller-chosen timeout to keep UX snappy.
      */
     suspend fun connectWithTimeout(host: String, port: Int) {
-        return withTimeout(ADB_CONNECT_TIMEOUT_MS) {
-            NativeAdbService.connect(host, port)
-        }
+        adbCoordinator.connectWithTimeout(host, port, ADB_CONNECT_TIMEOUT_MS)
     }
 
     /**
@@ -422,10 +432,7 @@ fun DeviceTabPage(
      *   echo check helps detect that state.
      */
     suspend fun keepAliveCheck(host: String, port: Int): Boolean {
-        return withTimeout(ADB_KEEPALIVE_TIMEOUT_MS) {
-            val connected = NativeAdbService.isConnected()
-            return@withTimeout connected
-        }
+        return adbCoordinator.isConnected(ADB_KEEPALIVE_TIMEOUT_MS)
     }
 
     /**
@@ -436,14 +443,7 @@ fun DeviceTabPage(
      * - Returns true when TCP handshake succeeds within [ADB_TCP_PROBE_TIMEOUT_MS].
      */
     suspend fun probeTcpReachable(host: String, port: Int): Boolean {
-        return withContext(Dispatchers.IO) {
-            runCatching {
-                Socket().use { socket ->
-                    socket.connect(InetSocketAddress(host, port), ADB_TCP_PROBE_TIMEOUT_MS)
-                    true
-                }
-            }.getOrDefault(false)
-        }
+        return adbCoordinator.probeTcpReachable(host, port, ADB_TCP_PROBE_TIMEOUT_MS)
     }
 
     /**
@@ -519,47 +519,45 @@ fun DeviceTabPage(
         }
     }
 
-    suspend fun runAutoAdbConnect(host: String, port: Int) {
-        runCatching {
+    suspend fun runAutoAdbConnect(host: String, port: Int): Boolean {
+        return runCatching {
             connectWithTimeout(host, port)
+            true
         }.getOrElse { error ->
             val detail = error.message?.takeIf { it.isNotBlank() } ?: error.javaClass.simpleName
             logEvent("自动重连失败: $host:$port ($detail)", Log.WARN)
+            false
         }
     }
 
-    LaunchedEffect(adbConnected, currentTargetHost, currentTargetPort) {
-        if (!adbConnected || currentTargetHost.isBlank()) return@LaunchedEffect
-
-        // Keep-alive loop for current target.
-        // On failure: try to reconnect once; if failed, fully disconnect and reset UI state.
-        val host = currentTargetHost
-        val port = currentTargetPort
-        while (adbConnected && currentTargetHost == host && currentTargetPort == port) {
-            delay(ADB_KEEPALIVE_INTERVAL_MS)
-            val alive = runCatching { keepAliveCheck(host, port) }.getOrElse { false }
-            if (alive) continue
-
-            logEvent("ADB 长连接中断，尝试自动重连: $host:$port", Log.WARN)
-            try {
-                connectWithTimeout(host, port)
-                adbConnected = true
-                statusLine = "$host:$port"
+    LaunchedEffect(adbConnected, currentTarget, isAppInForeground) {
+        if (!adbConnected || currentTarget == null) return@LaunchedEffect
+        adbBackgroundRunner.runKeepAliveLoop(
+            sessionState = { adbSession },
+            isForeground = { isAppInForeground },
+            intervalMs = ADB_KEEPALIVE_INTERVAL_MS,
+            keepAliveCheck = ::keepAliveCheck,
+            reconnect = ::connectWithTimeout,
+            onReconnectSuccess = { host, port ->
                 logEvent("ADB 自动重连成功: $host:$port")
+                adbSession = adbSession.copy(
+                    isConnected = true,
+                    statusLine = "$host:$port",
+                )
                 snackbar.show("ADB 自动重连成功")
-            } catch (e: Exception) {
+            },
+            onReconnectFailure = { error ->
                 disconnectAdbConnection()
-                statusLine = "ADB 连接断开"
-                logEvent("ADB 自动重连失败: $e", Log.ERROR)
+                adbSession = adbSession.copy(statusLine = "ADB 连接断开")
+                logEvent("ADB 自动重连失败: $error", Log.ERROR)
                 snackbar.show("ADB 自动重连失败")
-                break
-            }
-        }
+            },
+        )
     }
 
     suspend fun resolveStartAppRequest(
         scrcpy: Scrcpy,
-        options: io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions,
+        options: ClientOptions,
     ): StartAppRequest? {
         val raw = options.startApp.trim()
         if (raw.isBlank()) {
@@ -588,14 +586,20 @@ fun DeviceTabPage(
         }
 
         val searchName = query.drop(1).trim()
-        require(searchName.isNotBlank()) { "应用名称不能为空" }
+        require(searchName.isNotBlank()) {
+            "应用名不能为空"
+        }
 
         val apps = scrcpy.listings.getApps(forceRefresh = false)
-        val matches = apps.filter { it.label.startsWith(searchName, ignoreCase = true) }
+        val matches = apps.filter {
+            it.label.startsWith(searchName, ignoreCase = true)
+        }
 
-        require(matches.isNotEmpty()) { "未找到应用名以 \"$searchName\" 开头的应用" }
+        require(matches.isNotEmpty()) {
+            "未找到应用名以 \"$searchName\" 开头的应用"
+        }
         require(matches.size == 1) {
-            "按名称匹配到多个应用: " +
+            "按应用名匹配到多个应用: " +
                     matches.take(5).joinToString { "${it.label} (${it.packageName})" }
         }
 
@@ -632,7 +636,7 @@ fun DeviceTabPage(
                 )
             }
             runCatching {
-                NativeAdbService.startApp(
+                adbCoordinator.startApp(
                     packageName = request.packageName,
                     displayId = request.displayId,
                     forceStop = request.forceStop,
@@ -659,7 +663,7 @@ fun DeviceTabPage(
         if (options.disableScreensaver)
             AppWakeLocks.acquire()
 
-        statusLine = "scrcpy 运行中"
+        adbSession = adbSession.copy(statusLine = "scrcpy 运行中")
         @SuppressLint("DefaultLocale")
         val videoDetail =
             if (!options.video) "off"
@@ -703,26 +707,29 @@ fun DeviceTabPage(
         autoEnterFullScreen: Boolean = false,
         scrcpyProfileId: String = ScrcpyOptions.GLOBAL_PROFILE_ID,
     ) {
-        currentTargetHost = host
-        currentTargetPort = port
-        connectedScrcpyProfileId = scrcpyProfileId
-        AppRuntime.currentConnectionTarget = ConnectionTarget(host, port)
+        val target = ConnectionTarget(host, port)
+        adbSession = adbSession.copy(
+            isConnected = true,
+            currentTarget = target,
+            connectedScrcpyProfileId = scrcpyProfileId,
+            statusLine = "$host:$port",
+        )
+        AppRuntime.currentConnectionTarget = target
 
-        val info = fetchConnectedDeviceInfo(NativeAdbService, host, port)
+        val info = adbCoordinator.fetchConnectedDeviceInfo(host, port)
         val fullLabel = if (info.serial.isNotBlank()) {
             "${info.model} (${info.serial})"
         } else {
             info.model
         }
 
-        connectedDeviceLabel = info.model
+        adbSession = adbSession.copy(connectedDeviceLabel = info.model)
         applyConnectedDeviceCapabilities(info.sdkInt, info.androidRelease)
         savedShortcuts = savedShortcuts.update(
             host = host, port = port,
             name = fullLabel,
             updateNameOnlyWhenEmpty = true
         )
-        statusLine = "$host:$port"
 
         logEvent(
             "ADB 已连接: " +
@@ -744,119 +751,126 @@ fun DeviceTabPage(
     LaunchedEffect(
         adbConnected,
         asBundle.adbAutoReconnectPairedDevice,
-        asBundle.adbMdnsLanDiscovery
+        asBundle.adbMdnsLanDiscovery,
+        isAppInForeground,
     ) {
         if (adbConnected || !asBundle.adbAutoReconnectPairedDevice) return@LaunchedEffect
-
-        // Background auto reconnect pipeline:
-        // 1) try quick list targets with reachable TCP ports
-        // 2) fallback to mDNS discovery
-        val quickConnectTriedOnce = mutableSetOf<String>()
-        while (!adbConnected) {
-            if (busy || adbConnecting || sessionInfo != null) {
-                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-                continue
-            }
-
-            val quickCandidates = savedShortcuts.toList()
-            if (quickCandidates.isNotEmpty()) {
-                for (target in quickCandidates) {
-                    if (adbConnected || adbConnecting) break
-                    if (sessionReconnectBlacklistHosts.contains(target.host)) continue
-                    val targetKey = "${target.host}:${target.port}"
-                    if (quickConnectTriedOnce.contains(targetKey)) continue
-
-                    val portReachable = probeTcpReachable(target.host, target.port)
-                    if (!portReachable) continue
-
-                    quickConnectTriedOnce += targetKey
-                    try {
-                        runAutoAdbConnect(target.host, target.port)
-                        adbConnected = true
-                        savedShortcuts = savedShortcuts.update(
-                            host = target.host, port = target.port,
-                        )
-                        handleAdbConnected(
-                            target.host,
-                            target.port,
-                            scrcpyProfileId = target.scrcpyProfileId,
-                        )
-                        logEvent("ADB 快速探测连接成功: ${target.host}:${target.port}")
-                    } catch (_: Exception) {
-                    }
-                    break
-                }
-                if (adbConnected) break
-            }
-
-            val discovered = withContext(Dispatchers.IO) {
-                NativeAdbService.discoverConnectService(
+        adbBackgroundRunner.runAutoReconnectLoop(
+            isConnected = { adbConnected },
+            isForeground = { isAppInForeground },
+            isAutoReconnectEnabled = { asBundle.adbAutoReconnectPairedDevice },
+            isBusy = { busy },
+            isAdbConnecting = { adbConnecting },
+            hasActiveSession = { sessionInfo != null },
+            savedShortcuts = { savedShortcuts.toList() },
+            isBlacklisted = { host -> sessionReconnectBlacklistHosts.contains(host) },
+            probeTcpReachable = ::probeTcpReachable,
+            discoverConnectService = {
+                adbCoordinator.discoverConnectService(
                     timeoutMs = ADB_AUTO_RECONNECT_DISCOVER_TIMEOUT_MS,
                     includeLanDevices = asBundle.adbMdnsLanDiscovery,
                 )
-            }
-
-            if (discovered == null) {
-                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-                continue
-            }
-
-            val (discoveredHost, discoveredPort) = discovered
-            if (sessionReconnectBlacklistHosts.contains(discoveredHost)) {
-                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-                continue
-            }
-            val knownDevice = savedShortcuts.firstOrNull { it.host == discoveredHost }
-            if (knownDevice == null) {
-                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-                continue
-            }
-            val portToReplace = savedShortcuts.firstOrNull {
-                it.host == discoveredHost &&
-                        it.port != Defaults.ADB_PORT &&
-                        it.port != discoveredPort
-            }?.port
-            if (portToReplace != null) {
+            },
+            onMdnsPortChanged = { host, oldPort, newPort ->
                 savedShortcuts = savedShortcuts.update(
-                    host = discoveredHost, port = portToReplace,
-                    newPort = discoveredPort,
+                    host = host,
+                    port = oldPort,
+                    newPort = newPort,
                 )
-                logEvent(
-                    "mDNS 发现新端口，已更新快速设备: $discoveredHost:$portToReplace -> $discoveredHost:$discoveredPort"
-                )
-            }
-
-            if (adbConnected || adbConnecting) {
-                delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-                continue
-            }
-
-            try {
-                runAutoAdbConnect(discoveredHost, discoveredPort)
-                adbConnected = true
-                savedShortcuts = savedShortcuts.update(
-                    host = discoveredHost, port = discoveredPort,
-                )
-                handleAdbConnected(
-                    discoveredHost,
-                    discoveredPort,
-                    scrcpyProfileId = knownDevice.scrcpyProfileId,
-                )
-                logEvent("ADB 自动重连成功: $discoveredHost:$discoveredPort")
-            } catch (_: Exception) {
-            }
-
-            delay(ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS)
-        }
+                logEvent("mDNS 发现新端口，已更新快速设备: $host:$oldPort -> $host:$newPort")
+            },
+            connectKnownShortcut = { target ->
+                if (!runAutoAdbConnect(target.host, target.port)) {
+                    false
+                } else {
+                    savedShortcuts = savedShortcuts.update(
+                        host = target.host,
+                        port = target.port,
+                    )
+                    handleAdbConnected(
+                        target.host,
+                        target.port,
+                        scrcpyProfileId = target.scrcpyProfileId,
+                    )
+                    logEvent("ADB 快速探测连接成功: ${target.host}:${target.port}")
+                    true
+                }
+            },
+            connectDiscoveredShortcut = { host, port, knownDevice ->
+                if (!runAutoAdbConnect(host, port)) {
+                    false
+                } else {
+                    savedShortcuts = savedShortcuts.update(host = host, port = port)
+                    handleAdbConnected(
+                        host,
+                        port,
+                        scrcpyProfileId = knownDevice.scrcpyProfileId,
+                    )
+                    logEvent("ADB 自动重连成功: $host:$port")
+                    true
+                }
+            },
+            retryIntervalMs = ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS,
+        )
     }
 
-    fun sendVirtualButtonAction(action: VirtualButtonAction) {
-        val keycode = action.keycode ?: return
-        runBusy("发送 ${action.title}") {
-            scrcpy.injectKeycode(0, keycode)
-            scrcpy.injectKeycode(1, keycode)
-        }
-    }
+    val adbCallbacks = DeviceTabAdbCallbacks(
+        runAdbConnect = { label, onStarted, onFinished, block ->
+            runAdbConnect(label, onStarted, onFinished, block)
+        },
+        runBusy = { label, onFinished, block ->
+            runBusy(label, onFinished, block)
+        },
+        disconnectCurrentTargetBeforeConnecting = { host, port ->
+            disconnectCurrentTargetBeforeConnecting(host, port)
+        },
+        connectWithTimeout = { host, port ->
+            connectWithTimeout(host, port)
+        },
+        handleAdbConnected = { host, port, autoStartScrcpy, autoEnterFullScreen, scrcpyProfileId ->
+            handleAdbConnected(
+                host = host,
+                port = port,
+                autoStartScrcpy = autoStartScrcpy,
+                autoEnterFullScreen = autoEnterFullScreen,
+                scrcpyProfileId = scrcpyProfileId,
+            )
+        },
+        disconnectAdbConnection = { clearQuickOnlineForTarget, logMessage, showSnackMessage ->
+            disconnectAdbConnection(
+                clearQuickOnlineForTarget = clearQuickOnlineForTarget,
+                logMessage = logMessage,
+                showSnackMessage = showSnackMessage,
+            )
+        },
+        discoverPairingTarget = {
+            adbCoordinator.discoverPairingService(
+                includeLanDevices = asBundle.adbMdnsLanDiscovery,
+            )
+        },
+        pairTarget = { host, port, code ->
+            val ok = adbCoordinator.pair(host, port, code)
+            logEvent(
+                if (ok) "配对成功" else "配对失败",
+                if (ok) Log.INFO else Log.ERROR
+            )
+            snackbar.show(if (ok) "配对成功" else "配对失败")
+            ok
+        },
+        isConnectedToTarget = { host, port ->
+            adbConnected && currentTarget?.host == host && currentTarget.port == port
+        },
+        onConnectionFailed = { error ->
+            adbSession = adbSession.copy(statusLine = "ADB 连接失败")
+            logEvent("ADB 连接失败: $error", Log.ERROR)
+            snackbar.show("ADB 连接失败")
+        },
+        onQuickConnectedChanged = { quickConnected ->
+            adbSession = adbSession.copy(isQuickConnected = quickConnected)
+        },
+        onBlackListHost = { host -> sessionReconnectBlacklistHosts += host },
+        setActiveDeviceActionId = { activeDeviceActionId = it },
+    )
 
     // 设备
     LazyColumn(
@@ -907,55 +921,7 @@ fun DeviceTabPage(
                 onAction = { device ->
                     haptics.contextClick()
                     if (editingDeviceId == device.id) editingDeviceId = null
-
-                    val host = device.host
-                    val port = device.port
-                    val connected = adbConnected
-                            && currentTarget?.host == host
-                            && currentTarget.port == port
-
-                    if (!connected) {
-                        runAdbConnect(
-                            "连接 ADB",
-                            onStarted = { activeDeviceActionId = device.id },
-                            onFinished = { activeDeviceActionId = null },
-                        ) {
-                            disconnectCurrentTargetBeforeConnecting(host, port)
-                            try {
-                                connectWithTimeout(host, port)
-                                adbConnected = true
-                                isQuickConnected = false
-                                savedShortcuts = savedShortcuts.update(
-                                    host = host, port = port,
-                                )
-                                handleAdbConnected(
-                                    host = host, port = port,
-                                    autoStartScrcpy = device.startScrcpyOnConnect,
-                                    autoEnterFullScreen = device.startScrcpyOnConnect
-                                            && device.openFullscreenOnStart,
-                                    scrcpyProfileId = device.scrcpyProfileId,
-                                )
-                            } catch (e: Exception) {
-                                statusLine = "ADB 连接失败"
-                                logEvent("ADB 连接失败: $e", Log.ERROR)
-                                snackbar.show("ADB 连接失败")
-                            }
-                        }
-                    } else {
-                        activeDeviceActionId = device.id
-                        runAdbConnect(
-                            "断开 ADB",
-                            onStarted = { activeDeviceActionId = device.id },
-                            onFinished = { activeDeviceActionId = null },
-                        ) {
-                            sessionReconnectBlacklistHosts += host
-                            disconnectAdbConnection(
-                                clearQuickOnlineForTarget = ConnectionTarget(host, port),
-                                logMessage = "ADB 已断开: ${device.name}",
-                                showSnackMessage = "ADB 已断开",
-                            )
-                        }
-                    }
+                    adbCallbacks.onDeviceAction(device)
                 },
                 onEditorSave = { device, updated ->
                     savedShortcuts = savedShortcuts.update(
@@ -1000,30 +966,7 @@ fun DeviceTabPage(
                     onConnect = {
                         val target = ConnectionTarget.unmarshalFrom(qdBundle.quickConnectInput)
                             ?: return@QuickConnectCard
-                        runAdbConnect(
-                            "连接 ADB",
-                            onStarted = { activeDeviceActionId = target.toString() },
-                            onFinished = { activeDeviceActionId = null },
-                        ) {
-                            disconnectCurrentTargetBeforeConnecting(target.host, target.port)
-                            try {
-                                connectWithTimeout(target.host, target.port)
-                                adbConnected = true
-                                isQuickConnected = true // 标记为快速连接
-                                savedShortcuts = savedShortcuts.update(
-                                    host = target.host, port = target.port,
-                                )
-                                handleAdbConnected(
-                                    target.host,
-                                    target.port,
-                                    scrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID,
-                                )
-                            } catch (e: Exception) {
-                                statusLine = "ADB 连接失败"
-                                logEvent("ADB 连接失败: $e", Log.ERROR)
-                                snackbar.show("ADB 连接失败")
-                            }
-                        }
+                        adbCallbacks.onQuickConnect(target)
                     },
                 )
             }
@@ -1034,28 +977,8 @@ fun DeviceTabPage(
                 PairingCard(
                     busy = busy,
                     autoDiscoverOnDialogOpen = asBundle.adbPairingAutoDiscoverOnDialogOpen,
-                    onDiscoverTarget = {
-                        NativeAdbService.discoverPairingService(
-                            includeLanDevices = asBundle.adbMdnsLanDiscovery,
-                        )
-                    },
-                    onPair = { host, port, code ->
-                        runBusy("执行配对") {
-                            val resolvedHost = host.trim()
-                            val resolvedPort = port.trim().toIntOrNull() ?: return@runBusy
-                            val resolvedCode = code.trim()
-                            val ok = NativeAdbService.pair(
-                                resolvedHost,
-                                resolvedPort,
-                                resolvedCode,
-                            )
-                            logEvent(
-                                if (ok) "配对成功" else "配对失败",
-                                if (ok) Log.INFO else Log.ERROR
-                            )
-                            snackbar.show(if (ok) "配对成功" else "配对失败")
-                        }
-                    },
+                    onDiscoverTarget = adbCallbacks::onDiscoverPairingTarget,
+                    onPair = adbCallbacks::onPair,
                 )
             }
         }
@@ -1080,28 +1003,15 @@ fun DeviceTabPage(
                         runBusy("停止 scrcpy") {
                             scrcpy.stop()
                             AppWakeLocks.release()
-                            statusLine = "${currentTarget!!.host}:${currentTarget.port}"
+                            adbSession = adbSession.copy(
+                                statusLine = "${currentTarget!!.host}:${currentTarget.port}"
+                            )
                             logEvent("scrcpy 已停止")
                             snackbar.show("scrcpy 已停止")
                         }
                     },
                     sessionInfo = sessionInfo,
-                    onDisconnect = {
-                        runAdbConnect(
-                            "断开 ADB",
-                            onStarted = {},
-                            onFinished = {},
-                        ) {
-                            currentTarget?.let { target ->
-                                sessionReconnectBlacklistHosts += target.host
-                                disconnectAdbConnection(
-                                    clearQuickOnlineForTarget = target,
-                                    logMessage = "ADB 已断开",
-                                    showSnackMessage = "ADB 已断开",
-                                )
-                            }
-                        }
-                    },
+                    onDisconnect = { adbCallbacks.onDisconnectCurrent(currentTarget) },
                 )
             }
 
@@ -1129,7 +1039,13 @@ fun DeviceTabPage(
                         outsideActions = virtualButtonLayout.first,
                         moreActions = virtualButtonLayout.second,
                         showText = asBundle.previewVirtualButtonShowText,
-                        onAction = ::sendVirtualButtonAction,
+                        onAction = { action ->
+                            val keycode = action.keycode ?: return@VirtualButtonCard
+                            runBusy("发送 ${action.title}") {
+                                scrcpy.injectKeycode(0, keycode)
+                                scrcpy.injectKeycode(1, keycode)
+                            }
+                        },
                     )
                 }
             }

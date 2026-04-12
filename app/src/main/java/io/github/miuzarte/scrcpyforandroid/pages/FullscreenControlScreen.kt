@@ -51,6 +51,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.widgets.ScrcpyVideoSurface
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
 import kotlinx.coroutines.CoroutineScope
@@ -108,7 +109,7 @@ fun FullscreenControlScreen(
         )
     }
     val floatingActions = remember(buttonItems) {
-        (buttonItems.first + buttonItems.second).filter { it != io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction.MORE }
+        (buttonItems.first + buttonItems.second).filter { it != VirtualButtonAction.MORE }
     }
     val fullscreenDebugInfo = asBundle.fullscreenDebugInfo
     val showFullscreenVirtualButtons = asBundle.showFullscreenVirtualButtons

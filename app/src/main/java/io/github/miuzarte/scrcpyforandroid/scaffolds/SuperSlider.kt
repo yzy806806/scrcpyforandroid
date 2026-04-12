@@ -125,43 +125,42 @@ private fun SliderInputDialog(
         summary = summary,
         onDismissRequest = onDismissRequest,
         onDismissFinished = onDismissFinished,
-        content = {
-            var text by rememberSaveable(initialValue) { mutableStateOf(initialValue) }
+    ) {
+        var text by rememberSaveable(initialValue) { mutableStateOf(initialValue) }
 
-            SuperTextField(
-                modifier = Modifier.padding(bottom = 16.dp),
-                value = text,
-                label = label,
-                useLabelAsPlaceholder = useLabelAsPlaceholder,
-                maxLines = 1,
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Number,
-                    imeAction = ImeAction.Done,
-                ),
-                onValueChange = { newValue ->
-                    text = inputFilter(newValue)
-                },
+        SuperTextField(
+            modifier = Modifier.padding(bottom = 16.dp),
+            value = text,
+            label = label,
+            useLabelAsPlaceholder = useLabelAsPlaceholder,
+            maxLines = 1,
+            keyboardOptions = KeyboardOptions(
+                keyboardType = KeyboardType.Number,
+                imeAction = ImeAction.Done,
+            ),
+            onValueChange = { newValue ->
+                text = inputFilter(newValue)
+            },
+        )
+
+        Row(horizontalArrangement = Arrangement.SpaceBetween) {
+            TextButton(
+                text = "取消",
+                onClick = onDismissRequest,
+                modifier = Modifier.weight(1f),
             )
-
-            Row(horizontalArrangement = Arrangement.SpaceBetween) {
-                TextButton(
-                    text = "取消",
-                    onClick = onDismissRequest,
-                    modifier = Modifier.weight(1f),
-                )
-                Spacer(Modifier.width(20.dp))
-                TextButton(
-                    text = "确定",
-                    onClick = {
-                        val inputValue = text.toFloatOrNull() ?: 0f
-                        if (inputValue >= inputValueRange.start && inputValue <= inputValueRange.endInclusive) {
-                            onConfirm(text.trim())
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    colors = ButtonDefaults.textButtonColorsPrimary(),
-                )
-            }
-        },
-    )
+            Spacer(Modifier.width(20.dp))
+            TextButton(
+                text = "确定",
+                onClick = {
+                    val inputValue = text.toFloatOrNull() ?: 0f
+                    if (inputValue >= inputValueRange.start && inputValue <= inputValueRange.endInclusive) {
+                        onConfirm(text.trim())
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
+            )
+        }
+    }
 }

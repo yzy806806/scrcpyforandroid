@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -59,6 +58,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
@@ -70,6 +70,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.DropdownImpl
 import top.yukonga.miuix.kmp.basic.Icon
@@ -81,6 +82,7 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.ScrollBehavior
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SpinnerEntry
+import top.yukonga.miuix.kmp.basic.TabRow
 import top.yukonga.miuix.kmp.basic.TabRowWithContour
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextButton
@@ -96,6 +98,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.theme.MiuixTheme
 import kotlin.math.roundToInt
 
 @Composable
@@ -105,6 +108,7 @@ internal fun ScrcpyAllOptionsScreen(
 ) {
     val navigator = LocalRootNavigator.current
     val scope = rememberCoroutineScope()
+    val snackbar = LocalSnackbarController.current
     var showProfileMenu by rememberSaveable { mutableStateOf(false) }
     var showManageProfilesSheet by rememberSaveable { mutableStateOf(false) }
     val qdBundleShared by quickDevices.bundleState.collectAsState()
@@ -139,6 +143,15 @@ internal fun ScrcpyAllOptionsScreen(
     val lastValidSoBundleState = rememberSaveable(selectedProfileId) {
         mutableStateOf(soBundleState.value)
     }
+    val profileTabs = remember(scrcpyProfilesState.profiles) {
+        scrcpyProfilesState.profiles.map { it.name }
+    }
+    val profileIds = remember(scrcpyProfilesState.profiles) {
+        scrcpyProfilesState.profiles.map { it.id }
+    }
+    val selectedProfileIndex = remember(selectedProfileId, profileIds) {
+        profileIds.indexOf(selectedProfileId).coerceAtLeast(0)
+    }
     val currentConnectedDeviceName = remember(qdBundleShared.quickDevicesList) {
         val currentTarget = AppRuntime.currentConnectionTarget
         if (currentTarget == null) {
@@ -153,7 +166,8 @@ internal fun ScrcpyAllOptionsScreen(
     }
     var activeProfileDialog by rememberSaveable { mutableStateOf<ProfileDialogMode?>(null) }
     var profileDialogTargetId by rememberSaveable { mutableStateOf<String?>(null) }
-    var profileDialogInput by rememberSaveable { mutableStateOf("新配置") }
+    var profileDialogInput by rememberSaveable { mutableStateOf("") }
+    var profileDialogCopySourceId by rememberSaveable { mutableStateOf<String?>(null) }
     var deletingProfileId by rememberSaveable { mutableStateOf<String?>(null) }
 
     suspend fun saveBundleForProfile(profileId: String, bundle: ScrcpyOptions.Bundle) {
@@ -174,6 +188,21 @@ internal fun ScrcpyAllOptionsScreen(
                     device
                 }
             }
+        )
+        if (updated != shortcuts) {
+            quickDevices.updateBundle { bundle ->
+                bundle.copy(quickDevicesList = updated.marshalToString())
+            }
+        }
+    }
+
+    suspend fun bindCurrentConnectedDevice(profileId: String) {
+        val target = AppRuntime.currentConnectionTarget ?: return
+        val shortcuts = DeviceShortcuts.unmarshalFrom(qdBundleShared.quickDevicesList)
+        val updated = shortcuts.update(
+            host = target.host,
+            port = target.port,
+            scrcpyProfileId = profileId,
         )
         if (updated != shortcuts) {
             quickDevices.updateBundle { bundle ->
@@ -214,6 +243,31 @@ internal fun ScrcpyAllOptionsScreen(
                     )
                 },
                 scrollBehavior = scrollBehavior,
+                bottomContent = {
+                    TabRow(
+                        tabs = profileTabs,
+                        selectedTabIndex = selectedProfileIndex,
+                        onTabSelected = { index ->
+                            val nextProfileId = profileIds.getOrNull(index)
+                                ?: return@TabRow
+                            if (nextProfileId == selectedProfileId) return@TabRow
+                            scope.launch {
+                                saveBundleForProfile(selectedProfileId, soBundleState.value)
+                                bindCurrentConnectedDevice(nextProfileId)
+                                selectedProfileId = nextProfileId
+                                val profileName = profileTabs.getOrElse(index) { "全局" }
+                                currentConnectedDeviceName?.let { deviceName ->
+                                    snackbar.show("$deviceName 已切换到配置 $profileName")
+                                }
+                            }
+                        },
+                        modifier = Modifier.padding(bottom = UiSpacing.Medium).padding(horizontal = UiSpacing.Medium),
+                        minWidth = 96.dp,
+                        maxWidth = 192.dp,
+                        height = 48.dp,
+                        itemSpacing = UiSpacing.Medium,
+                    )
+                }
             )
         },
         snackbarHost = {
@@ -225,51 +279,59 @@ internal fun ScrcpyAllOptionsScreen(
             contentPadding = contentPadding,
             scrollBehavior = scrollBehavior,
             scrcpy = scrcpy,
-            qdBundleShared = qdBundleShared,
             soBundleShared = soBundleShared,
             scrcpyProfilesState = scrcpyProfilesState,
             selectedProfileIdState = selectedProfileIdState,
             soBundleState = soBundleState,
             lastValidSoBundleState = lastValidSoBundleState,
-            currentConnectedDeviceName = currentConnectedDeviceName,
             onSaveBundleForProfile = ::saveBundleForProfile,
         )
-
 
         ProfileNameDialog(
             mode = activeProfileDialog,
             initialInput = profileDialogInput,
+            profiles = scrcpyProfilesState.profiles,
+            initialCopySourceProfileId = profileDialogCopySourceId,
             onDismissRequest = {
                 activeProfileDialog = null
                 profileDialogTargetId = null
             },
-            onConfirm = { input ->
-                scope.launch {
-                    when (activeProfileDialog) {
-                        ProfileDialogMode.Create -> {
-                            saveBundleForProfile(selectedProfileId, soBundleState.value)
-                            val created = scrcpyProfiles.createProfile(
-                                requestedName = input,
-                                bundle = soBundleState.value,
-                            )
-                            selectedProfileId = created.id
+        ) { input, copySourceProfileId ->
+            scope.launch {
+                when (activeProfileDialog) {
+                    ProfileDialogMode.Create -> {
+                        saveBundleForProfile(selectedProfileId, soBundleState.value)
+                        val copySourceBundle = when (copySourceProfileId) {
+                            null -> ScrcpyOptions.defaultBundle()
+                            selectedProfileId -> soBundleState.value
+                            ScrcpyOptions.GLOBAL_PROFILE_ID -> soBundleShared
+                            else -> scrcpyProfilesState.profiles
+                                .firstOrNull { it.id == copySourceProfileId }
+                                ?.bundle
+                                ?: soBundleShared
                         }
-
-                        ProfileDialogMode.Rename -> {
-                            val profileId = profileDialogTargetId ?: return@launch
-                            scrcpyProfiles.renameProfile(
-                                id = profileId,
-                                requestedName = input,
-                            )
-                        }
-
-                        null -> Unit
+                        val created = scrcpyProfiles.createProfile(
+                            requestedName = input,
+                            bundle = copySourceBundle,
+                        )
+                        selectedProfileId = created.id
                     }
-                    profileDialogTargetId = null
-                    activeProfileDialog = null
+
+                    ProfileDialogMode.Rename -> {
+                        val profileId = profileDialogTargetId ?: return@launch
+                        scrcpyProfiles.renameProfile(
+                            id = profileId,
+                            requestedName = input,
+                        )
+                    }
+
+                    null -> Unit
                 }
-            },
-        )
+                profileDialogTargetId = null
+                profileDialogCopySourceId = selectedProfileId
+                activeProfileDialog = null
+            }
+        }
 
         ManageProfilesSheet(
             show = showManageProfilesSheet,
@@ -278,7 +340,8 @@ internal fun ScrcpyAllOptionsScreen(
             onDismissRequest = { showManageProfilesSheet = false },
             onCreateProfile = {
                 profileDialogTargetId = null
-                profileDialogInput = ""
+                profileDialogInput = "新配置"
+                profileDialogCopySourceId = selectedProfileId
                 activeProfileDialog = ProfileDialogMode.Create
             },
             onRenameProfile = { profileId ->
@@ -304,20 +367,19 @@ internal fun ScrcpyAllOptionsScreen(
                 .firstOrNull { it.id == deletingProfileId }
                 ?.name.orEmpty(),
             onDismissRequest = { deletingProfileId = null },
-            onConfirm = {
-                scope.launch {
-                    val profileId = deletingProfileId ?: return@launch
-                    val deleted = scrcpyProfiles.deleteProfile(profileId)
-                    if (deleted) {
-                        rebindDeletedProfileReferences(profileId)
-                        if (selectedProfileId == profileId) {
-                            selectedProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID
-                        }
+        ) {
+            scope.launch {
+                val profileId = deletingProfileId ?: return@launch
+                val deleted = scrcpyProfiles.deleteProfile(profileId)
+                if (deleted) {
+                    rebindDeletedProfileReferences(profileId)
+                    if (selectedProfileId == profileId) {
+                        selectedProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID
                     }
-                    deletingProfileId = null
                 }
-            },
-        )
+                deletingProfileId = null
+            }
+        }
     }
 }
 
@@ -326,13 +388,11 @@ internal fun ScrcpyAllOptionsPage(
     contentPadding: PaddingValues,
     scrollBehavior: ScrollBehavior,
     scrcpy: Scrcpy,
-    qdBundleShared: io.github.miuzarte.scrcpyforandroid.storage.QuickDevices.Bundle,
     soBundleShared: ScrcpyOptions.Bundle,
-    scrcpyProfilesState: io.github.miuzarte.scrcpyforandroid.storage.ScrcpyProfiles.State,
+    scrcpyProfilesState: ScrcpyProfiles.State,
     selectedProfileIdState: MutableState<String>,
     soBundleState: MutableState<ScrcpyOptions.Bundle>,
     lastValidSoBundleState: MutableState<ScrcpyOptions.Bundle>,
-    currentConnectedDeviceName: String?,
     onSaveBundleForProfile: suspend (String, ScrcpyOptions.Bundle) -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
@@ -348,34 +408,10 @@ internal fun ScrcpyAllOptionsPage(
     var soBundle by soBundleState
     var lastValidSoBundle by lastValidSoBundleState
     val soBundleLatest by rememberUpdatedState(soBundle)
-    val profileTabs = remember(scrcpyProfilesState.profiles) {
-        scrcpyProfilesState.profiles.map { it.name }
-    }
-    val profileIds = remember(scrcpyProfilesState.profiles) {
-        scrcpyProfilesState.profiles.map { it.id }
-    }
-    val selectedProfileIndex = remember(selectedProfileId, profileIds) {
-        profileIds.indexOf(selectedProfileId).coerceAtLeast(0)
-    }
     fun resolveProfileBundle(profileId: String): ScrcpyOptions.Bundle {
         if (profileId == ScrcpyOptions.GLOBAL_PROFILE_ID) return soBundleShared
         return scrcpyProfilesState.profiles.firstOrNull { it.id == profileId }?.bundle
             ?: soBundleShared
-    }
-
-    suspend fun bindCurrentConnectedDevice(profileId: String) {
-        val target = AppRuntime.currentConnectionTarget ?: return
-        val shortcuts = DeviceShortcuts.unmarshalFrom(qdBundleShared.quickDevicesList)
-        val updated = shortcuts.update(
-            host = target.host,
-            port = target.port,
-            scrcpyProfileId = profileId,
-        )
-        if (updated != shortcuts) {
-            quickDevices.updateBundle { bundle ->
-                bundle.copy(quickDevicesList = updated.marshalToString())
-            }
-        }
     }
 
     LaunchedEffect(selectedProfileId, soBundleShared, scrcpyProfilesState) {
@@ -715,32 +751,6 @@ internal fun ScrcpyAllOptionsPage(
         contentPadding = contentPadding,
         scrollBehavior = scrollBehavior,
     ) {
-        item {
-            TabRowWithContour(
-                tabs = profileTabs,
-                selectedTabIndex = selectedProfileIndex,
-                onTabSelected = { index ->
-                    val nextProfileId = profileIds.getOrNull(index) ?: return@TabRowWithContour
-                    if (nextProfileId == selectedProfileId) return@TabRowWithContour
-                    scope.launch {
-                        onSaveBundleForProfile(selectedProfileId, soBundle)
-                        bindCurrentConnectedDevice(nextProfileId)
-                        selectedProfileId = nextProfileId
-                        val profileName = profileTabs.getOrElse(index) { "全局" }
-                        currentConnectedDeviceName?.let { deviceName ->
-                            snackbar.show("$deviceName 已切换到配置 $profileName")
-                        }
-                    }
-                },
-                // TODO
-                // listState = contourTabListState,
-                modifier = Modifier.padding(bottom = UiSpacing.ContentVertical),
-                minWidth = 96.dp,
-                maxWidth = 128.dp,
-                height = 64.dp,
-            )
-        }
-
         item {
             Card {
                 TextField(
@@ -1922,7 +1932,7 @@ private fun ProfileMenuPopupItem(
                 top = if (index == 0) UiSpacing.PopupHorizontal else UiSpacing.PageItem,
                 bottom = if (index == optionSize - 1) UiSpacing.PopupHorizontal else UiSpacing.PageItem,
             ),
-        color = top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme.disabledOnSecondaryVariant,
+        color = MiuixTheme.colorScheme.disabledOnSecondaryVariant,
         fontWeight = FontWeight.Medium,
     )
 }
@@ -1931,19 +1941,32 @@ private fun ProfileMenuPopupItem(
 private fun ProfileNameDialog(
     mode: ProfileDialogMode?,
     initialInput: String,
+    profiles: List<ScrcpyProfiles.Profile>,
+    initialCopySourceProfileId: String?,
     onDismissRequest: () -> Unit,
-    onConfirm: (String) -> Unit,
+    onConfirm: (String, String?) -> Unit,
 ) {
     if (mode == null) return
     val focusManager = LocalFocusManager.current
     var input by rememberSaveable(mode, initialInput) { mutableStateOf(initialInput) }
+    val profileNames = remember(profiles) { profiles.map { it.name } }
+    val profileIds = remember(profiles) { profiles.map { it.id } }
+    val copySourceItems = remember(profileNames) { listOf("默认") + profileNames }
+    var copySourceProfileId by rememberSaveable(mode, initialCopySourceProfileId) {
+        mutableStateOf(initialCopySourceProfileId)
+    }
+    val copySourceDropdownIndex = remember(copySourceProfileId, profileIds) {
+        copySourceProfileId
+            ?.let { profileIds.indexOf(it).takeIf { index -> index >= 0 }?.plus(1) }
+            ?: 0
+    }
     OverlayDialog(
         show = true,
         title = when (mode) {
             ProfileDialogMode.Create -> "新建配置"
             ProfileDialogMode.Rename -> "重命名配置"
         },
-        summary = "名称重复时会自动追加序号",
+        summary = "配置名重复时会自动追加序号",
         onDismissRequest = onDismissRequest,
     ) {
         Column(
@@ -1952,7 +1975,7 @@ private fun ProfileNameDialog(
             TextField(
                 value = input,
                 onValueChange = { input = it },
-                label = "配置名称",
+                label = "配置名",
                 singleLine = true,
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 keyboardActions = KeyboardActions(
@@ -1960,19 +1983,35 @@ private fun ProfileNameDialog(
                 ),
                 modifier = Modifier.fillMaxWidth(),
             )
+            AnimatedVisibility(mode == ProfileDialogMode.Create) {
+                OverlayDropdownPreference(
+                    title = "复制配置",
+                    items = copySourceItems,
+                    selectedIndex = copySourceDropdownIndex,
+                    onSelectedIndexChange = { index ->
+                        copySourceProfileId = if (index == 0) {
+                            null
+                        } else {
+                            profileIds.getOrElse(index - 1) {
+                                ScrcpyOptions.GLOBAL_PROFILE_ID
+                            }
+                        }
+                    },
+                )
+            }
             Row(
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
             ) {
-                top.yukonga.miuix.kmp.basic.TextButton(
+                TextButton(
                     text = "取消",
                     onClick = onDismissRequest,
                     modifier = Modifier.weight(1f),
                 )
-                top.yukonga.miuix.kmp.basic.TextButton(
+                TextButton(
                     text = "确定",
-                    onClick = { onConfirm(input) },
+                    onClick = { onConfirm(input, copySourceProfileId) },
                     modifier = Modifier.weight(1f),
-                    colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             }
         }
@@ -1982,7 +2021,7 @@ private fun ProfileNameDialog(
 @Composable
 private fun ManageProfilesSheet(
     show: Boolean,
-    profiles: List<io.github.miuzarte.scrcpyforandroid.storage.ScrcpyProfiles.Profile>,
+    profiles: List<ScrcpyProfiles.Profile>,
     selectedProfileId: String,
     onDismissRequest: () -> Unit,
     onCreateProfile: () -> Unit,
@@ -2073,7 +2112,7 @@ private fun DeleteProfileDialog(
                 text = "删除",
                 onClick = onConfirm,
                 modifier = Modifier.weight(1f),
-                colors = top.yukonga.miuix.kmp.basic.ButtonDefaults.textButtonColorsPrimary(),
+                colors = ButtonDefaults.textButtonColorsPrimary(),
             )
         }
     }

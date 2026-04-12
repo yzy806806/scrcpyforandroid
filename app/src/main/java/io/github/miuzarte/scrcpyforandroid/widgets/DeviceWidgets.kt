@@ -239,11 +239,10 @@ internal fun PairingCard(
         onDiscoverTarget = onDiscoverTarget,
         onDismissRequest = { showPairDialog.value = false },
         onDismissFinished = { holdDownState.value = false },
-        onConfirm = { host, port, code ->
-            showPairDialog.value = false
-            onPair(host, port, code)
-        },
-    )
+    ) { host, port, code ->
+        showPairDialog.value = false
+        onPair(host, port, code)
+    }
 }
 
 @Composable
@@ -673,95 +672,94 @@ private fun PairingDialog(
         onDismissFinished = {
             onDismissFinished()
         },
-        content = {
-            Column(
-                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
-            ) {
-                TextField(
-                    value = host,
-                    onValueChange = { host = it },
-                    label = "IP 地址",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Next) },
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                TextField(
-                    value = port,
-                    onValueChange = { port = it.filter(Char::isDigit) },
-                    label = "端口",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Next,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onNext = { focusManager.moveFocus(FocusDirection.Next) },
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-                TextField(
-                    value = code,
-                    onValueChange = { code = it },
-                    label = "WLAN 配对码",
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(
-                        keyboardType = KeyboardType.Number,
-                        imeAction = ImeAction.Done,
-                    ),
-                    keyboardActions = KeyboardActions(
-                        onDone = { focusManager.clearFocus() },
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+        ) {
+            TextField(
+                value = host,
+                onValueChange = { host = it },
+                label = "IP 地址",
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) },
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            TextField(
+                value = port,
+                onValueChange = { port = it.filter(Char::isDigit) },
+                label = "端口",
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Next,
+                ),
+                keyboardActions = KeyboardActions(
+                    onNext = { focusManager.moveFocus(FocusDirection.Next) },
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+            TextField(
+                value = code,
+                onValueChange = { code = it },
+                label = "WLAN 配对码",
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(
+                    keyboardType = KeyboardType.Number,
+                    imeAction = ImeAction.Done,
+                ),
+                keyboardActions = KeyboardActions(
+                    onDone = { focusManager.clearFocus() },
+                ),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
 
-            Spacer(Modifier.height(UiSpacing.ContentVertical * 2))
+        Spacer(Modifier.height(UiSpacing.ContentVertical * 2))
 
-            Column(
-                verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+        Column(
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+        ) {
+            TextButton(
+                text = if (!discoveringPort) "自动发现" else "发现中...",
+                onClick = {
+                    if (enabled && onDiscoverTarget != null && !discoveringPort)
+                        scope.launch { doDiscover() }
+                },
+                enabled = enabled && onDiscoverTarget != null && !discoveringPort,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
             ) {
                 TextButton(
-                    text = if (!discoveringPort) "自动发现" else "发现中...",
+                    text = "取消",
                     onClick = {
-                        if (enabled && onDiscoverTarget != null && !discoveringPort)
-                            scope.launch { doDiscover() }
+                        onDismissRequest()
                     },
-                    enabled = enabled && onDiscoverTarget != null && !discoveringPort,
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.weight(1f),
                 )
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
-                ) {
-                    TextButton(
-                        text = "取消",
-                        onClick = {
-                            onDismissRequest()
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = "配对",
-                        onClick = {
-                            onConfirm(host.trim(), port.trim(), code.trim())
-                            onDismissRequest()
-                        },
-                        enabled = enabled &&
-                                host.trim().isNotBlank() &&
-                                port.trim().isNotBlank() &&
-                                code.trim().isNotBlank(),
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                    )
-                }
+                TextButton(
+                    text = "配对",
+                    onClick = {
+                        onConfirm(host.trim(), port.trim(), code.trim())
+                        onDismissRequest()
+                    },
+                    enabled = enabled &&
+                            host.trim().isNotBlank() &&
+                            port.trim().isNotBlank() &&
+                            code.trim().isNotBlank(),
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
             }
-        },
-    )
+        }
+    }
 }
 
 /**
@@ -1055,7 +1053,7 @@ internal fun DeviceTile(
                     SuperTextField(
                         value = currentDraft.name,
                         onValueChange = { draft = currentDraft.copy(name = it) },
-                        label = "设备名称",
+                        label = "设备名",
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -1101,7 +1099,7 @@ internal fun DeviceTile(
                         )
                     }
                     OverlayDropdownPreference(
-                        title = "Scrcpy 配置",
+                        title = "scrcpy 配置",
                         items = profileNames,
                         selectedIndex = profileDropdownIndex,
                         onSelectedIndexChange = {
