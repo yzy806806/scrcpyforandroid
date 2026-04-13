@@ -89,7 +89,6 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.basic.TopAppBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Store
-import top.yukonga.miuix.kmp.icon.extended.Tune
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
@@ -1502,8 +1501,8 @@ internal fun ScrcpyAllOptionsPage(
                         )
                         if (it) snackbar.show(
                             "默认情况下，在 MediaCodec 出错时，" +
-                                    "scrcpy 会自动尝试使用更低的分辨率重新开始。" +
-                                    "\n此选项将禁用此行为。"
+                                    "scrcpy 会自动尝试使用更低的分辨率重新开始" +
+                                    "\n此选项将禁用此行为"
                         )
                     },
                 )

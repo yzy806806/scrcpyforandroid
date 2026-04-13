@@ -7,18 +7,18 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.drawable.Icon
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.core.app.PictureInPictureParamsCompat.Builder
 import androidx.core.content.ContextCompat
 import androidx.core.pip.BasicPictureInPicture
+import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.pages.StreamScreen
 import io.github.miuzarte.scrcpyforandroid.services.PictureInPictureActionReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.lang.ref.WeakReference
 
-class StreamActivity : ComponentActivity() {
+class StreamActivity : FragmentActivity() {
     private val basicPip = BasicPictureInPicture(this)
 
     private val pipActionReceiver = PictureInPictureActionReceiver()

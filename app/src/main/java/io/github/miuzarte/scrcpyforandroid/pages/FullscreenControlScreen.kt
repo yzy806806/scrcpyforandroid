@@ -5,6 +5,7 @@ import android.app.Activity
 import android.graphics.Rect
 import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -44,10 +45,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.widgets.ScrcpyVideoSurface
@@ -61,6 +65,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Scaffold
+import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.Text
 
 @Composable
@@ -73,11 +78,12 @@ fun FullscreenControlScreen(
 ) {
     BackHandler(enabled = true, onBack = onBack)
 
-    val context = LocalContext.current
+    val activity = LocalActivity.current
+    val fragmentActivity = remember(activity) { activity as? FragmentActivity }
 
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
-    val activity = remember(context) { context as? Activity }
+    val snackbar = LocalSnackbarController.current
     val currentSession by scrcpy.currentSessionState.collectAsState()
 
     val asBundleShared by appSettings.bundleState.collectAsState()
@@ -174,7 +180,10 @@ fun FullscreenControlScreen(
         }
     }
 
-    Scaffold(contentWindowInsets = WindowInsets(0, 0, 0, 0)) { contentPadding ->
+    Scaffold(
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+        snackbarHost = { SnackbarHost(snackbar.hostState) },
+    ) { contentPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -210,7 +219,23 @@ fun FullscreenControlScreen(
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     onAction = { action ->
-                        action.keycode?.let { sendKeycode(it) }
+                        if (action == VirtualButtonAction.PASSWORD_INPUT) {
+                            snackbar.show("当前页面无法拉起验证")
+                        } else {
+                            action.keycode?.let { sendKeycode(it) }
+                        }
+                    },
+                    passwordPopupContent = if (fragmentActivity == null) {
+                        null
+                    } else {
+                        { onDismissRequest ->
+                            PasswordPickerPopupContent(
+                                onDismissRequest = onDismissRequest,
+                                onMessage = { message ->
+                                    taskScope.launch(Dispatchers.Main) { snackbar.show(message) }
+                                },
+                            )
+                        }
                     },
                 )
             }
@@ -220,7 +245,23 @@ fun FullscreenControlScreen(
                     actions = floatingActions,
                     modifier = Modifier.fillMaxSize(),
                     onAction = { action ->
-                        action.keycode?.let { sendKeycode(it) }
+                        if (action == VirtualButtonAction.PASSWORD_INPUT) {
+                            snackbar.show("当前页面无法拉起验证")
+                        } else {
+                            action.keycode?.let { sendKeycode(it) }
+                        }
+                    },
+                    passwordPopupContent = if (fragmentActivity == null) {
+                        null
+                    } else {
+                        { onDismissRequest ->
+                            PasswordPickerPopupContent(
+                                onDismissRequest = onDismissRequest,
+                                onMessage = { message ->
+                                    taskScope.launch(Dispatchers.Main) { snackbar.show(message) }
+                                },
+                            )
+                        }
                     },
                 )
             }

@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.os.Build
 import androidx.annotation.RequiresApi
+import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
 
@@ -19,8 +20,8 @@ class PictureInPictureActionReceiver : BroadcastReceiver() {
         Thread {
             try {
                 val appContext = context.applicationContext
-                Storage.init(appContext)
                 AppRuntime.init(appContext)
+                AppWakeLocks.init(appContext)
                 runBlocking {
                     AppRuntime.scrcpy?.stop()
                 }

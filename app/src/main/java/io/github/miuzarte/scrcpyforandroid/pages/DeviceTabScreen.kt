@@ -2,6 +2,7 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.annotation.SuppressLint
 import android.util.Log
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -40,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -49,6 +51,7 @@ import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
+import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -74,6 +77,7 @@ import io.github.miuzarte.scrcpyforandroid.widgets.PreviewCard
 import io.github.miuzarte.scrcpyforandroid.widgets.QuickConnectCard
 import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.widgets.StatusCard
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonCard
 import kotlinx.coroutines.CoroutineScope
@@ -180,6 +184,8 @@ fun DeviceTabPage(
     scrollBehavior: ScrollBehavior,
     scrcpy: Scrcpy,
 ) {
+    val activity = LocalActivity.current
+    val fragmentActivity = remember(activity) {activity as? FragmentActivity}
     val context = LocalContext.current
 
     val scope = rememberCoroutineScope()
@@ -314,7 +320,6 @@ fun DeviceTabPage(
             VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout)
         )
     }
-
     var savedShortcuts by remember {
         mutableStateOf(DeviceShortcuts.unmarshalFrom(qdBundle.quickDevicesList))
     }
@@ -1124,12 +1129,26 @@ fun DeviceTabPage(
                         moreActions = virtualButtonLayout.second,
                         showText = asBundle.previewVirtualButtonShowText,
                         onAction = { action ->
+                            if (action == VirtualButtonAction.PASSWORD_INPUT) {
+                                snackbar.show("当前页面无法拉起验证")
+                                return@VirtualButtonCard
+                            }
                             val keycode = action.keycode ?: return@VirtualButtonCard
                             runBusy("发送 ${action.title}") {
                                 scrcpy.injectKeycode(0, keycode)
                                 scrcpy.injectKeycode(1, keycode)
                             }
                         },
+                        passwordPopupContent =
+                            if (fragmentActivity == null) null
+                            else { onDismissRequest ->
+                                PasswordPickerPopupContent(
+                                    onDismissRequest = onDismissRequest,
+                                    onMessage = { message ->
+                                        scope.launch { snackbar.show(message) }
+                                    },
+                                )
+                            },
                     )
                 }
             }

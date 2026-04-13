@@ -11,15 +11,19 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
 import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
+import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTarget
 import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTargetState
+import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.ThemeController
@@ -89,9 +93,15 @@ fun StreamScreen(activity: StreamActivity) {
     val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
 
     val haptics = rememberAppHaptics()
+    val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarScope = rememberCoroutineScope()
+    val snackbarController = remember(snackbarScope, snackbarHostState) {
+        SnackbarController(scope = snackbarScope, hostState = snackbarHostState)
+    }
 
     MiuixTheme(controller = themeController) {
         CompositionLocalProvider(
+            LocalSnackbarController provides snackbarController,
             LocalAppHaptics provides haptics,
         ) {
             FullscreenControlScreen(
@@ -100,11 +110,10 @@ fun StreamScreen(activity: StreamActivity) {
                 isInPip = isInPip,
                 onVideoSizeChanged = { width, height ->
                     // 只在全屏时跟随视频方向
-                    if (!isInPip) {
+                    if (!isInPip)
                         activity.requestedOrientation =
                             if (width >= height) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
                             else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-                    }
                 },
                 onVideoBoundsInWindowChanged = {
                     // 记录下一次进入 PiP 时可用的 sourceRectHint

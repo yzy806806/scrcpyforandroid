@@ -373,6 +373,7 @@ internal fun VirtualButtonCard(
     moreActions: List<VirtualButtonAction>,
     showText: Boolean,
     onAction: (VirtualButtonAction) -> Unit,
+    passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
 ) {
     val bar = remember(outsideActions, moreActions) {
         VirtualButtonBar(
@@ -386,6 +387,7 @@ internal fun VirtualButtonCard(
             enabled = !busy,
             showText = showText,
             onAction = onAction,
+            passwordPopupContent = passwordPopupContent,
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(UiSpacing.ContentVertical),

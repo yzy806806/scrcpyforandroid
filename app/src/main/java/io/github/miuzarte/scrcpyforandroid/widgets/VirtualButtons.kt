@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
+import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.PowerSettingsNew
 import androidx.compose.material.icons.rounded.Screenshot
 import androidx.compose.runtime.Composable
@@ -138,6 +139,12 @@ enum class VirtualButtonAction(
         "截图",
         Icons.Rounded.Screenshot,
         UiAndroidKeycodes.SYSRQ
+    ),
+    PASSWORD_INPUT(
+        "password_input",
+        "填充锁屏密码",
+        Icons.Rounded.Password,
+        null
     );
 }
 
@@ -152,17 +159,30 @@ object VirtualButtonActions {
     private val byId = all.associateBy { it.id }
 
     fun parseStoredLayout(raw: String): List<VirtualButtonItem> {
-        if (raw.isBlank())
-            return parseStoredLayout(AppSettings.VIRTUAL_BUTTONS_LAYOUT.defaultValue)
-
-        return raw.split(',').mapNotNull { item ->
-            val parts = item.trim().split(':')
-            if (parts.size != 2) return@mapNotNull null
-            val id = parts[0]
-            val showOutside = parts[1] == "1"
-            val action = byId[id] ?: return@mapNotNull null
-            VirtualButtonItem(action, showOutside)
+        val parsed = raw.takeIf { it.isNotBlank() }
+            ?.split(',')
+            ?.mapNotNull { item ->
+                val parts = item.trim().split(':')
+                if (parts.size != 2) return@mapNotNull null
+                val id = parts[0]
+                val showOutside = parts[1] == "1"
+                val action = byId[id] ?: return@mapNotNull null
+                VirtualButtonItem(action, showOutside)
+            }
+            .orEmpty()
+            .distinctBy { it.action.id }
+        val base = parsed.ifEmpty {
+            parseStoredLayout(AppSettings.VIRTUAL_BUTTONS_LAYOUT.defaultValue)
         }
+        val missing = all
+            .filterNot { action -> base.any { it.action == action } }
+            .map { action ->
+                VirtualButtonItem(
+                    action = action,
+                    showOutside = action == VirtualButtonAction.MORE,
+                )
+            }
+        return base + missing
     }
 
     fun encodeStoredLayout(items: List<VirtualButtonItem>): String {
@@ -182,12 +202,18 @@ class VirtualButtonBar(
     private val outsideActions: List<VirtualButtonAction>,
     private val moreActions: List<VirtualButtonAction>,
 ) {
+    private enum class ActionPopupDestination {
+        Actions,
+        Passwords,
+    }
+
     @Composable
     fun Preview(
         enabled: Boolean,
         showText: Boolean,
         onAction: (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
+        passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
     ) {
         val haptics = LocalAppHaptics.current
         val activeContainerColor = MiuixTheme.colorScheme.primary
@@ -201,14 +227,22 @@ class VirtualButtonBar(
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
         ) {
             outsideActions.forEach { action ->
+                var showPasswordPopup by remember { mutableStateOf(false) }
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
                             haptics.contextClick()
-                            if (action == VirtualButtonAction.MORE) {
-                                showMorePopup = true
-                            } else {
-                                onAction(action)
+                            when (action) {
+                                VirtualButtonAction.MORE -> {
+                                    showMorePopup = true
+                                }
+
+                                VirtualButtonAction.PASSWORD_INPUT
+                                    if passwordPopupContent != null -> {
+                                    showPasswordPopup = true
+                                }
+
+                                else -> onAction(action)
                             }
                         },
                         enabled = enabled,
@@ -219,7 +253,9 @@ class VirtualButtonBar(
                         ),
                         insideMargin = PaddingValues(0.dp),
                     ) {
-                        val contentColor = if (enabled) activeContentColor else disabledContentColor
+                        val contentColor =
+                            if (enabled) activeContentColor
+                            else disabledContentColor
                         Icon(
                             action.icon,
                             contentDescription = action.title,
@@ -240,8 +276,24 @@ class VirtualButtonBar(
                                 onAction(it)
                                 showMorePopup = false
                             },
+                            passwordPopupContent = passwordPopupContent,
                             renderInRootScaffold = false,
                         )
+                    }
+                    if (
+                        action == VirtualButtonAction.PASSWORD_INPUT &&
+                        passwordPopupContent != null
+                    ) {
+                        OverlayListPopup(
+                            show = showPasswordPopup,
+                            popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                            alignment = PopupPositionProvider.Align.TopEnd,
+                            onDismissRequest = { showPasswordPopup = false },
+                            renderInRootScaffold = false,
+                            enableWindowDim = false,
+                        ) {
+                            passwordPopupContent { showPasswordPopup = false }
+                        }
                     }
                 }
             }
@@ -252,10 +304,12 @@ class VirtualButtonBar(
     fun Fullscreen(
         onAction: suspend (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
+        passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
     ) {
         val scope = rememberCoroutineScope()
         val haptics = LocalAppHaptics.current
         var showMorePopup by remember { mutableStateOf(false) }
+        var showPasswordPopup by remember { mutableStateOf(false) }
 
         Row(
             modifier = modifier.fillMaxWidth(),
@@ -266,12 +320,17 @@ class VirtualButtonBar(
                     Button(
                         onClick = {
                             haptics.contextClick()
-                            if (action == VirtualButtonAction.MORE) {
-                                showMorePopup = true
-                            } else {
-                                scope.launch {
-                                    onAction(action)
+                            when (action) {
+                                VirtualButtonAction.MORE -> {
+                                    showMorePopup = true
                                 }
+
+                                VirtualButtonAction.PASSWORD_INPUT
+                                    if passwordPopupContent != null -> {
+                                    showPasswordPopup = true
+                                }
+
+                                else -> scope.launch { onAction(action) }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -291,13 +350,31 @@ class VirtualButtonBar(
                             actions = moreActions,
                             onDismiss = { showMorePopup = false },
                             onAction = {
-                                onAction(it)
+                                if (it == VirtualButtonAction.PASSWORD_INPUT
+                                    && passwordPopupContent != null
+                                ) showPasswordPopup = true
+                                else onAction(it)
+
                                 showMorePopup = false
                             },
+                            passwordPopupContent = passwordPopupContent,
                             renderInRootScaffold = true,
                         )
                     }
                 }
+            }
+        }
+
+        if (passwordPopupContent != null) {
+            OverlayListPopup(
+                show = showPasswordPopup,
+                popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                alignment = PopupPositionProvider.Align.TopEnd,
+                onDismissRequest = { showPasswordPopup = false },
+                renderInRootScaffold = true,
+                enableWindowDim = false,
+            ) {
+                passwordPopupContent { showPasswordPopup = false }
             }
         }
     }
@@ -307,11 +384,13 @@ class VirtualButtonBar(
         actions: List<VirtualButtonAction>,
         onAction: suspend (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
+        passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
     ) {
         val scope = rememberCoroutineScope()
         val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
         val haptics = LocalAppHaptics.current
         var showActions by remember { mutableStateOf(false) }
+        var showPasswordPopup by remember { mutableStateOf(false) }
         val asBundleShared by appSettings.bundleState.collectAsState()
         val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
         var offsetXFraction by rememberSaveable(asBundleShared.fullscreenFloatingButtonXFraction) {
@@ -374,18 +453,16 @@ class VirtualButtonBar(
                             },
                         ) { change, dragAmount ->
                             change.consume()
-                            val nextX =
-                                (maxX.toPx() * dragStartXFraction + dragAmount.x).coerceIn(
-                                    0f,
-                                    maxX.toPx()
-                                )
-                            val nextY =
-                                (maxY.toPx() * dragStartYFraction + dragAmount.y).coerceIn(
-                                    0f,
-                                    maxY.toPx()
-                                )
-                            val nextXFraction = if (maxX > 0.dp) nextX / maxX.toPx() else 0f
-                            val nextYFraction = if (maxY > 0.dp) nextY / maxY.toPx() else 0f
+                            val nextX = (maxX.toPx() * dragStartXFraction + dragAmount.x)
+                                .coerceIn(0f, maxX.toPx())
+                            val nextY = (maxY.toPx() * dragStartYFraction + dragAmount.y)
+                                .coerceIn(0f, maxY.toPx())
+                            val nextXFraction =
+                                if (maxX > 0.dp) nextX / maxX.toPx()
+                                else 0f
+                            val nextYFraction =
+                                if (maxY > 0.dp) nextY / maxY.toPx()
+                                else 0f
                             dragStartXFraction = nextXFraction
                             dragStartYFraction = nextYFraction
                             offsetXFraction = nextXFraction
@@ -419,14 +496,30 @@ class VirtualButtonBar(
                     actions = actions,
                     onDismiss = { showActions = false },
                     onAction = {
-                        scope.launch {
-                            onAction(it)
-                        }
+                        if (it == VirtualButtonAction.PASSWORD_INPUT &&
+                            passwordPopupContent != null
+                        ) showPasswordPopup = true
+                        else scope.launch { onAction(it) }
+
                         showActions = false
                     },
+                    passwordPopupContent = passwordPopupContent,
                     renderInRootScaffold = true,
                     popupAlignment = popupAlignment,
                 )
+
+                if (passwordPopupContent != null) {
+                    OverlayListPopup(
+                        show = showPasswordPopup,
+                        popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
+                        alignment = popupAlignment,
+                        onDismissRequest = { showPasswordPopup = false },
+                        renderInRootScaffold = true,
+                        enableWindowDim = false,
+                    ) {
+                        passwordPopupContent { showPasswordPopup = false }
+                    }
+                }
             }
         }
     }
@@ -437,6 +530,7 @@ class VirtualButtonBar(
         actions: List<VirtualButtonAction>,
         onDismiss: () -> Unit,
         onAction: suspend (VirtualButtonAction) -> Unit,
+        passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
         renderInRootScaffold: Boolean,
         popupAlignment: PopupPositionProvider.Align = PopupPositionProvider.Align.TopEnd,
     ) {
@@ -458,6 +552,60 @@ class VirtualButtonBar(
             }
         }
 
+        NavOverlayListPopup(
+            show = show,
+            startDestination = ActionPopupDestination.Actions,
+            popupAlignment = popupAlignment,
+            onDismiss = onDismiss,
+            renderInRootScaffold = renderInRootScaffold,
+        ) { destination, navigateTo, dismiss ->
+            ListPopupColumn {
+                if (destination == ActionPopupDestination.Actions)
+                    spinnerItems.forEachIndexed { index, entry ->
+                        SpinnerItemImpl(
+                            entry = entry,
+                            entryCount = spinnerItems.size,
+                            isSelected = false,
+                            index = index,
+                            spinnerColors = SpinnerDefaults.spinnerColors(),
+                            dialogMode = false,
+                            onSelectedIndexChange = { selectedIdx ->
+                                haptics.confirm()
+                                val selectedAction = actions[selectedIdx]
+                                if (
+                                    selectedAction == VirtualButtonAction.PASSWORD_INPUT &&
+                                    passwordPopupContent != null
+                                ) {
+                                    navigateTo(ActionPopupDestination.Passwords)
+                                } else {
+                                    scope.launch { onAction(selectedAction) }
+                                    dismiss()
+                                }
+                            },
+                        )
+                    }
+                else if (passwordPopupContent != null)
+                    passwordPopupContent { dismiss() }
+                else
+                    dismiss()
+            }
+        }
+    }
+
+    @Composable
+    private fun <Destination> NavOverlayListPopup(
+        show: Boolean,
+        startDestination: Destination,
+        popupAlignment: PopupPositionProvider.Align,
+        onDismiss: () -> Unit,
+        renderInRootScaffold: Boolean,
+        content: @Composable (
+            destination: Destination,
+            navigateTo: (Destination) -> Unit,
+            dismiss: () -> Unit,
+        ) -> Unit,
+    ) {
+        var destination by remember(show, startDestination) { mutableStateOf(startDestination) }
         OverlayListPopup(
             show = show,
             popupPositionProvider = ListPopupDefaults.ContextMenuPositionProvider,
@@ -466,24 +614,7 @@ class VirtualButtonBar(
             renderInRootScaffold = renderInRootScaffold,
             enableWindowDim = false,
         ) {
-            ListPopupColumn {
-                spinnerItems.forEachIndexed { index, entry ->
-                    SpinnerItemImpl(
-                        entry = entry,
-                        entryCount = spinnerItems.size,
-                        isSelected = false,
-                        index = index,
-                        spinnerColors = SpinnerDefaults.spinnerColors(),
-                        dialogMode = false,
-                        onSelectedIndexChange = { selectedIdx ->
-                            haptics.confirm()
-                            scope.launch {
-                                onAction(actions[selectedIdx])
-                            }
-                        },
-                    )
-                }
-            }
+            content(destination, { destination = it }, onDismiss)
         }
     }
 }

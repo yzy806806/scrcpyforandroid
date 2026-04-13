@@ -17,6 +17,9 @@ object AppRuntime {
         AdbMdnsDiscoverer.init(appContext)
     }
 
+    val context: Context
+        get() = appContext
+
     var scrcpy: Scrcpy? = null
     var currentConnectionTarget: ConnectionTarget? = null
 }

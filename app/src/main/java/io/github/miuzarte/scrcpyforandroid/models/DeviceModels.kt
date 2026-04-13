@@ -121,6 +121,7 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>) : List<DeviceShortcut> 
         DeviceShortcuts(devices)
 }
 
+// TODO: 增加 id 字段，解决编辑端口的问题
 data class DeviceShortcut(
     val name: String = "",
     val host: String,

@@ -38,6 +38,12 @@
             android:resizeableActivity="true"
             android:supportsPictureInPicture="true" />
 
+        <activity
+            android:name=".LockscreenPasswordActivity"
+            android:configChanges="keyboardHidden|orientation|screenSize|smallestScreenSize"
+            android:enableOnBackInvokedCallback="true"
+            android:exported="false" />
+
         <!-- <profileable android:shell="true" /> -->
 
     </application>

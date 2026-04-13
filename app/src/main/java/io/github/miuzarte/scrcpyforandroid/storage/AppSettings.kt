@@ -52,7 +52,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         )
         val VIRTUAL_BUTTONS_LAYOUT = Pair(
             stringPreferencesKey("virtual_buttons_layout"),
-            "more:1,app_switch:1,home:0,back:1,menu:0,notification:0,volume_up:0,volume_down:0,volume_mute:0,power:0,screenshot:0"
+            "more:1,password_input:0,app_switch:1,home:0,back:1,menu:0,notification:0,volume_up:0,volume_down:0,volume_mute:0,power:0,screenshot:0"
         )
         val CUSTOM_SERVER_URI = Pair(
             stringPreferencesKey("custom_server_uri"),
@@ -78,14 +78,18 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("adb_auto_reconnect_paired_device"),
             true
         )
-        // 没必要加开关, 保持启用
         val ADB_MDNS_LAN_DISCOVERY = Pair(
+            // 没必要加开关, 保持启用
             booleanPreferencesKey("adb_mdns_lan_discovery"),
             true
         )
         val ADB_AUTO_LOAD_APP_LIST_ON_CONNECT = Pair(
             booleanPreferencesKey("adb_auto_load_app_list_on_connect"),
             false
+        )
+        val PASSWORD_REQUIRE_AUTH = Pair(
+            booleanPreferencesKey("password_require_auth"),
+            true
         )
         val LAST_UPDATE_CHECK_AT = Pair(
             longPreferencesKey("last_update_check_at"),
@@ -118,6 +122,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val adbAutoReconnectPairedDevice by setting(ADB_AUTO_RECONNECT_PAIRED_DEVICE)
     val adbMdnsLanDiscovery by setting(ADB_MDNS_LAN_DISCOVERY)
     val adbAutoLoadAppListOnConnect by setting(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT)
+    val passwordRequireAuth by setting(PASSWORD_REQUIRE_AUTH)
     val lastUpdateCheckAt by setting(LAST_UPDATE_CHECK_AT)
 
     @Parcelize
@@ -140,6 +145,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val adbAutoReconnectPairedDevice: Boolean,
         val adbMdnsLanDiscovery: Boolean,
         val adbAutoLoadAppListOnConnect: Boolean,
+        val passwordRequireAuth: Boolean,
         val lastUpdateCheckAt: Long,
     ) : Parcelable {
     }
@@ -163,6 +169,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(ADB_AUTO_RECONNECT_PAIRED_DEVICE) { bundle: Bundle -> bundle.adbAutoReconnectPairedDevice },
         bundleField(ADB_MDNS_LAN_DISCOVERY) { bundle: Bundle -> bundle.adbMdnsLanDiscovery },
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { bundle: Bundle -> bundle.adbAutoLoadAppListOnConnect },
+        bundleField(PASSWORD_REQUIRE_AUTH) { bundle: Bundle -> bundle.passwordRequireAuth },
         bundleField(LAST_UPDATE_CHECK_AT) { bundle: Bundle -> bundle.lastUpdateCheckAt },
     )
 
@@ -189,6 +196,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         adbAutoReconnectPairedDevice = preferences.read(ADB_AUTO_RECONNECT_PAIRED_DEVICE),
         adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
+        passwordRequireAuth = preferences.read(PASSWORD_REQUIRE_AUTH),
         lastUpdateCheckAt = preferences.read(LAST_UPDATE_CHECK_AT),
     )
 

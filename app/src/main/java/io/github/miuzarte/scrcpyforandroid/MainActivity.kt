@@ -2,30 +2,42 @@ package io.github.miuzarte.scrcpyforandroid
 
 import android.os.Build
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.annotation.RequiresApi
+import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.pages.MainScreen
+import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
+import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
+import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
 import io.github.miuzarte.scrcpyforandroid.storage.PreferenceMigration
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
 
-class MainActivity : ComponentActivity() {
+// 生物认证需要 FragmentActivity
+class MainActivity : FragmentActivity() {
     @RequiresApi(Build.VERSION_CODES.R)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        Storage.init(applicationContext)
         AppRuntime.init(applicationContext)
         AppWakeLocks.init(applicationContext)
 
         val migration = PreferenceMigration(applicationContext)
         runBlocking {
+            // 旧版设置迁移
             if (migration.needsMigration())
                 migration.migrate(clearSharedPrefs = true)
+
+            PasswordRepository.refresh()
+            // 认证不可用时, 清除经认证创建的密码
+            if (!BiometricGate.canAuthenticate()) {
+                PasswordRepository.getAll()
+                    .filter { it.createdWithAuth.hasAuthenticatedOrigin && it.cipherText != null }
+                    .forEach { PasswordRepository.markInvalid(it.id) }
+            }
         }
 
         enableEdgeToEdge()

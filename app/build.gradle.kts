@@ -121,6 +121,8 @@ dependencies {
     implementation("sh.calvin.reorderable:reorderable:3.0.0")
     implementation("androidx.datastore:datastore-preferences:1.2.1")
     implementation(libs.androidx.compose.runtime)
+    implementation(libs.androidx.biometric)
+    implementation(libs.androidx.security.crypto)
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

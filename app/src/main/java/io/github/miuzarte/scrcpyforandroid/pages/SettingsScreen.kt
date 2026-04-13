@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
+import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
@@ -250,6 +251,13 @@ fun SettingsPage(
                     title = "虚拟按钮排序",
                     summary = "手动排序预览/全屏时的虚拟按钮，并选择哪些按钮展示在外",
                     onClick = { navigator.push(RootScreen.VirtualButtonOrder) },
+                )
+                ArrowPreference(
+                    title = "锁屏密码自动填充",
+                    summary = "管理用于自动填充的锁屏密码",
+                    onClick = {
+                        context.startActivity(LockscreenPasswordActivity.createIntent(context))
+                    },
                 )
                 SwitchPreference(
                     title = "全屏显示虚拟按钮",

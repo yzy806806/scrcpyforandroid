@@ -1,18 +1,12 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
-import android.content.Context
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 
 // settings singleton
 object Storage {
-    private lateinit var appContext: Context
-
-    fun init(context: Context) {
-        appContext = context.applicationContext
-    }
-
-    val appSettings: AppSettings by lazy { AppSettings(appContext) }
-    val quickDevices: QuickDevices by lazy { QuickDevices(appContext) }
-    val scrcpyOptions: ScrcpyOptions by lazy { ScrcpyOptions(appContext) }
-    val scrcpyProfiles: ScrcpyProfiles by lazy { ScrcpyProfiles(appContext) }
-    val adbClientData: AdbClientData by lazy { AdbClientData(appContext) }
+    val appSettings: AppSettings by lazy { AppSettings(AppRuntime.context) }
+    val quickDevices: QuickDevices by lazy { QuickDevices(AppRuntime.context) }
+    val scrcpyOptions: ScrcpyOptions by lazy { ScrcpyOptions(AppRuntime.context) }
+    val scrcpyProfiles: ScrcpyProfiles by lazy { ScrcpyProfiles(AppRuntime.context) }
+    val adbClientData: AdbClientData by lazy { AdbClientData(AppRuntime.context) }
 }
