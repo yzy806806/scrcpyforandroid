@@ -11,7 +11,7 @@
   <img src="https://github.com/user-attachments/assets/79eb4c43-c298-4510-b75c-8f1fd367706d" height="300" alt="Screenshot 2" />
   <img src="https://github.com/user-attachments/assets/4c2f202d-b114-4e53-8dd6-fd60e55d6e04" height="300" alt="Screenshot 3" />
   <img src="https://github.com/user-attachments/assets/92f1f62b-c4d9-40f5-8613-8495b66eff13" height="300" alt="Screenshot 4" />
-  <img src="https://github.com/user-attachments/assets/3831d760-fcdf-4ce2-b999-10fc4d2b143b" height="300" alt="Screenshot 5" />
+  <img src="https://github.com/user-attachments/assets/d5e53c67-d964-46ab-a518-4a1ca06dbdad" height="300" alt="Screenshot 5" />
   <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="300" alt="Screenshot 6" />
   <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="300" alt="Screenshot 7" />
   <img src="https://github.com/user-attachments/assets/456cf5c7-27eb-4522-9201-a106d84960f3" height="300" alt="Screenshot 8" />
@@ -23,9 +23,9 @@
 
 ## Features
 
-- 低延迟音频链路（默认未启用）
-  - 受控设备播放 `USAGE_MEDIA` 流时（[namidaco/namida](https://github.com/namidaco/namida)），两设备的音频延迟只差半拍（没有具体测量能力）
-  - 受控设备播放 `USAGE_GAME` 流时（明日方舟 Bilibili 服），仍存在 100~200ms 的有感延迟
+- 低延迟音频链路 (默认未启用)
+  - 受控设备播放 `USAGE_MEDIA` 流时 ([namidaco/namida](https://github.com/namidaco/namida)) ，两设备的音频延迟只差半拍 (没有具体测量能力)
+  - 受控设备播放 `USAGE_GAME` 流时 (明日方舟 Bilibili 服) ，仍存在 100~200ms 的有感延迟
 - 带生物认证的锁屏密码自动填充 (入口位于虚拟按钮中)
 - 多配置切换，设备绑定配置，连接后直接进入全屏
 - 可替换 scrcpy-server
@@ -35,7 +35,7 @@
 
 ## 已知问题
 
-- 因为没有设备用于（也懒得）测试，应用可能无法正常运行在安卓版本较低的设备上，特别是画中画功能，非常取决于国产 ROM 的实现
+- 因为没有设备用于 (也懒得) 测试，应用可能无法正常运行在安卓版本较低的设备上，特别是画中画功能，非常取决于国产 ROM 的实现
 - 关闭画中画后不会停止 scrcpy 串流，仍然需要回到应用中点击停止
 - 虚拟按键的截图实现方式为发送
 `keycode 120`，安卓官方([keycodes.h#349](https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h#349))的定义为
