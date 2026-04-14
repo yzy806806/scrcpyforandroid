@@ -1282,6 +1282,7 @@ private fun RecentTasksBottomSheet(
     OverlayBottomSheet(
         show = show,
         title = "最近任务",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
         endAction = {
             IconButton(

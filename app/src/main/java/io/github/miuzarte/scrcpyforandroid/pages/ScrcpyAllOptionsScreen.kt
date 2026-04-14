@@ -1968,6 +1968,7 @@ private fun ProfileNameDialog(
             ProfileDialogMode.Rename -> "重命名配置"
         },
         summary = "配置名重复时会自动追加序号",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
     ) {
         Column(
@@ -2033,6 +2034,7 @@ private fun ManageProfilesSheet(
     OverlayBottomSheet(
         show = show,
         title = "管理配置",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
         endAction = {
             IconButton(
@@ -2099,6 +2101,7 @@ private fun DeleteProfileDialog(
         show = true,
         title = "删除配置",
         summary = "确认删除 \"$profileName\"？",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
     ) {
         Row(

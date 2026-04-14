@@ -73,6 +73,7 @@ fun ReorderDevicesScreen(
     OverlayBottomSheet(
         show = show,
         title = "快速设备排序",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
     ) {
         ReorderableList(

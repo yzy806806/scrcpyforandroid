@@ -297,6 +297,7 @@ private fun LockscreenPasswordScreen(
                 show = true,
                 title = "当前设备未设置锁屏保护",
                 summary = "继续使用将允许在无认证保护的情况下保存和填充锁屏密码",
+                defaultWindowInsetsPadding = false,
                 onDismissRequest = activity::finish,
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
@@ -321,6 +322,7 @@ private fun LockscreenPasswordScreen(
                 title = "关闭验证后密码将失去保护",
                 summary = "关闭后每次填充密码时将不再强制认证" +
                         "\n同时会熔断当前经认证创建的密码",
+                defaultWindowInsetsPadding = false,
                 onDismissRequest = { showDisableDialog = false },
             ) {
                 Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
@@ -372,6 +374,7 @@ private fun LockscreenPasswordScreen(
                     show = true,
                     title = "删除密码",
                     summary = "将删除 ${target.name}",
+                    defaultWindowInsetsPadding = false,
                     onDismissRequest = { pendingDeleteId = null },
                 ) {
                     Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
@@ -582,6 +585,7 @@ private fun PasswordEditorSheet(
     OverlayBottomSheet(
         show = show,
         title = if (mode == PasswordDialogMode.Create) "创建新密码" else "重命名密码",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
         startAction = {
             IconButton(onClick = onDismissRequest) {

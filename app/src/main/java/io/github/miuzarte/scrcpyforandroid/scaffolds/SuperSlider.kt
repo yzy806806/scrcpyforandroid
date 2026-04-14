@@ -124,6 +124,7 @@ private fun SliderInputDialog(
         show = showDialog,
         title = title,
         summary = summary,
+        defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
         onDismissFinished = onDismissFinished,
     ) {

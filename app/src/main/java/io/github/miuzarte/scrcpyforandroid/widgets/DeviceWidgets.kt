@@ -682,6 +682,7 @@ private fun PairingDialog(
         show = showDialog,
         title = "使用配对码配对设备",
         summary = "使用六位数的配对码配对新设备",
+        defaultWindowInsetsPadding = false,
         onDismissRequest = {
             onDismissRequest()
         },
@@ -1225,11 +1226,11 @@ internal fun QuickConnectCard(
             ) {
                 Icon(
                     Icons.Rounded.AddLink,
-                    contentDescription = "快速连接",
+                    contentDescription = "连接 / 添加设备",
                     tint = colorScheme.onPrimaryContainer,
                 )
                 Text(
-                    "快速连接",
+                    "连接 / 添加设备",
                     fontWeight = FontWeight.Bold,
                     color = colorScheme.onPrimaryContainer,
                 )
@@ -1257,7 +1258,7 @@ internal fun QuickConnectCard(
                     enabled = enabled,
                 )
                 TextButton(
-                    text = "连接",
+                    text = "直接连接",
                     onClick = onConnect,
                     modifier = Modifier.weight(1f),
                     enabled = enabled,
