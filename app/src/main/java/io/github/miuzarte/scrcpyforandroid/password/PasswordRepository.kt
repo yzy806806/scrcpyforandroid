@@ -13,6 +13,7 @@ import java.security.GeneralSecurityException
 import java.security.KeyStoreException
 import java.util.UUID
 
+@Suppress("DEPRECATION")
 object PasswordRepository {
     private const val PREFS_NAME = "LockscreenPasswords"
     private const val KEY_ORDER = "__order"

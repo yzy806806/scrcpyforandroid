@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.compose.compiler)
@@ -18,16 +20,28 @@ android {
 
     signingConfigs {
         create("release") {
-            val releaseStoreFile = System.getenv("RELEASE_STORE_FILE")
-            val releaseStorePassword = System.getenv("RELEASE_STORE_PASSWORD")
-            val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
-            val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            val envFile = rootProject.file(".env")
+            val envProps = Properties()
+            if (envFile.exists())
+                envFile.inputStream().use { envProps.load(it) }
 
+            fun getValue(key: String): String? {
+                var value = (
+                        envProps.getProperty(key)?.trim()?.takeIf { it.isNotEmpty() }
+                            ?: System.getenv(key)?.trim()?.takeIf { it.isNotEmpty() }
+                        )
+                    ?.trim('"', '\'')
+                if (value != null && value.startsWith("~"))
+                    value = System.getProperty("user.home") + value.substring(1)
+                return value
+            }
+
+            val releaseStoreFile = getValue("RELEASE_STORE_FILE")
             if (!releaseStoreFile.isNullOrBlank()) {
                 storeFile = file(releaseStoreFile)
-                storePassword = releaseStorePassword
-                keyAlias = releaseKeyAlias
-                keyPassword = releaseKeyPassword
+                storePassword = getValue("RELEASE_STORE_PASSWORD")
+                keyAlias = getValue("RELEASE_KEY_ALIAS")
+                keyPassword = getValue("RELEASE_KEY_PASSWORD")
                 enableV1Signing = true
                 enableV2Signing = true
                 enableV3Signing = true
@@ -39,7 +53,7 @@ android {
     defaultConfig {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 13
         versionName = "0.1.7"
 
@@ -93,8 +107,8 @@ android {
         }
     }
 
-    buildToolsVersion = "36.0.0"
-    ndkVersion = "28.2.13676358"
+    buildToolsVersion = "37.0.0"
+    ndkVersion = "29.0.14206865"
 }
 
 dependencies {
@@ -115,12 +129,12 @@ dependencies {
     implementation(libs.miuix.icons)
     implementation(libs.miuix.navigation3.ui)
     implementation(libs.backdrop)
-    implementation("io.github.vvb2060.ndk:boringssl:20250114")
-    implementation("org.lsposed.libcxx:libcxx:27.0.12077973")
-    implementation("org.bouncycastle:bcpkix-jdk18on:1.80")
-    implementation("org.conscrypt:conscrypt-android:2.5.2")
-    implementation("sh.calvin.reorderable:reorderable:3.0.0")
-    implementation("androidx.datastore:datastore-preferences:1.2.1")
+    implementation(libs.boringssl)
+    implementation(libs.libcxx)
+    implementation(libs.bcpkix.jdk18on)
+    implementation(libs.conscrypt.android)
+    implementation(libs.reorderable)
+    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)

@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import kotlinx.coroutines.runBlocking
 
 // not working in MIUI
@@ -28,7 +29,7 @@ class PictureInPictureActionReceiver : BroadcastReceiver() {
 
     companion object {
         const val ACTION_STOP_SCRCPY =
-            "io.github.miuzarte.scrcpyforandroid.action.STOP_SCRCPY_FROM_PIP"
+            "${BuildConfig.APPLICATION_ID}.action.STOP_SCRCPY_FROM_PIP"
         private const val REQUEST_CODE_STOP_SCRCPY = 1
 
         fun createIntentFilter(): IntentFilter = IntentFilter(ACTION_STOP_SCRCPY)

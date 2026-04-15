@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
+import android.annotation.SuppressLint
 import android.content.Context
 import android.net.nsd.NsdManager
 import android.net.nsd.NsdServiceInfo
@@ -72,6 +73,8 @@ internal object AdbMdnsDiscoverer {
                 Log.w(TAG, "stop discovery failed: $serviceType, error=$errorCode")
             }
 
+            @Suppress("DEPRECATION")
+            @SuppressLint("NewApi")
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (discoveryFinished.get()) return
                 Log.v(TAG, "service found: ${serviceInfo.serviceName}")
@@ -82,7 +85,7 @@ internal object AdbMdnsDiscoverer {
 
                     override fun onServiceResolved(serviceInfo: NsdServiceInfo) {
                         if (discoveryFinished.get()) return
-                        val hostAddress = serviceInfo.host?.hostAddress ?: return
+                        val hostAddress = serviceInfo.hostAddresses[0].hostAddress ?: return
                         if (hostAddress.isBlank()) return
 
                         if (!includeLanDevices) {

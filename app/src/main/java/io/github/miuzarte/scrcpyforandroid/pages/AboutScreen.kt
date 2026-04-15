@@ -73,6 +73,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.shapes.SmoothRoundedCornerShape
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
+import java.util.Locale.getDefault
 
 @Composable
 internal fun AboutScreen() {
@@ -269,7 +270,8 @@ private fun AboutContent(
                 )
             }
             Text(
-                text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                text = "v${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})" +
+                        " · ${BuildConfig.BUILD_TYPE.uppercase(getDefault())} BUILD",
                 modifier = Modifier
                     .fillMaxWidth()
                     .graphicsLayer {
