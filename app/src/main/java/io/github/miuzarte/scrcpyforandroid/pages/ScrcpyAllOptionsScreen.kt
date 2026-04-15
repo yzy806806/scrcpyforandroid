@@ -48,6 +48,7 @@ import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.Crop
 import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.NewDisplay
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
+import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSpinner
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
@@ -100,7 +101,6 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
-import top.yukonga.miuix.kmp.preference.OverlaySpinnerPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import kotlin.math.roundToInt
@@ -481,12 +481,23 @@ internal fun ScrcpyAllOptionsPage(
     val displayDropdownItems = rememberSaveable(displays, listRefreshVersion) {
         listOf("默认") + displays.map { "${it.id} (${it.width}x${it.height})" }
     }
+    val displaySpinnerItems = remember(displayDropdownItems) {
+        displayDropdownItems.map { SpinnerEntry(title = it) }
+    }
     val displayDropdownIndex = rememberSaveable(
         soBundle.displayId,
         displays,
         listRefreshVersion,
     ) {
         (displays.indexOfFirst { it.id == soBundle.displayId } + 1).coerceAtLeast(0)
+    }
+    val displayOverrideEndActionValue = remember(
+        displays,
+        listRefreshVersion,
+        soBundle.displayId,
+    ) {
+        if (displays.isEmpty() && soBundle.displayId >= 0) soBundle.displayId.toString()
+        else null
     }
 
     val cameras = scrcpy.listings.cameras
@@ -504,12 +515,23 @@ internal fun ScrcpyAllOptionsPage(
             }
         }
     }
+    val cameraSpinnerItems = remember(cameraDropdownItems) {
+        cameraDropdownItems.map { SpinnerEntry(title = it) }
+    }
     val cameraDropdownIndex = rememberSaveable(
         soBundle.cameraId,
         cameras,
         listRefreshVersion,
     ) {
         (cameras.indexOfFirst { it.id == soBundle.cameraId } + 1).coerceAtLeast(0)
+    }
+    val cameraOverrideEndActionValue = remember(
+        cameras,
+        listRefreshVersion,
+        soBundle.cameraId,
+    ) {
+        if (cameras.isEmpty() && soBundle.cameraId.isNotBlank()) soBundle.cameraId
+        else null
     }
 
     val cameraFacingItems = rememberSaveable {
@@ -535,6 +557,9 @@ internal fun ScrcpyAllOptionsPage(
     val cameraSizeDropdownItems = rememberSaveable(cameraSizes, listRefreshVersion) {
         listOf("默认", "自定义") + cameraSizes
     }
+    val cameraSizeSpinnerItems = remember(cameraSizeDropdownItems) {
+        cameraSizeDropdownItems.map { SpinnerEntry(title = it) }
+    }
     val cameraSizeDropdownIndex = rememberSaveable(
         soBundle.cameraSize,
         soBundle.cameraSizeCustom,
@@ -549,6 +574,23 @@ internal fun ScrcpyAllOptionsPage(
                 cameraSizes.indexOf(soBundle.cameraSize) + 2
 
             else -> 0
+        }
+    }
+    val cameraSizeOverrideEndActionValue = remember(
+        cameraSizes,
+        listRefreshVersion,
+        soBundle.cameraSize,
+        soBundle.cameraSizeCustom,
+        soBundle.cameraSizeUseCustom,
+    ) {
+        if (cameraSizes.isNotEmpty()) {
+            null
+        } else if (soBundle.cameraSizeUseCustom && soBundle.cameraSizeCustom.isNotBlank()) {
+            soBundle.cameraSizeCustom
+        } else if (soBundle.cameraSize.isNotBlank()) {
+            soBundle.cameraSize
+        } else {
+            null
         }
     }
 
@@ -615,6 +657,14 @@ internal fun ScrcpyAllOptionsPage(
         (videoEncoders.indexOfFirst { it.id == soBundle.videoEncoder } + 1)
             .coerceAtLeast(0)
     }
+    val videoEncoderOverrideEndActionValue = remember(
+        videoEncoders,
+        listRefreshVersion,
+        soBundle.videoEncoder,
+    ) {
+        if (videoEncoders.isEmpty() && soBundle.videoEncoder.isNotBlank()) soBundle.videoEncoder
+        else null
+    }
 
     val audioEncoders = scrcpy.listings.audioEncoders
     val audioEncoderItems by remember(audioEncoders, listRefreshVersion) {
@@ -639,6 +689,14 @@ internal fun ScrcpyAllOptionsPage(
     ) {
         (audioEncoders.indexOfFirst { it.id == soBundle.audioEncoder } + 1)
             .coerceAtLeast(0)
+    }
+    val audioEncoderOverrideEndActionValue = remember(
+        audioEncoders,
+        listRefreshVersion,
+        soBundle.audioEncoder,
+    ) {
+        if (audioEncoders.isEmpty() && soBundle.audioEncoder.isNotBlank()) soBundle.audioEncoder
+        else null
     }
 
     val displayImePolicyItems = rememberSaveable {
@@ -701,6 +759,14 @@ internal fun ScrcpyAllOptionsPage(
 
             else -> 0
         }
+    }
+    val startAppOverrideEndActionValue = remember(
+        apps,
+        listRefreshVersion,
+        soBundle.startApp,
+    ) {
+        if (apps.isEmpty() && soBundle.startApp.isNotBlank()) soBundle.startApp
+        else null
     }
     var startAppCustomInput by rememberSaveable(soBundle.startAppCustom) {
         mutableStateOf(soBundle.startAppCustom)
@@ -1091,11 +1157,12 @@ internal fun ScrcpyAllOptionsPage(
                                 }
                             },
                         )
-                        OverlayDropdownPreference(
+                        SuperSpinner(
                             title = "监视器 ID",
                             summary = "--display-id",
-                            items = displayDropdownItems,
+                            items = displaySpinnerItems,
                             selectedIndex = displayDropdownIndex,
+                            overrideEndActionValue = displayOverrideEndActionValue,
                             onSelectedIndexChange = {
                                 soBundle = soBundle.copy(
                                     displayId =
@@ -1187,11 +1254,12 @@ internal fun ScrcpyAllOptionsPage(
                                 }
                             },
                         )
-                        OverlayDropdownPreference(
+                        SuperSpinner(
                             title = "摄像头 ID",
                             summary = "--camera-id",
-                            items = cameraDropdownItems,
+                            items = cameraSpinnerItems,
                             selectedIndex = cameraDropdownIndex,
+                            overrideEndActionValue = cameraOverrideEndActionValue,
                             onSelectedIndexChange = {
                                 soBundle = soBundle.copy(
                                     cameraId =
@@ -1231,11 +1299,12 @@ internal fun ScrcpyAllOptionsPage(
                                 }
                             },
                         )
-                        OverlayDropdownPreference(
+                        SuperSpinner(
                             title = "摄像头分辨率",
                             summary = "--camera-size",
-                            items = cameraSizeDropdownItems,
+                            items = cameraSizeSpinnerItems,
                             selectedIndex = cameraSizeDropdownIndex,
+                            overrideEndActionValue = cameraSizeOverrideEndActionValue,
                             onSelectedIndexChange = {
                                 when (it) {
                                     0 -> {
@@ -1419,11 +1488,12 @@ internal fun ScrcpyAllOptionsPage(
                     },
                 )
                 // TODO: 等 MIUIX 发版, 在 OverlaySpinnerPreference / OverlayDropdownPreference 支持展开状态回调后, 在展开时触发获取
-                OverlaySpinnerPreference(
+                SuperSpinner(
                     title = "视频编码器",
                     summary = "--video-encoder",
                     items = videoEncoderItems,
                     selectedIndex = videoEncoderIndex,
+                    overrideEndActionValue = videoEncoderOverrideEndActionValue,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
                             videoEncoder =
@@ -1446,11 +1516,12 @@ internal fun ScrcpyAllOptionsPage(
                         .fillMaxWidth()
                         .padding(all = UiSpacing.Large),
                 )
-                OverlaySpinnerPreference(
+                SuperSpinner(
                     title = "音频编码器",
                     summary = "--audio-encoder",
                     items = audioEncoderItems,
                     selectedIndex = audioEncoderIndex,
+                    overrideEndActionValue = audioEncoderOverrideEndActionValue,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
                             audioEncoder =
@@ -1564,11 +1635,12 @@ internal fun ScrcpyAllOptionsPage(
                         }
                     },
                 )
-                OverlaySpinnerPreference(
+                SuperSpinner(
                     title = "scrcpy 启动后打开应用",
-                    summary = "--start-app\nTODO: 未实现虚拟屏配合",
+                    summary = "--start-app",
                     items = appDropdownItems,
                     selectedIndex = appDropdownIndex,
+                    overrideEndActionValue = startAppOverrideEndActionValue,
                     onSelectedIndexChange = {
                         when (it) {
                             0 -> {

@@ -399,6 +399,8 @@ internal fun VirtualButtonCard(
 @Composable
 internal fun ConfigPanel(
     busy: Boolean,
+    activeProfileId: String,
+    activeBundle: ScrcpyOptions.Bundle,
     audioForwardingSupported: Boolean,
     cameraMirroringSupported: Boolean,
     adbConnecting: Boolean,
@@ -418,25 +420,33 @@ internal fun ConfigPanel(
 
     val sessionStarted = sessionInfo != null
 
-    val soBundleShared by scrcpyOptions.bundleState.collectAsState()
-    val soBundleSharedLatest by rememberUpdatedState(soBundleShared)
-    var soBundle by rememberSaveable(soBundleShared) { mutableStateOf(soBundleShared) }
+    val activeProfileIdLatest by rememberUpdatedState(activeProfileId)
+    val activeBundleLatest by rememberUpdatedState(activeBundle)
+    var soBundle by rememberSaveable(activeProfileId, activeBundle) { mutableStateOf(activeBundle) }
     val soBundleLatest by rememberUpdatedState(soBundle)
-    LaunchedEffect(soBundleShared) {
-        if (soBundle != soBundleShared) {
-            soBundle = soBundleShared
+    LaunchedEffect(activeProfileId, activeBundle) {
+        if (soBundle != activeBundle) {
+            soBundle = activeBundle
         }
     }
     LaunchedEffect(soBundle) {
         delay(Settings.BUNDLE_SAVE_DELAY)
-        if (soBundle != soBundleSharedLatest) {
-            scrcpyOptions.saveBundle(soBundle)
+        if (soBundle != activeBundleLatest) {
+            if (activeProfileIdLatest == ScrcpyOptions.GLOBAL_PROFILE_ID) {
+                scrcpyOptions.saveBundle(soBundle)
+            } else {
+                Storage.scrcpyProfiles.updateBundle(activeProfileIdLatest, soBundle)
+            }
         }
     }
     DisposableEffect(Unit) {
         onDispose {
             taskScope.launch {
-                scrcpyOptions.saveBundle(soBundleLatest)
+                if (activeProfileIdLatest == ScrcpyOptions.GLOBAL_PROFILE_ID) {
+                    scrcpyOptions.saveBundle(soBundleLatest)
+                } else {
+                    Storage.scrcpyProfiles.updateBundle(activeProfileIdLatest, soBundleLatest)
+                }
             }
         }
     }
