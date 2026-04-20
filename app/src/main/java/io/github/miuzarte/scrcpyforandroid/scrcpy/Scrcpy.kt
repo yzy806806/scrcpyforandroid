@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.scrcpy
 
+import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.util.Log
@@ -15,11 +16,16 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.EncoderType
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.ListOptions
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
+import io.github.miuzarte.scrcpyforandroid.services.LocalInputService
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -61,7 +67,24 @@ class Scrcpy(
     private val lowLatency: Boolean = false,
 ) {
 
-    private val session = Session()
+    private val session = Session(::handleRemoteClipboardText)
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val clipboardSyncLock = Any()
+    private val clipboardManager by lazy {
+        appContext.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    }
+
+    @Volatile
+    private var clipboardListenerRegistered = false
+
+    @Volatile
+    private var lastKnownLocalClipboardText: String? = null
+
+    @Volatile
+    private var pendingRemoteClipboardText: String? = null
+    private val clipboardChangedListener = ClipboardManager.OnPrimaryClipChangedListener {
+        handleLocalClipboardChanged()
+    }
 
     private val _currentSessionState = MutableStateFlow<Session.SessionInfo?>(null)
     val currentSessionState: StateFlow<Session.SessionInfo?> = _currentSessionState.asStateFlow()
@@ -143,8 +166,9 @@ class Scrcpy(
             }
 
             // Create session info
-            _currentSessionState.value = info
+            _currentSessionState.value = info.copy(legacyPaste = options.legacyPaste)
             isRunning = true
+            startClipboardSync()
 
             // Setup video consumer (notify NativeCoreFacade to setup decoders)
             if (options.video) {
@@ -204,6 +228,7 @@ class Scrcpy(
             audioPlayer = null
             isRunning = false
             _currentSessionState.value = null
+            stopClipboardSync()
             Log.i(TAG, "stop(): Session stopped successfully")
             true
         } catch (e: Exception) {
@@ -213,8 +238,6 @@ class Scrcpy(
     }
 
     fun isStarted(): Boolean = isRunning && session.isStarted()
-
-    fun getCurrentSession(): Session.SessionInfo? = currentSessionState.value
 
     suspend fun startApp(name: String) = session.startApp(name)
 
@@ -231,6 +254,8 @@ class Scrcpy(
     )
 
     suspend fun injectText(text: String) = session.injectText(text)
+
+    suspend fun setClipboard(text: String, paste: Boolean) = session.setClipboard(text, paste)
 
     suspend fun injectTouch(
         action: Int,
@@ -278,34 +303,69 @@ class Scrcpy(
         _currentSessionState.value = current.copy(width = width, height = height)
     }
 
-    sealed class ListResult {
-        data class Encoders(
-            val videoEncoders: List<String>,
-            val audioEncoders: List<String>,
-            val videoEncoderTypes: Map<String, String> = emptyMap(),
-            val audioEncoderTypes: Map<String, String> = emptyMap(),
-            val rawOutput: String = "",
-        ) : ListResult()
+    private fun startClipboardSync() {
+        synchronized(clipboardSyncLock) {
+            lastKnownLocalClipboardText = LocalInputService.getClipboardText(appContext)
+            pendingRemoteClipboardText = null
+            if (!clipboardListenerRegistered) {
+                clipboardManager?.addPrimaryClipChangedListener(clipboardChangedListener)
+                clipboardListenerRegistered = true
+            }
+        }
+    }
 
-        data class Displays(
-            val displays: List<DisplayInfo>,
-            val rawOutput: String = "",
-        ) : ListResult()
+    private fun stopClipboardSync() {
+        synchronized(clipboardSyncLock) {
+            if (clipboardListenerRegistered) {
+                clipboardManager?.removePrimaryClipChangedListener(clipboardChangedListener)
+                clipboardListenerRegistered = false
+            }
+            pendingRemoteClipboardText = null
+        }
+    }
 
-        data class Cameras(
-            val cameras: List<CameraInfo>,
-            val rawOutput: String = "",
-        ) : ListResult()
+    private fun handleLocalClipboardChanged() {
+        val text = LocalInputService.getClipboardText(appContext)
+        val shouldSync = synchronized(clipboardSyncLock) {
+            if (text == lastKnownLocalClipboardText) {
+                return@synchronized false
+            }
+            lastKnownLocalClipboardText = text
+            if (text != null && text == pendingRemoteClipboardText) {
+                pendingRemoteClipboardText = null
+                return@synchronized false
+            }
+            true
+        }
+        if (!shouldSync) {
+            return
+        }
+        if (!isRunning || !appSettings.bundleState.value.realtimeClipboardSyncToDevice) {
+            return
+        }
+        val content = text?.takeIf { it.isNotBlank() } ?: return
+        backgroundScope.launch {
+            runCatching {
+                session.setClipboard(content, paste = false)
+            }.onFailure { error ->
+                Log.w(TAG, "realtime clipboard sync failed", error)
+            }
+        }
+    }
 
-        data class CameraSizes(
-            val sizes: List<String>,
-            val rawOutput: String = "",
-        ) : ListResult()
-
-        data class Apps(
-            val apps: List<AppInfo>,
-            val rawOutput: String = "",
-        ) : ListResult()
+    private fun handleRemoteClipboardText(text: String) {
+        val shouldWrite = synchronized(clipboardSyncLock) {
+            if (text == lastKnownLocalClipboardText) {
+                return@synchronized false
+            }
+            pendingRemoteClipboardText = text
+            lastKnownLocalClipboardText = text
+            true
+        }
+        if (!shouldWrite) {
+            return
+        }
+        LocalInputService.setClipboardText(appContext, text)
     }
 
     inner class Listings {
@@ -740,7 +800,9 @@ class Scrcpy(
      * Session manager for scrcpy protocol.
      * Handles socket communication, video/audio streaming, and control input.
      */
-    class Session {
+    class Session(
+        private val onRemoteClipboardText: (String) -> Unit,
+    ) {
         private val mutex = Mutex()
 
         @Volatile
@@ -757,6 +819,9 @@ class Scrcpy(
 
         @Volatile
         private var audioReaderThread: Thread? = null
+
+        @Volatile
+        private var controlReaderThread: Thread? = null
 
         private val serverLogBuffer = ArrayDeque<String>()
 
@@ -881,6 +946,10 @@ class Scrcpy(
                 val controlWriter = controlStream?.let { stream ->
                     ControlWriter(DataOutputStream(stream.outputStream))
                 }
+                val controlInput = controlStream?.let { stream ->
+                    if (stream === firstStream) firstInput
+                    else DataInputStream(BufferedInputStream(stream.inputStream))
+                }
 
                 val newSession = ActiveSession(
                     info = sessionInfo,
@@ -892,9 +961,13 @@ class Scrcpy(
                     audioStream = audioStream,
                     audioInput = audioInput,
                     controlStream = controlStream,
+                    controlInput = controlInput,
                     controlWriter = controlWriter,
                 )
                 activeSession = newSession
+                if (options.control && options.clipboardAutosync)
+                    startControlReaderThread(newSession)
+
                 return sessionInfo
             } catch (t: Throwable) {
                 val tail = snapshotServerLogs()
@@ -1031,6 +1104,14 @@ class Scrcpy(
             }
         }
 
+        suspend fun setClipboard(text: String, paste: Boolean) = mutex.withLock {
+            try {
+                requireControlWriter().setClipboard(text, paste)
+            } catch (e: IllegalStateException) {
+                Log.w(TAG, "setClipboard(): control channel not available", e)
+            }
+        }
+
         suspend fun injectTouch(
             action: Int,
             pointerId: Long,
@@ -1121,6 +1202,12 @@ class Scrcpy(
             }
             audioReaderThread = null
 
+            if (Thread.currentThread() !== controlReaderThread) {
+                runCatching { controlReaderThread?.interrupt() }
+                runCatching { controlReaderThread?.join(300) }
+            }
+            controlReaderThread = null
+
             runCatching { session.controlStream?.close() }
             runCatching { session.audioStream?.close() }
             runCatching { session.videoStream?.close() }
@@ -1138,6 +1225,57 @@ class Scrcpy(
                 ?: throw IllegalStateException("scrcpy control channel not available")
             return session.controlWriter
                 ?: throw IllegalStateException("scrcpy control channel not available")
+        }
+
+        private fun startControlReaderThread(session: ActiveSession) {
+            val controlInput = session.controlInput ?: return
+            val controlStream = session.controlStream ?: return
+            if (controlReaderThread?.isAlive == true) return
+
+            controlReaderThread = thread(start = true, name = "scrcpy-control-reader") {
+                try {
+                    while (activeSession === session && !controlStream.closed) {
+                        try {
+                            when (controlInput.readUnsignedByte()) {
+                                DEVICE_MSG_TYPE_CLIPBOARD -> {
+                                    val size = controlInput.readInt()
+                                    if (size !in 0..DEVICE_MSG_MAX_SIZE) {
+                                        throw IllegalStateException("Invalid clipboard size: $size")
+                                    }
+                                    val payload = ByteArray(size)
+                                    controlInput.readFully(payload)
+                                    onRemoteClipboardText(payload.toString(Charsets.UTF_8))
+                                }
+
+                                DEVICE_MSG_TYPE_ACK_CLIPBOARD -> {
+                                    controlInput.readLong()
+                                }
+
+                                DEVICE_MSG_TYPE_UHID_OUTPUT -> {
+                                    controlInput.readUnsignedShort()
+                                    val size = controlInput.readUnsignedShort()
+                                    controlInput.skipBytes(size)
+                                }
+
+                                else -> {
+                                    throw IllegalStateException("Unknown device message type")
+                                }
+                            }
+                        } catch (_: EOFException) {
+                            break
+                        } catch (_: InterruptedException) {
+                            if (activeSession !== session || controlStream.closed) {
+                                break
+                            }
+                            Thread.interrupted()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "control reader failed", e)
+                            break
+                        }
+                    }
+                } finally {
+                }
+            }
         }
 
         private fun startServerLogThread(
@@ -1223,6 +1361,7 @@ class Scrcpy(
             val height: Int,
             val audioCodecId: Int = 0,
             val controlEnabled: Boolean,
+            val legacyPaste: Boolean = false,
             val host: String = "",
             val port: Int = Defaults.ADB_PORT,
         )
@@ -1286,6 +1425,7 @@ class Scrcpy(
             val audioStream: AdbSocketStream?,
             val audioInput: DataInputStream?,
             val controlStream: AdbSocketStream?,
+            val controlInput: DataInputStream?,
             val controlWriter: ControlWriter?,
         )
 
@@ -1304,6 +1444,17 @@ class Scrcpy(
             fun injectText(text: String) {
                 val bytes = text.toByteArray(Charsets.UTF_8)
                 output.writeByte(TYPE_INJECT_TEXT)
+                output.writeInt(bytes.size)
+                output.write(bytes)
+                output.flush()
+            }
+
+            @Synchronized
+            fun setClipboard(text: String, paste: Boolean) {
+                val bytes = text.toByteArray(Charsets.UTF_8)
+                output.writeByte(TYPE_SET_CLIPBOARD)
+                output.writeLong(CLIPBOARD_SEQUENCE_INVALID)
+                output.writeByte(if (paste) 1 else 0)
                 output.writeInt(bytes.size)
                 output.write(bytes)
                 output.flush()
@@ -1415,14 +1566,20 @@ class Scrcpy(
 
             private const val AUDIO_DISABLED = 0
             private const val AUDIO_ERROR = 1
+            private const val DEVICE_MSG_MAX_SIZE = 1 shl 18
+            private const val DEVICE_MSG_TYPE_CLIPBOARD = 0
+            private const val DEVICE_MSG_TYPE_ACK_CLIPBOARD = 1
+            private const val DEVICE_MSG_TYPE_UHID_OUTPUT = 2
 
             private const val TYPE_INJECT_KEYCODE = 0
             private const val TYPE_INJECT_TEXT = 1
             private const val TYPE_INJECT_TOUCH_EVENT = 2
             private const val TYPE_INJECT_SCROLL_EVENT = 3
             private const val TYPE_BACK_OR_SCREEN_ON = 4
+            private const val TYPE_SET_CLIPBOARD = 9
             private const val TYPE_SET_DISPLAY_POWER = 10
             private const val TYPE_START_APP = 16
+            private const val CLIPBOARD_SEQUENCE_INVALID = 0L
 
             private fun socketNameFor(scid: Int): String {
                 return "scrcpy_%08x".format(scid)

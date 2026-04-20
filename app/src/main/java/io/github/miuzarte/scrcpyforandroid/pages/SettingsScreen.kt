@@ -34,6 +34,7 @@ import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
+import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -47,7 +48,6 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import io.github.miuzarte.scrcpyforandroid.widgets.SectionSmallTitle
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -286,6 +286,14 @@ fun SettingsPage(
                         asBundle = asBundle.copy(fullscreenDebugInfo = it)
                     },
                 )
+                SwitchPreference(
+                    title = "设备页隐藏简单设置项",
+                    summary = "启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮",
+                    checked = asBundle.hideSimpleConfigItems,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(hideSimpleConfigItems = it)
+                    },
+                )
                 SuperSlider(
                     title = "预览卡高度",
                     summary = "设备页预览卡高度",
@@ -341,6 +349,16 @@ fun SettingsPage(
                     checked = asBundle.showFullscreenFloatingButton,
                     onCheckedChange = {
                         asBundle = asBundle.copy(showFullscreenFloatingButton = it)
+                    },
+                )
+                SwitchPreference(
+                    title = "实时同步剪贴板到受控机",
+                    summary = "本机剪贴板更新后会自动同步到受控机" +
+                            "\n禁用后需要使用虚拟按钮中的粘贴才能粘贴本机内容" +
+                            "\nMIUI 完全不允许后台监听剪贴板，因此该选项在小米设备上可能无效",
+                    checked = asBundle.realtimeClipboardSyncToDevice,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(realtimeClipboardSyncToDevice = it)
                     },
                 )
             }

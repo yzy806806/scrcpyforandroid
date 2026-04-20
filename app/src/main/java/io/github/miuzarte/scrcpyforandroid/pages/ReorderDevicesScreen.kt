@@ -9,16 +9,15 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
-import io.github.miuzarte.scrcpyforandroid.widgets.ReorderableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -31,7 +30,6 @@ fun ReorderDevicesScreen(
     show: Boolean,
     onDismissRequest: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
     val qdBundleShared by quickDevices.bundleState.collectAsState()

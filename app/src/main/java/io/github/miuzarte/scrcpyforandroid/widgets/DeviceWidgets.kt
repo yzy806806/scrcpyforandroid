@@ -1,9 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.widgets
 
 import android.annotation.SuppressLint
+import android.view.KeyEvent
 import android.view.Surface
 import android.view.SurfaceHolder
-import android.view.SurfaceView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -86,6 +85,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -104,6 +105,7 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
+import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import kotlin.math.roundToInt
 
@@ -253,6 +255,10 @@ internal fun PreviewCard(
     sessionInfo: Scrcpy.Session.SessionInfo?,
     previewHeightDp: Int,
     onOpenFullscreen: () -> Unit,
+    imeRequestToken: Int = 0,
+    onImeCommitText: (suspend (String) -> Unit)? = null,
+    onImeDeleteSurroundingText: (suspend (beforeLength: Int, afterLength: Int) -> Unit)? = null,
+    onImeKeyEvent: (suspend (KeyEvent) -> Boolean)? = null,
     autoBringIntoView: Boolean = false,
     onAutoBringIntoViewConsumed: () -> Unit = {},
 ) {
@@ -335,6 +341,10 @@ internal fun PreviewCard(
                     ScrcpyVideoSurface(
                         modifier = Modifier.fillMaxSize(),
                         session = sessionInfo,
+                        imeRequestToken = imeRequestToken,
+                        onImeCommitText = onImeCommitText,
+                        onImeDeleteSurroundingText = onImeDeleteSurroundingText,
+                        onImeKeyEvent = onImeKeyEvent,
                     )
                 }
             }
@@ -401,14 +411,17 @@ internal fun ConfigPanel(
     busy: Boolean,
     activeProfileId: String,
     activeBundle: ScrcpyOptions.Bundle,
+    hideSimpleConfigItems: Boolean,
     audioForwardingSupported: Boolean,
     cameraMirroringSupported: Boolean,
     adbConnecting: Boolean,
     isQuickConnected: Boolean,
-    recentTasksEndAction: @Composable (RowScope.() -> Unit)? = null,
-    onOpenRecentTasks: (() -> Unit)? = null,
+    allAppsEndActionText: String,
+    onOpenAllApps: () -> Unit,
+    recentTasksEndActionText: String,
+    onOpenRecentTasks: () -> Unit,
     onOpenAdvanced: () -> Unit,
-    onStartStopHaptic: (() -> Unit)? = null,
+    onStartStopHaptic: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     sessionInfo: Scrcpy.Session.SessionInfo?,
@@ -470,149 +483,167 @@ internal fun ConfigPanel(
     }
 
     Card {
-        SwitchPreference(
-            title = "音频转发",
-            summary = "转发设备音频到本机 (Android 11+)",
-            checked = soBundle.audio,
-            onCheckedChange = { soBundle = soBundle.copy(audio = it) },
-            enabled = !sessionStarted
-                    && audioForwardingSupported,
-        )
+        if (!hideSimpleConfigItems) {
+            SwitchPreference(
+                title = "音频转发",
+                summary = "转发设备音频到本机 (Android 11+)",
+                checked = soBundle.audio,
+                onCheckedChange = { soBundle = soBundle.copy(audio = it) },
+                enabled = !sessionStarted
+                        && audioForwardingSupported,
+            )
 
-        OverlayDropdownPreference(
-            title = "音频编码",
-            summary = "--audio-codec",
-            items = audioCodecItems,
-            selectedIndex = audioCodecIndex,
-            onSelectedIndexChange = {
-                val codec = Codec.AUDIO[it]
-                soBundle = soBundle.copy(audioCodec = codec.string)
-                if (codec == Codec.FLAC) {
-                    snackbar.show("注意：FLAC编解码会引入较大的延迟")
-                }
-            },
-            enabled = !sessionStarted && soBundle.audio,
-        )
-        AnimatedVisibility(audioBitRateVisibility) {
+            OverlayDropdownPreference(
+                title = "音频编码",
+                summary = "--audio-codec",
+                items = audioCodecItems,
+                selectedIndex = audioCodecIndex,
+                onSelectedIndexChange = {
+                    val codec = Codec.AUDIO[it]
+                    soBundle = soBundle.copy(audioCodec = codec.string)
+                    if (codec == Codec.FLAC) {
+                        snackbar.show("注意：FLAC编解码会引入较大的延迟")
+                    }
+                },
+                enabled = !sessionStarted && soBundle.audio,
+            )
+            AnimatedVisibility(audioBitRateVisibility) {
+                SuperSlider(
+                    title = "音频码率",
+                    summary = "--audio-bit-rate",
+                    value = ScrcpyPresets.AudioBitRate
+                        .indexOfOrNearest(soBundle.audioBitRate / 1000)
+                        .toFloat(),
+                    onValueChange = { value ->
+                        val idx = value.roundToInt()
+                            .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
+                        soBundle = soBundle.copy(
+                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                        )
+                    },
+                    valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
+                    steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
+                    unit = "Kbps",
+                    zeroStateText = "默认",
+                    displayText = (soBundle.audioBitRate / 1_000).toString(),
+                    inputInitialValue =
+                        if (soBundle.audioBitRate <= 0) ""
+                        else (soBundle.audioBitRate / 1_000).toString(),
+                    inputFilter = { it.filter(Char::isDigit) },
+                    inputValueRange = 0f..UShort.MAX_VALUE.toFloat(),
+                    onInputConfirm = { raw ->
+                        raw.toIntOrNull()
+                            ?.takeIf { it >= 0 }
+                            ?.let { soBundle = soBundle.copy(audioBitRate = it * 1000) }
+                    },
+                    enabled = !sessionStarted,
+                )
+            }
+
+            OverlayDropdownPreference(
+                title = "视频编码",
+                summary = "--video-codec",
+                items = videoCodecItems,
+                selectedIndex = videoCodecIndex,
+                onSelectedIndexChange = {
+                    val codec = Codec.VIDEO[it]
+                    soBundle = soBundle.copy(videoCodec = codec.string)
+                    if (codec == Codec.AV1) {
+                        snackbar.show("注意：绝大部分设备不支持AV1硬件编码")
+                    }
+                },
+                enabled = !sessionStarted,
+            )
+            @SuppressLint("DefaultLocale")
             SuperSlider(
-                title = "音频码率",
-                summary = "--audio-bit-rate",
-                value = ScrcpyPresets.AudioBitRate
-                    .indexOfOrNearest(soBundle.audioBitRate / 1000)
-                    .toFloat(),
-                onValueChange = { value ->
-                    val idx = value.roundToInt()
-                        .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
+                title = "视频码率",
+                summary = "--video-bit-rate",
+                value = soBundle.videoBitRate / 1_000_000f,
+                onValueChange = { mbps ->
                     soBundle = soBundle.copy(
-                        audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                        videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10)
                     )
                 },
-                valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
-                steps = (ScrcpyPresets.AudioBitRate.size - 2).coerceAtLeast(0),
-                unit = "Kbps",
+                valueRange = 0f..40f,
+                steps = 400 - 1,
+                unit = "Mbps",
                 zeroStateText = "默认",
-                displayText = (soBundle.audioBitRate / 1_000).toString(),
+                displayFormatter = { String.format("%.1f", it) },
                 inputInitialValue =
-                    if (soBundle.audioBitRate <= 0) ""
-                    else (soBundle.audioBitRate / 1_000).toString(),
-                inputFilter = { it.filter(Char::isDigit) },
-                inputValueRange = 0f..UShort.MAX_VALUE.toFloat(),
+                    if (soBundle.videoBitRate <= 0) ""
+                    else String.format("%.1f", soBundle.videoBitRate / 1_000_000f),
+                inputFilter = { text ->
+                    var dotUsed = false
+                    text.filter { ch ->
+                        when {
+                            ch.isDigit() -> true
+                            ch == '.' && !dotUsed -> {
+                                dotUsed = true
+                                true
+                            }
+
+                            else -> false
+                        }
+                    }
+                },
+                inputValueRange = 0f..UInt.MAX_VALUE.toFloat(),
                 onInputConfirm = { raw ->
-                    raw.toIntOrNull()
-                        ?.takeIf { it >= 0 }
-                        ?.let { soBundle = soBundle.copy(audioBitRate = it * 1000) }
+                    raw.toFloatOrNull()?.let { parsed ->
+                        if (parsed >= 0f) {
+                            soBundle = soBundle.copy(
+                                videoBitRate = (parsed * 1_000_000f).roundToInt()
+                            )
+                        }
+                    }
                 },
                 enabled = !sessionStarted,
             )
         }
 
-        OverlayDropdownPreference(
-            title = "视频编码",
-            summary = "--video-codec",
-            items = videoCodecItems,
-            selectedIndex = videoCodecIndex,
-            onSelectedIndexChange = {
-                val codec = Codec.VIDEO[it]
-                soBundle = soBundle.copy(videoCodec = codec.string)
-                if (codec == Codec.AV1) {
-                    snackbar.show("注意：绝大部分设备不支持AV1硬件编码")
-                }
-            },
-            enabled = !sessionStarted,
-        )
-        @SuppressLint("DefaultLocale")
-        SuperSlider(
-            title = "视频码率",
-            summary = "--video-bit-rate",
-            value = soBundle.videoBitRate / 1_000_000f,
-            onValueChange = { mbps ->
-                soBundle = soBundle.copy(
-                    videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10)
-                )
-            },
-            valueRange = 0f..40f,
-            steps = 400 - 1,
-            unit = "Mbps",
-            zeroStateText = "默认",
-            displayFormatter = { String.format("%.1f", it) },
-            inputInitialValue =
-                if (soBundle.videoBitRate <= 0) ""
-                else String.format("%.1f", soBundle.videoBitRate / 1_000_000f),
-            inputFilter = { text ->
-                var dotUsed = false
-                text.filter { ch ->
-                    when {
-                        ch.isDigit() -> true
-                        ch == '.' && !dotUsed -> {
-                            dotUsed = true
-                            true
-                        }
-
-                        else -> false
-                    }
-                }
-            },
-            inputValueRange = 0f..UInt.MAX_VALUE.toFloat(),
-            onInputConfirm = { raw ->
-                raw.toFloatOrNull()?.let { parsed ->
-                    if (parsed >= 0f) {
-                        soBundle = soBundle.copy(
-                            videoBitRate = (parsed * 1_000_000f).roundToInt()
-                        )
-                    }
-                }
-            },
-            enabled = !sessionStarted,
-        )
-
         ArrowPreference(
-            title = "更多参数",
+            title = if (!hideSimpleConfigItems) "更多参数" else "所有参数",
             summary = "所有 scrcpy 参数",
             onClick = onOpenAdvanced,
             enabled = !sessionStarted,
         )
-        if (onOpenRecentTasks != null) {
-            ArrowPreference(
-                title = "最近任务",
-                endActions = {
-                    recentTasksEndAction?.invoke(this)
-                },
-                onClick = onOpenRecentTasks,
-                enabled = !busy && !adbConnecting,
-            )
-        }
+
+        ArrowPreference(
+            title = "所有应用",
+            endActions = {
+                Text(
+                    text = allAppsEndActionText,
+                    color = colorScheme.onSurfaceVariantActions,
+                    fontSize = textStyles.body2.fontSize,
+                    modifier = Modifier.padding(end = UiSpacing.ContentVertical),
+                )
+            },
+            onClick = onOpenAllApps,
+            enabled = !busy && !adbConnecting,
+        )
+        ArrowPreference(
+            title = "最近任务",
+            endActions = {
+                Text(
+                    text = recentTasksEndActionText,
+                    color = colorScheme.onSurfaceVariantActions,
+                    fontSize = textStyles.body2.fontSize,
+                    modifier = Modifier.padding(end = UiSpacing.ContentVertical),
+                )
+            },
+            onClick = onOpenRecentTasks,
+            enabled = !busy && !adbConnecting,
+        )
 
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = UiSpacing.ContentVertical)
-                .padding(bottom = UiSpacing.ContentVertical),
+                .padding(all = UiSpacing.ContentVertical),
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
         ) {
             if (isQuickConnected) TextButton(
                 text = "断开",
                 onClick = {
-                    onStartStopHaptic?.invoke()
+                    onStartStopHaptic()
                     onDisconnect()
                 },
                 modifier = Modifier.weight(1f / 4f),
@@ -621,7 +652,7 @@ internal fun ConfigPanel(
             if (!sessionStarted) TextButton(
                 text = "启动",
                 onClick = {
-                    onStartStopHaptic?.invoke()
+                    onStartStopHaptic()
                     onStart()
                 },
                 modifier = Modifier.weight(if (isQuickConnected) 3f / 4f else 1f),
@@ -631,7 +662,7 @@ internal fun ConfigPanel(
             if (sessionStarted) TextButton(
                 text = "停止",
                 onClick = {
-                    onStartStopHaptic?.invoke()
+                    onStartStopHaptic()
                     onStop()
                 },
                 modifier = Modifier.weight(if (isQuickConnected) 3f / 4f else 1f),
@@ -813,14 +844,19 @@ private fun PairingDialog(
 fun ScrcpyVideoSurface(
     modifier: Modifier,
     session: Scrcpy.Session.SessionInfo?,
+    imeRequestToken: Int = 0,
+    onImeCommitText: (suspend (String) -> Unit)? = null,
+    onImeDeleteSurroundingText: (suspend (beforeLength: Int, afterLength: Int) -> Unit)? = null,
+    onImeKeyEvent: (suspend (KeyEvent) -> Boolean)? = null,
 ) {
 
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val scope = rememberCoroutineScope()
+    val imeInputMutex = remember { Mutex() }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     var currentSurface by remember { mutableStateOf<Surface?>(null) }
-    var currentSurfaceView by remember { mutableStateOf<SurfaceView?>(null) }
+    var currentSurfaceView by remember { mutableStateOf<ScrcpyInputSurfaceView?>(null) }
 
     val latestSession by rememberUpdatedState(session)
 
@@ -838,6 +874,13 @@ fun ScrcpyVideoSurface(
         if (currentSession.width > 0 && currentSession.height > 0) {
             surfaceView.holder.setFixedSize(currentSession.width, currentSession.height)
         }
+    }
+
+    LaunchedEffect(imeRequestToken, currentSurfaceView) {
+        if (imeRequestToken == 0) return@LaunchedEffect
+        val surfaceView = currentSurfaceView ?: return@LaunchedEffect
+        surfaceView.setCommitTextEnabled(true)
+        io.github.miuzarte.scrcpyforandroid.services.LocalInputService.showSoftKeyboard(surfaceView)
     }
 
     DisposableEffect(lifecycleOwner, session, currentSurface) {
@@ -882,8 +925,42 @@ fun ScrcpyVideoSurface(
     AndroidView(
         modifier = modifier,
         factory = { context ->
-            SurfaceView(context).apply {
+            ScrcpyInputSurfaceView(context).apply {
                 currentSurfaceView = this
+                inputCallbacks = object : ScrcpyInputSurfaceView.InputCallbacks {
+                    override fun handleKeyEvent(event: KeyEvent): Boolean {
+                        val handler = onImeKeyEvent ?: return false
+                        taskScope.launch {
+                            imeInputMutex.withLock {
+                                handler(event)
+                            }
+                        }
+                        return true
+                    }
+
+                    override fun handleCommitText(text: CharSequence): Boolean {
+                        val handler = onImeCommitText ?: return false
+                        taskScope.launch {
+                            imeInputMutex.withLock {
+                                handler(text.toString())
+                            }
+                        }
+                        return true
+                    }
+
+                    override fun handleDeleteSurroundingText(
+                        beforeLength: Int,
+                        afterLength: Int
+                    ): Boolean {
+                        val handler = onImeDeleteSurroundingText ?: return false
+                        taskScope.launch {
+                            imeInputMutex.withLock {
+                                handler(beforeLength, afterLength)
+                            }
+                        }
+                        return true
+                    }
+                }
                 holder.addCallback(object : SurfaceHolder.Callback {
                     override fun surfaceCreated(holder: SurfaceHolder) {
                         val newSurface = holder.surface

@@ -1,4 +1,4 @@
-package io.github.miuzarte.scrcpyforandroid.widgets
+package io.github.miuzarte.scrcpyforandroid.scaffolds
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement

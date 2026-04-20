@@ -153,13 +153,13 @@ data class ClientOptions(
     var disableScreensaver: Boolean = false,
 
     // var forwardKeyRepeat: Boolean,
-    // var legacyPaste: Boolean,
+    var legacyPaste: Boolean = false,
 
     // --power-off-on-close
     var powerOffOnClose: Boolean = false, // to server
 
     // --no-clipboard-autosync
-    // var clipboardAutosync: Boolean = true, // to server
+    var clipboardAutosync: Boolean = true, // to server
 
     // --no-downsize-on-error
     var downsizeOnError: Boolean = true, // to server
@@ -555,6 +555,8 @@ data class ClientOptions(
             cameraFps = cameraFps,
 
             powerOffOnClose = powerOffOnClose,
+            legacyPaste = legacyPaste,
+            clipboardAutosync = clipboardAutosync,
 
             downsizeOnError = downsizeOnError,
 

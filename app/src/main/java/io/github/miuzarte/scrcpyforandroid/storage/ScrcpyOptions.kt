@@ -188,6 +188,14 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             booleanPreferencesKey("power_off_on_close"),
             false,
         )
+        val LEGACY_PASTE = Pair(
+            booleanPreferencesKey("legacy_paste"),
+            false,
+        )
+        val CLIPBOARD_AUTOSYNC = Pair(
+            booleanPreferencesKey("clipboard_autosync"),
+            true,
+        )
         val DOWNSIZE_ON_ERROR = Pair(
             booleanPreferencesKey("downsize_on_error"),
             true,
@@ -294,6 +302,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             stayAwake = STAY_AWAKE.defaultValue,
             disableScreensaver = DISABLE_SCREENSAVER.defaultValue,
             powerOffOnClose = POWER_OFF_ON_CLOSE.defaultValue,
+            legacyPaste = LEGACY_PASTE.defaultValue,
+            clipboardAutosync = CLIPBOARD_AUTOSYNC.defaultValue,
             downsizeOnError = DOWNSIZE_ON_ERROR.defaultValue,
             cleanup = CLEANUP.defaultValue,
             powerOn = POWER_ON.defaultValue,
@@ -353,6 +363,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
     val stayAwake by setting(STAY_AWAKE)
     val disableScreensaver by setting(DISABLE_SCREENSAVER)
     val powerOffOnClose by setting(POWER_OFF_ON_CLOSE)
+    val legacyPaste by setting(LEGACY_PASTE)
+    val clipboardAutosync by setting(CLIPBOARD_AUTOSYNC)
     val cleanup by setting(CLEANUP)
     val powerOn by setting(POWER_ON)
     val video by setting(VIDEO)
@@ -409,6 +421,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         val stayAwake: Boolean,
         val disableScreensaver: Boolean,
         val powerOffOnClose: Boolean,
+        val legacyPaste: Boolean,
+        val clipboardAutosync: Boolean,
         val downsizeOnError: Boolean,
         val cleanup: Boolean,
         val powerOn: Boolean,
@@ -469,6 +483,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         bundleField(STAY_AWAKE) { bundle: Bundle -> bundle.stayAwake },
         bundleField(DISABLE_SCREENSAVER) { bundle: Bundle -> bundle.disableScreensaver },
         bundleField(POWER_OFF_ON_CLOSE) { bundle: Bundle -> bundle.powerOffOnClose },
+        bundleField(LEGACY_PASTE) { bundle: Bundle -> bundle.legacyPaste },
+        bundleField(CLIPBOARD_AUTOSYNC) { bundle: Bundle -> bundle.clipboardAutosync },
         bundleField(CLEANUP) { bundle: Bundle -> bundle.cleanup },
         bundleField(POWER_ON) { bundle: Bundle -> bundle.powerOn },
         bundleField(VIDEO) { bundle: Bundle -> bundle.video },
@@ -529,6 +545,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         stayAwake = preferences.read(STAY_AWAKE),
         disableScreensaver = preferences.read(DISABLE_SCREENSAVER),
         powerOffOnClose = preferences.read(POWER_OFF_ON_CLOSE),
+        legacyPaste = preferences.read(LEGACY_PASTE),
+        clipboardAutosync = preferences.read(CLIPBOARD_AUTOSYNC),
         downsizeOnError = preferences.read(DOWNSIZE_ON_ERROR),
         cleanup = preferences.read(CLEANUP),
         powerOn = preferences.read(POWER_ON),
@@ -604,6 +622,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         stayAwake = bundle.stayAwake,
         disableScreensaver = bundle.disableScreensaver,
         powerOffOnClose = bundle.powerOffOnClose,
+        legacyPaste = bundle.legacyPaste,
+        clipboardAutosync = bundle.clipboardAutosync,
         downsizeOnError = bundle.downsizeOnError,
         cleanup = bundle.cleanup,
         powerOn = bundle.powerOn,

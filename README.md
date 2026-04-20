@@ -23,6 +23,7 @@
 
 ## Features
 
+- 控制时可拉起本机输入法，且支持输入中文
 - 低延迟音频链路 (默认未启用)
   - 受控设备播放 `USAGE_MEDIA` 流时 ([namidaco/namida](https://github.com/namidaco/namida)) ，两设备的音频延迟只差半拍 (没有具体测量能力)
   - 受控设备播放 `USAGE_GAME` 流时 (明日方舟 Bilibili 服) ，仍存在 100~200ms 的有感延迟
@@ -37,6 +38,9 @@
 
 - 因为没有设备用于 (也懒得) 测试，应用可能无法正常运行在安卓版本较低的设备上，特别是画中画功能，非常取决于国产 ROM 的实现
 - 关闭画中画后不会停止 scrcpy 串流，仍然需要回到应用中点击停止
+- 跨设备输入中文
+  - 实现方式为利用剪贴板同步，会导致受控机剪贴板历史被填充输入历史
+  - 不知道为什么有时候会上屏失败
 - 虚拟按键的截图实现方式为发送
 `keycode 120`，安卓官方([keycodes.h#349](https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h#349))的定义为
 `System Request / Print Screen key.`，不同的厂商有不同的实现，在某些类原生(`AxionOS`) 上的行为是软重启
@@ -49,6 +53,16 @@
 
 - 密码锁屏无法捕获: [LSPosed/DisableFlagSecure](https://github.com/LSPosed/DisableFlagSecure)
 - 开机自动启用 adb: [gist/906291](https://gist.github.com/Miuzarte/9062915f1615d5eebd363c759fda496c)
+
+## NOT-TODO
+
+应该有东西的但我不记得要写什么了
+
+## FAQ
+
+1. 虚拟屏不显示输入法 / 输入法显示在主屏幕
+   - 将 `--display-ime-policy` 设置为 `local`
+   - 自行在悬浮球中拉起本机输入法
 
 ## 构建
 

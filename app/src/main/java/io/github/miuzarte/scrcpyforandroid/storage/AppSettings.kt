@@ -62,6 +62,10 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             floatPreferencesKey("fullscreen_floating_button_y_fraction"),
             0.72f
         )
+        val HIDE_SIMPLE_CONFIG_ITEMS = Pair(
+            booleanPreferencesKey("hide_simple_config_items"),
+            false,
+        )
         val DEVICE_PREVIEW_CARD_HEIGHT_DP = Pair(
             intPreferencesKey("device_preview_card_height_dp"),
             1080 / 3
@@ -72,7 +76,21 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         )
         val VIRTUAL_BUTTONS_LAYOUT = Pair(
             stringPreferencesKey("virtual_buttons_layout"),
-            "more:1,password_input:0,app_switch:1,home:0,back:1,menu:0,notification:0,volume_up:0,volume_down:0,volume_mute:0,power:0,screenshot:0"
+            "more:1" +
+
+                    ",app_switch:1,home:0,back:1" +
+
+                    ",password_input:0" +
+                    ",all_apps:0" +
+                    ",recent_tasks:0" +
+                    ",toggle_ime:0" +
+                    ",paste_local_clipboard:0" +
+
+                    ",menu:0,notification:0" +
+                    ",volume_up:0,volume_down:0,volume_mute:0" +
+                    ",power:0,screenshot:0" +
+
+                    ""
         )
         val CUSTOM_SERVER_URI = Pair(
             stringPreferencesKey("custom_server_uri"),
@@ -111,6 +129,10 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("password_require_auth"),
             true
         )
+        val REALTIME_CLIPBOARD_SYNC_TO_DEVICE = Pair(
+            booleanPreferencesKey("realtime_clipboard_sync_to_device"),
+            true
+        )
         val LAST_UPDATE_CHECK_AT = Pair(
             longPreferencesKey("last_update_check_at"),
             0L
@@ -132,6 +154,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val showFullscreenFloatingButton by setting(SHOW_FULLSCREEN_FLOATING_BUTTON)
     val fullscreenFloatingButtonXFraction by setting(FULLSCREEN_FLOATING_BUTTON_X_FRACTION)
     val fullscreenFloatingButtonYFraction by setting(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION)
+    val hideSimpleConfigItems by setting(HIDE_SIMPLE_CONFIG_ITEMS)
     val devicePreviewCardHeightDp by setting(DEVICE_PREVIEW_CARD_HEIGHT_DP)
     val previewVirtualButtonShowText by setting(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT)
     val virtualButtonsLayout by setting(VIRTUAL_BUTTONS_LAYOUT)
@@ -148,6 +171,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val adbMdnsLanDiscovery by setting(ADB_MDNS_LAN_DISCOVERY)
     val adbAutoLoadAppListOnConnect by setting(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT)
     val passwordRequireAuth by setting(PASSWORD_REQUIRE_AUTH)
+    val realtimeClipboardSyncToDevice by setting(REALTIME_CLIPBOARD_SYNC_TO_DEVICE)
     val lastUpdateCheckAt by setting(LAST_UPDATE_CHECK_AT)
 
     @Parcelize
@@ -164,6 +188,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val showFullscreenFloatingButton: Boolean,
         val fullscreenFloatingButtonXFraction: Float,
         val fullscreenFloatingButtonYFraction: Float,
+        val hideSimpleConfigItems: Boolean,
         val devicePreviewCardHeightDp: Int,
         val previewVirtualButtonShowText: Boolean,
         val virtualButtonsLayout: String,
@@ -176,6 +201,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val adbMdnsLanDiscovery: Boolean,
         val adbAutoLoadAppListOnConnect: Boolean,
         val passwordRequireAuth: Boolean,
+        val realtimeClipboardSyncToDevice: Boolean,
         val lastUpdateCheckAt: Long,
     ) : Parcelable {
     }
@@ -193,6 +219,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(SHOW_FULLSCREEN_FLOATING_BUTTON) { bundle: Bundle -> bundle.showFullscreenFloatingButton },
         bundleField(FULLSCREEN_FLOATING_BUTTON_X_FRACTION) { bundle: Bundle -> bundle.fullscreenFloatingButtonXFraction },
         bundleField(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION) { bundle: Bundle -> bundle.fullscreenFloatingButtonYFraction },
+        bundleField(HIDE_SIMPLE_CONFIG_ITEMS) { bundle: Bundle -> bundle.hideSimpleConfigItems },
         bundleField(DEVICE_PREVIEW_CARD_HEIGHT_DP) { bundle: Bundle -> bundle.devicePreviewCardHeightDp },
         bundleField(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT) { bundle: Bundle -> bundle.previewVirtualButtonShowText },
         bundleField(VIRTUAL_BUTTONS_LAYOUT) { bundle: Bundle -> bundle.virtualButtonsLayout },
@@ -205,6 +232,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(ADB_MDNS_LAN_DISCOVERY) { bundle: Bundle -> bundle.adbMdnsLanDiscovery },
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { bundle: Bundle -> bundle.adbAutoLoadAppListOnConnect },
         bundleField(PASSWORD_REQUIRE_AUTH) { bundle: Bundle -> bundle.passwordRequireAuth },
+        bundleField(REALTIME_CLIPBOARD_SYNC_TO_DEVICE) { bundle: Bundle -> bundle.realtimeClipboardSyncToDevice },
         bundleField(LAST_UPDATE_CHECK_AT) { bundle: Bundle -> bundle.lastUpdateCheckAt },
     )
 
@@ -223,6 +251,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         showFullscreenFloatingButton = preferences.read(SHOW_FULLSCREEN_FLOATING_BUTTON),
         fullscreenFloatingButtonXFraction = preferences.read(FULLSCREEN_FLOATING_BUTTON_X_FRACTION),
         fullscreenFloatingButtonYFraction = preferences.read(FULLSCREEN_FLOATING_BUTTON_Y_FRACTION),
+        hideSimpleConfigItems = preferences.read(HIDE_SIMPLE_CONFIG_ITEMS),
         devicePreviewCardHeightDp = preferences.read(DEVICE_PREVIEW_CARD_HEIGHT_DP),
         previewVirtualButtonShowText = preferences.read(PREVIEW_VIRTUAL_BUTTON_SHOW_TEXT),
         virtualButtonsLayout = preferences.read(VIRTUAL_BUTTONS_LAYOUT),
@@ -237,6 +266,7 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         passwordRequireAuth = preferences.read(PASSWORD_REQUIRE_AUTH),
+        realtimeClipboardSyncToDevice = preferences.read(REALTIME_CLIPBOARD_SYNC_TO_DEVICE),
         lastUpdateCheckAt = preferences.read(LAST_UPDATE_CHECK_AT),
     )
 

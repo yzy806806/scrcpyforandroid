@@ -21,7 +21,10 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeDown
 import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.ContentPaste
+import androidx.compose.material.icons.rounded.DashboardCustomize
 import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Keyboard
 import androidx.compose.material.icons.rounded.Menu
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Notifications
@@ -144,6 +147,30 @@ enum class VirtualButtonAction(
         "password_input",
         "填充锁屏密码",
         Icons.Rounded.Password,
+        null
+    ),
+    ALL_APPS(
+        "all_apps",
+        "所有应用",
+        Icons.Rounded.Apps,
+        null
+    ),
+    RECENT_TASKS(
+        "recent_tasks",
+        "最近任务",
+        Icons.Rounded.DashboardCustomize,
+        null
+    ),
+    TOGGLE_IME(
+        "toggle_ime",
+        "拉起输入法",
+        Icons.Rounded.Keyboard,
+        null
+    ),
+    PASTE_LOCAL_CLIPBOARD(
+        "paste_local_clipboard",
+        "粘贴本机剪贴板",
+        Icons.Rounded.ContentPaste,
         null
     );
 }

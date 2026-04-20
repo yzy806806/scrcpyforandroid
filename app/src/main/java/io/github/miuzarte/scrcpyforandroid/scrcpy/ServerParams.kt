@@ -72,6 +72,8 @@ data class ServerParams(
     // var forceAdbForward: Boolean,
 
     var powerOffOnClose: Boolean,
+    var legacyPaste: Boolean,
+    var clipboardAutosync: Boolean,
 
     var downsizeOnError: Boolean,
     // var tcpip: Boolean,
@@ -236,9 +238,10 @@ data class ServerParams(
         if (powerOffOnClose) {
             cmd.add("power_off_on_close=true")
         }
-        // not implemented
-        val clipBoardAutosync = false
-        if (!clipBoardAutosync) {
+        if (legacyPaste) {
+            cmd.add("legacy_paste=true")
+        }
+        if (!clipboardAutosync) {
             cmd.add("clipboard_autosync=false")
         }
         if (!downsizeOnError) {

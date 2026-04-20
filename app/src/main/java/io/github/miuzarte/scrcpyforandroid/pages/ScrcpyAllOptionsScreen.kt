@@ -47,6 +47,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.Crop
 import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.NewDisplay
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSpinner
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
@@ -69,7 +70,6 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import io.github.miuzarte.scrcpyforandroid.widgets.ReorderableList
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -583,14 +583,11 @@ internal fun ScrcpyAllOptionsPage(
         soBundle.cameraSizeCustom,
         soBundle.cameraSizeUseCustom,
     ) {
-        if (cameraSizes.isNotEmpty()) {
-            null
-        } else if (soBundle.cameraSizeUseCustom && soBundle.cameraSizeCustom.isNotBlank()) {
-            soBundle.cameraSizeCustom
-        } else if (soBundle.cameraSize.isNotBlank()) {
-            soBundle.cameraSize
-        } else {
-            null
+        when {
+            cameraSizes.isNotEmpty() -> null
+            soBundle.cameraSizeUseCustom && soBundle.cameraSizeCustom.isNotBlank() -> soBundle.cameraSizeCustom
+            soBundle.cameraSize.isNotBlank() -> soBundle.cameraSize
+            else -> null
         }
     }
 
@@ -1583,7 +1580,7 @@ internal fun ScrcpyAllOptionsPage(
                     },
                 )
                 SwitchPreference(
-                    title = "禁用结束后清理",
+                    title = "禁用 MediaCodec 出错时自动降级",
                     summary = "--no-downsize-on-error",
                     checked = !soBundle.downsizeOnError,
                     onCheckedChange = {
@@ -1594,6 +1591,26 @@ internal fun ScrcpyAllOptionsPage(
                             "默认情况下，在 MediaCodec 出错时，" +
                                     "scrcpy 会自动尝试使用更低的分辨率重新开始" +
                                     "\n此选项将禁用此行为"
+                        )
+                    },
+                )
+                SwitchPreference(
+                    title = "粘贴兼容回退（仅支持ASCII/英文字符）",
+                    summary = "--legacy-paste",
+                    checked = soBundle.legacyPaste,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            legacyPaste = it
+                        )
+                    },
+                )
+                SwitchPreference(
+                    title = "禁用剪贴板双向同步",
+                    summary = "--no-clipboard-autosync",
+                    checked = !soBundle.clipboardAutosync,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            clipboardAutosync = !it
                         )
                     },
                 )

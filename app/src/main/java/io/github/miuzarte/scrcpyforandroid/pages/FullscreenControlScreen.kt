@@ -3,6 +3,7 @@ package io.github.miuzarte.scrcpyforandroid.pages
 import android.annotation.SuppressLint
 import android.graphics.Rect
 import android.util.Log
+import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.background
@@ -52,6 +53,8 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import io.github.miuzarte.scrcpyforandroid.widgets.AppListBottomSheet
+import io.github.miuzarte.scrcpyforandroid.widgets.AppListEntry
 import io.github.miuzarte.scrcpyforandroid.widgets.ScrcpyVideoSurface
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
@@ -83,6 +86,8 @@ fun FullscreenControlScreen(
 
     val snackbar = LocalSnackbarController.current
     val currentSession by scrcpy.currentSessionState.collectAsState()
+    val listingsRefreshBusy by scrcpy.listings.refreshBusyState.collectAsState()
+    val listingsRefreshVersion by scrcpy.listings.refreshVersionState.collectAsState()
 
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
@@ -125,8 +130,13 @@ fun FullscreenControlScreen(
             moreActions = buttonItems.second,
         )
     }
+    val recentTasks = remember(listingsRefreshVersion) { scrcpy.listings.recentTasks }
+    val apps = remember(listingsRefreshVersion) { scrcpy.listings.apps }
 
     var currentFps by remember { mutableFloatStateOf(0f) }
+    var showRecentTasksSheet by rememberSaveable { mutableStateOf(false) }
+    var showAllAppsSheet by rememberSaveable { mutableStateOf(false) }
+    var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
 
     DisposableEffect(activity) {
         val window = activity?.window
@@ -178,6 +188,66 @@ fun FullscreenControlScreen(
         }
     }
 
+    suspend fun refreshApps() {
+        runCatching {
+            withContext(Dispatchers.IO) {
+                scrcpy.listings.getApps(forceRefresh = true)
+            }
+        }.onFailure { error ->
+            snackbar.show("获取应用列表失败")
+            Log.w("FullscreenControlPage", "refreshApps failed", error)
+        }
+    }
+
+    suspend fun refreshRecentTasks() {
+        runCatching {
+            withContext(Dispatchers.IO) {
+                scrcpy.listings.getRecentTasks(forceRefresh = true)
+            }
+        }.onFailure { error ->
+            snackbar.show("获取最近任务失败")
+            Log.w("FullscreenControlPage", "refreshRecentTasks failed", error)
+        }
+    }
+
+    suspend fun pasteLocalClipboard() {
+        val session = currentSession ?: return
+        val text = io.github.miuzarte.scrcpyforandroid.services.LocalInputService.getClipboardText(
+            activity ?: return
+        )
+            ?.takeIf { it.isNotBlank() }
+        if (text == null) {
+            snackbar.show("本机剪贴板为空或不是文本")
+            return
+        }
+        val useLegacyPaste = session.legacyPaste
+        runCatching {
+            withContext(Dispatchers.IO) {
+                if (useLegacyPaste) {
+                    scrcpy.injectText(text)
+                } else {
+                    scrcpy.setClipboard(text, paste = true)
+                }
+            }
+        }.onFailure { error ->
+            Log.w("FullscreenControlPage", "pasteLocalClipboard failed", error)
+            snackbar.show(
+                if (useLegacyPaste) "legacy 粘贴失败"
+                else "剪贴板同步粘贴失败，可尝试开启 --legacy-paste"
+            )
+        }
+    }
+
+    suspend fun commitImeText(text: String) {
+        submitImeText(scrcpy, text) { error, useClipboardPaste ->
+            Log.w("FullscreenControlPage", "commitImeText failed", error)
+            snackbar.show(
+                if (useClipboardPaste) "非 ASCII 文本粘贴失败"
+                else "文本输入失败"
+            )
+        }
+    }
+
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         snackbarHost = { SnackbarHost(snackbar.hostState) },
@@ -189,13 +259,16 @@ fun FullscreenControlScreen(
         ) {
             val session = currentSession ?: return@Box
             FullscreenControlPage(
+                scrcpy = scrcpy,
                 session = session,
                 onDismiss = onBack,
                 showDebugInfo = fullscreenDebugInfo && !isInPip,
                 currentFps = currentFps,
+                imeRequestToken = imeRequestToken,
                 enableBackHandler = false,
                 interactive = !isInPip,
                 onVideoBoundsInWindowChanged = onVideoBoundsInWindowChanged,
+                onImeCommitText = ::commitImeText,
                 onInjectTouch = { action, pointerId, x, y, pressure, buttons ->
                     withContext(Dispatchers.IO) {
                         scrcpy.injectTouch(
@@ -217,10 +290,33 @@ fun FullscreenControlScreen(
                 bar.Fullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter),
                     onAction = { action ->
-                        if (action == VirtualButtonAction.PASSWORD_INPUT) {
-                            snackbar.show("当前页面无法拉起验证")
-                        } else {
-                            action.keycode?.let { sendKeycode(it) }
+                        when (action) {
+                            VirtualButtonAction.RECENT_TASKS -> {
+                                showRecentTasksSheet = true
+                                if (recentTasks.isEmpty() && !listingsRefreshBusy) {
+                                    refreshApps()
+                                    refreshRecentTasks()
+                                }
+                            }
+
+                            VirtualButtonAction.ALL_APPS -> {
+                                showAllAppsSheet = true
+                                if (apps.isEmpty() && !listingsRefreshBusy) {
+                                    refreshApps()
+                                }
+                            }
+
+                            VirtualButtonAction.TOGGLE_IME -> {
+                                imeRequestToken++
+                            }
+
+                            VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> {
+                                pasteLocalClipboard()
+                            }
+
+                            else -> {
+                                action.keycode?.let { sendKeycode(it) }
+                            }
                         }
                     },
                     passwordPopupContent = if (fragmentActivity == null) {
@@ -243,10 +339,33 @@ fun FullscreenControlScreen(
                     actions = floatingActions,
                     modifier = Modifier.fillMaxSize(),
                     onAction = { action ->
-                        if (action == VirtualButtonAction.PASSWORD_INPUT) {
-                            snackbar.show("当前页面无法拉起验证")
-                        } else {
-                            action.keycode?.let { sendKeycode(it) }
+                        when (action) {
+                            VirtualButtonAction.RECENT_TASKS -> {
+                                showRecentTasksSheet = true
+                                if (recentTasks.isEmpty() && !listingsRefreshBusy) {
+                                    refreshApps()
+                                    refreshRecentTasks()
+                                }
+                            }
+
+                            VirtualButtonAction.ALL_APPS -> {
+                                showAllAppsSheet = true
+                                if (apps.isEmpty() && !listingsRefreshBusy) {
+                                    refreshApps()
+                                }
+                            }
+
+                            VirtualButtonAction.TOGGLE_IME -> {
+                                imeRequestToken++
+                            }
+
+                            VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> {
+                                pasteLocalClipboard()
+                            }
+
+                            else -> {
+                                action.keycode?.let { sendKeycode(it) }
+                            }
                         }
                     },
                     passwordPopupContent = if (fragmentActivity == null) {
@@ -263,6 +382,77 @@ fun FullscreenControlScreen(
                     },
                 )
             }
+
+            AppListBottomSheet(
+                show = showRecentTasksSheet,
+                title = "最近任务",
+                loadingText = "最近任务加载中",
+                emptyText = "没有可用的最近任务",
+                entries = recentTasks.map { task ->
+                    val app = scrcpy.listings.findCachedApp(task.packageName)
+                    AppListEntry(
+                        key = task.packageName,
+                        title = app?.label?.takeIf { it.isNotBlank() } ?: task.packageName,
+                        summary = if (app?.label != null) task.packageName else null,
+                        system = app?.system,
+                        onClick = {
+                            showRecentTasksSheet = false
+                            taskScope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        scrcpy.startApp(task.packageName)
+                                    }
+                                }.onFailure { error ->
+                                    snackbar.show("启动应用失败: ${error.message ?: error.javaClass.simpleName}")
+                                }
+                            }
+                        },
+                    )
+                },
+                refreshBusy = listingsRefreshBusy,
+                onDismissRequest = { showRecentTasksSheet = false },
+                onRefresh = {
+                    taskScope.launch(Dispatchers.Main) {
+                        refreshApps()
+                        refreshRecentTasks()
+                    }
+                },
+            )
+
+            AppListBottomSheet(
+                show = showAllAppsSheet,
+                title = "所有应用",
+                loadingText = "应用列表加载中",
+                emptyText = "没有可用的应用列表",
+                entries = apps.map { app ->
+                    AppListEntry(
+                        key = app.packageName,
+                        title = app.label?.takeIf { it.isNotBlank() } ?: app.packageName,
+                        summary = if (app.label != null) app.packageName else null,
+                        system = app.system,
+                        onClick = {
+                            showAllAppsSheet = false
+                            taskScope.launch {
+                                runCatching {
+                                    withContext(Dispatchers.IO) {
+                                        scrcpy.startApp(app.packageName)
+                                    }
+                                }.onFailure { error ->
+                                    snackbar.show("启动应用失败: ${error.message ?: error.javaClass.simpleName}")
+                                }
+                            }
+                        },
+                    )
+                },
+                refreshBusy = listingsRefreshBusy,
+                onDismissRequest = { showAllAppsSheet = false },
+                onRefresh = {
+                    taskScope.launch(Dispatchers.Main) {
+                        refreshApps()
+                    }
+                },
+            )
+
         }
     }
 }
@@ -285,13 +475,16 @@ fun FullscreenControlScreen(
  */
 @Composable
 fun FullscreenControlPage(
+    scrcpy: Scrcpy,
     session: Scrcpy.Session.SessionInfo,
     onDismiss: () -> Unit,
     showDebugInfo: Boolean,
     currentFps: Float,
+    imeRequestToken: Int = 0,
     enableBackHandler: Boolean = true,
     interactive: Boolean = true,
     onVideoBoundsInWindowChanged: (Rect?) -> Unit = {},
+    onImeCommitText: suspend (String) -> Unit,
     onInjectTouch: suspend (action: Int, pointerId: Long, x: Int, y: Int, pressure: Float, buttons: Int) -> Unit,
 ) {
     BackHandler(enabled = enableBackHandler, onBack = onDismiss)
@@ -372,6 +565,27 @@ fun FullscreenControlPage(
                         )
                     },
                 session = session,
+                imeRequestToken = imeRequestToken,
+                onImeCommitText = onImeCommitText,
+                onImeDeleteSurroundingText = { beforeLength, _ ->
+                    withContext(Dispatchers.IO) {
+                        repeat(beforeLength.coerceAtLeast(1)) {
+                            scrcpy.injectKeycode(0, KeyEvent.KEYCODE_DEL)
+                            scrcpy.injectKeycode(1, KeyEvent.KEYCODE_DEL)
+                        }
+                    }
+                },
+                onImeKeyEvent = { event ->
+                    withContext(Dispatchers.IO) {
+                        scrcpy.injectKeycode(
+                            action = event.action,
+                            keycode = event.keyCode,
+                            repeat = event.repeatCount,
+                            metaState = event.metaState,
+                        )
+                    }
+                    true
+                },
             )
         }
 

@@ -2,6 +2,8 @@
 
 # TODO
 
+adb shell page (in nav dock)
+
 ## PARAMS
 
 ### LOWER PRIORITY
