@@ -7,23 +7,26 @@
 <!-- markdownlint-disable MD033 -->
 
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/ff7ea4ff-c868-46c8-83cf-df904e083a8f" height="300" alt="Screenshot 1" />
-  <img src="https://github.com/user-attachments/assets/79eb4c43-c298-4510-b75c-8f1fd367706d" height="300" alt="Screenshot 2" />
-  <img src="https://github.com/user-attachments/assets/4c2f202d-b114-4e53-8dd6-fd60e55d6e04" height="300" alt="Screenshot 3" />
-  <img src="https://github.com/user-attachments/assets/92f1f62b-c4d9-40f5-8613-8495b66eff13" height="300" alt="Screenshot 4" />
-  <img src="https://github.com/user-attachments/assets/d5e53c67-d964-46ab-a518-4a1ca06dbdad" height="300" alt="Screenshot 5" />
-  <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="300" alt="Screenshot 6" />
-  <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="300" alt="Screenshot 7" />
-  <img src="https://github.com/user-attachments/assets/456cf5c7-27eb-4522-9201-a106d84960f3" height="300" alt="Screenshot 8" />
+  <img src="https://github.com/user-attachments/assets/00bf5e7c-2e37-4e99-976e-06a56232a628" height="300" alt="Devices" />
+  <img src="https://github.com/user-attachments/assets/a423cf0e-5514-423e-8daf-818add2b5558" height="300" alt="Recent Tasks" />
+  <img src="https://github.com/user-attachments/assets/f1271cc7-ce45-46d2-8a01-0f4a367c0e4a" height="300" alt="Streaming" />
+  <img src="https://github.com/user-attachments/assets/220fc973-f3b7-4bec-8733-95bbddf95a7a" height="300" alt="Scrcpy All Options" />
+  <img src="https://github.com/user-attachments/assets/fb4a6b66-862b-41ee-8542-f56de4891e03" height="300" alt="Terminal" />
+  <img src="https://github.com/user-attachments/assets/aa895441-9719-45f5-aea3-661ade94ea22" height="300" alt="Files" />
+  <img src="https://github.com/user-attachments/assets/d3b29861-6e86-4301-9b1d-1f7836ad9b7e" height="300" alt="Settings" />
+  <img src="https://github.com/user-attachments/assets/f513b7ba-0389-4176-8382-c1a08c4eba99" height="300" alt="Multi Touch Test" />
+  <img src="https://github.com/user-attachments/assets/7a50bd1f-8095-4269-8e58-88316d86e3d8" height="300" alt="Virtual Buttons Reorder" />
+  <img src="https://github.com/user-attachments/assets/448481df-c15b-4580-af96-141e9b56c41f" height="300" alt="About" />
 </p>
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/558bd1b1-15d2-47f8-bdc5-aac9cca689f5" height="180" alt="Screenshot 9" />
-  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="180" alt="Screenshot 10" />
+  <img src="https://github.com/user-attachments/assets/558bd1b1-15d2-47f8-bdc5-aac9cca689f5" height="180" alt="PiP" />
+  <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="180" alt="Gaming" />
 </p>
 
 ## Features
 
 - 控制时可拉起本机输入法，且支持输入中文
+- 剪贴板同步
 - 低延迟音频链路 (默认未启用)
   - 受控设备播放 `USAGE_MEDIA` 流时 ([namidaco/namida](https://github.com/namidaco/namida)) ，两设备的音频延迟只差半拍 (没有具体测量能力)
   - 受控设备播放 `USAGE_GAME` 流时 (明日方舟 Bilibili 服) ，仍存在 100~200ms 的有感延迟
@@ -33,6 +36,7 @@
 - 利用 mDNS 服务实现自动连接启用无线调试的设备、自动发现等待配对设备的IP与端口
 - 自动横竖屏切换（算吗
 - 画中画
+- 双向文件传输
 - 流式 adb 终端
 
 ## 已知问题
@@ -52,7 +56,16 @@
 
 ## NOT-TODO
 
-应该有东西的但我不记得要写什么了
+~~应该有东西的但我不记得要写什么了~~
+
+- 低版本安卓适配
+  - 项目的 `minSdk` 为 26 / Android 8，98.4% 的设备都能成功安装上，只是出问题不管
+- 更多的文件操作，包括不限于 `删除`, `重命名` 等
+  - 可以长按复制路径去终端用 `rm`, `mv`
+- 应用图标
+  - 我做不来
+- 有线控制 / fastboot
+  - 左转甲壳虫
 
 ## 建议搭配模块
 
@@ -60,6 +73,9 @@
 - 开机自动启用 adb: [gist/906291](https://gist.github.com/Miuzarte/9062915f1615d5eebd363c759fda496c)
 
 ## FAQ
+
+0. 控制不了
+   - [Genymobile/scrcpy/FAQ.md#control-issues](https://github.com/Genymobile/scrcpy/blob/master/FAQ.md#control-issues)
 
 1. 切到后台后 ADB 断连
    - 将国产 ROM 中的 `省电策略` 调整至 `无限制`
