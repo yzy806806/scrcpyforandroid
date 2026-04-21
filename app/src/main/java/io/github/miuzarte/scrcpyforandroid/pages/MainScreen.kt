@@ -78,6 +78,7 @@ import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -139,7 +140,12 @@ fun MainScreen() {
     val pagerState = rememberPagerState(
         initialPage = MainBottomTabDestination.Devices.ordinal,
         pageCount = { tabs.size })
-    val currentTab = tabs[pagerState.currentPage]
+    var selectedTabIndex by rememberSaveable {
+        mutableStateOf(MainBottomTabDestination.Devices.ordinal)
+    }
+    var pagerNavigationJob by remember { mutableStateOf<Job?>(null) }
+    var isPagerNavigating by remember { mutableStateOf(false) }
+    val currentTab = tabs[selectedTabIndex]
     val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
     var showReorderDevices by rememberSaveable { mutableStateOf(false) }
@@ -274,7 +280,38 @@ fun MainScreen() {
 
     // Derived flags
     val canNavigateBack = rootBackStack.size > 1
-            || pagerState.currentPage != MainBottomTabDestination.Devices.ordinal
+            || selectedTabIndex != MainBottomTabDestination.Devices.ordinal
+
+    fun navigateToTab(tab: MainBottomTabDestination) {
+        val targetIndex = tab.ordinal
+        if (targetIndex == selectedTabIndex) {
+            return
+        }
+        pagerNavigationJob?.cancel()
+        selectedTabIndex = targetIndex
+        isPagerNavigating = true
+        scope.launch {
+            val job = coroutineContext[Job]
+            pagerNavigationJob = job
+            try {
+                pagerState.animateScrollToPage(
+                    page = targetIndex,
+                    animationSpec = spring(
+                        dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
+                        stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
+                    ),
+                )
+            } finally {
+                if (pagerNavigationJob == job) {
+                    isPagerNavigating = false
+                    pagerNavigationJob = null
+                    if (pagerState.currentPage != targetIndex) {
+                        selectedTabIndex = pagerState.currentPage
+                    }
+                }
+            }
+        }
+    }
 
     LaunchedEffect(asBundle.lastUpdateCheckAt) {
         val now = System.currentTimeMillis()
@@ -288,16 +325,8 @@ fun MainScreen() {
     fun handleBackNavigation() {
         if (rootBackStack.size > 1) {
             rootNavigator.pop()
-        } else if (pagerState.currentPage != MainBottomTabDestination.Devices.ordinal) {
-            scope.launch {
-                pagerState.animateScrollToPage(
-                    page = MainBottomTabDestination.Devices.ordinal,
-                    animationSpec = spring(
-                        dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
-                        stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
-                    ),
-                )
-            }
+        } else if (selectedTabIndex != MainBottomTabDestination.Devices.ordinal) {
+            navigateToTab(MainBottomTabDestination.Devices)
         } else {
             val now = SystemClock.elapsedRealtime()
             if (now - lastExitBackPressAtMs > 2_000L) {
@@ -344,6 +373,12 @@ fun MainScreen() {
             asBundle.adbKeyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
     }
 
+    LaunchedEffect(pagerState.currentPage) {
+        if (!isPagerNavigating && selectedTabIndex != pagerState.currentPage) {
+            selectedTabIndex = pagerState.currentPage
+        }
+    }
+
     val rootEntryProvider = entryProvider<NavKey> {
         entry(RootScreen.Home) {
             val blurBackdrop = rememberBlurBackdrop(enableBlur = asBundle.blur)
@@ -352,18 +387,6 @@ fun MainScreen() {
             val glassBackdrop = rememberLayerBackdrop {
                 drawRect(surfaceColor)
                 drawContent()
-            }
-
-            fun navigateToTab(tab: MainBottomTabDestination) {
-                scope.launch {
-                    pagerState.animateScrollToPage(
-                        page = tab.ordinal,
-                        animationSpec = spring(
-                            dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
-                            stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
-                        ),
-                    )
-                }
             }
 
             Scaffold(
@@ -450,17 +473,9 @@ fun MainScreen() {
                                     indication = null,
                                     onClick = {},
                                 ),
-                            selectedIndex = { pagerState.currentPage },
+                            selectedIndex = { selectedTabIndex },
                             onSelected = { index ->
-                                scope.launch {
-                                    pagerState.animateScrollToPage(
-                                        page = index,
-                                        animationSpec = spring(
-                                            dampingRatio = UiMotion.PAGE_SWITCH_DAMPING_RATIO,
-                                            stiffness = UiMotion.PAGE_SWITCH_STIFFNESS,
-                                        ),
-                                    )
-                                }
+                                navigateToTab(tabs[index])
                             },
                             backdrop = glassBackdrop,
                             tabsCount = tabs.size,
