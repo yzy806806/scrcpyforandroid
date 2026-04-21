@@ -7,6 +7,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.runBlocking
 import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.io.Closeable
 import java.io.EOFException
 import java.io.IOException
@@ -259,6 +260,7 @@ internal class DirectAdbConnection(
         Log.i(TAG, "handshake(): tcp connect -> $host:$port")
         socket.connect(InetSocketAddress(host, port), 10_000)
         socket.tcpNoDelay = true
+        socket.keepAlive = true
         socket.soTimeout = 60_000
         rawIn = BufferedInputStream(socket.getInputStream(), 65_536)
         rawOut = socket.getOutputStream()
@@ -355,6 +357,12 @@ internal class DirectAdbConnection(
      * - Implements SEND/DATA/DONE/OKAY sequence and throws IOException on failure.
      */
     fun push(data: ByteArray, remotePath: String, unixMode: Int = 420) {
+        data.inputStream().use { input ->
+            push(input, remotePath, unixMode)
+        }
+    }
+
+    fun push(input: InputStream, remotePath: String, unixMode: Int = 420) {
         openStream("sync:")
             .use { stream ->
                 val out = stream.outputStream
@@ -366,13 +374,13 @@ internal class DirectAdbConnection(
                 out.write(pathMode)
 
                 val chunkBuf = ByteArray(64 * 1024)
-                var offset = 0
-                while (offset < data.size) {
-                    val len = minOf(chunkBuf.size, data.size - offset)
+                while (true) {
+                    val len = input.read(chunkBuf)
+                    if (len <= 0) break
+
                     out.write("DATA".toByteArray(Charsets.US_ASCII))
                     out.writeIntLE(len)
-                    out.write(data, offset, len)
-                    offset += len
+                    out.write(chunkBuf, 0, len)
                 }
 
                 out.write("DONE".toByteArray(Charsets.US_ASCII))
@@ -388,6 +396,62 @@ internal class DirectAdbConnection(
                     throw IOException("ADB push failed: $msg")
                 } else if (msgLen > 0) {
                     inp.skip(msgLen.toLong())
+                }
+            }
+    }
+
+    fun pull(remotePath: String): ByteArray {
+        val output = ByteArrayOutputStream()
+        pull(remotePath, output)
+        return output.toByteArray()
+    }
+
+    fun pull(remotePath: String, output: OutputStream) {
+        openStream("sync:")
+            .use { stream ->
+                val out = stream.outputStream
+                val inp = stream.inputStream
+                val pathBytes = remotePath.toByteArray(Charsets.UTF_8)
+
+                out.write("RECV".toByteArray(Charsets.US_ASCII))
+                out.writeIntLE(pathBytes.size)
+                out.write(pathBytes)
+                out.flush()
+
+                while (true) {
+                    val idBuf = ByteArray(4).also { inp.readExact(it) }
+                    val msgLen = inp.readIntLE()
+                    when (val id = String(idBuf, Charsets.US_ASCII)) {
+                        "DATA" -> {
+                            val chunk = ByteArray(msgLen)
+                            inp.readExact(chunk)
+                            output.write(chunk)
+                        }
+
+                        "DONE" -> {
+                            if (msgLen > 0) {
+                                inp.skip(msgLen.toLong())
+                            }
+                            return
+                        }
+
+                        "FAIL" -> {
+                            val msg = if (msgLen > 0) {
+                                ByteArray(msgLen).also { inp.readExact(it) }
+                                    .toString(Charsets.UTF_8)
+                            } else {
+                                "unknown error"
+                            }
+                            throw IOException("ADB pull failed: $msg")
+                        }
+
+                        else -> {
+                            if (msgLen > 0) {
+                                inp.skip(msgLen.toLong())
+                            }
+                            throw IOException("ADB pull failed: unexpected sync id $id")
+                        }
+                    }
                 }
             }
     }

@@ -133,6 +133,14 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("realtime_clipboard_sync_to_device"),
             true
         )
+        val FILE_MANAGER_SORT_BY = Pair(
+            stringPreferencesKey("file_manager_sort_by"),
+            "NAME"
+        )
+        val FILE_MANAGER_SORT_DESCENDING = Pair(
+            booleanPreferencesKey("file_manager_sort_descending"),
+            false
+        )
         val LAST_UPDATE_CHECK_AT = Pair(
             longPreferencesKey("last_update_check_at"),
             0L
@@ -172,6 +180,8 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
     val adbAutoLoadAppListOnConnect by setting(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT)
     val passwordRequireAuth by setting(PASSWORD_REQUIRE_AUTH)
     val realtimeClipboardSyncToDevice by setting(REALTIME_CLIPBOARD_SYNC_TO_DEVICE)
+    val fileManagerSortBy by setting(FILE_MANAGER_SORT_BY)
+    val fileManagerSortDescending by setting(FILE_MANAGER_SORT_DESCENDING)
     val lastUpdateCheckAt by setting(LAST_UPDATE_CHECK_AT)
 
     @Parcelize
@@ -202,6 +212,8 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         val adbAutoLoadAppListOnConnect: Boolean,
         val passwordRequireAuth: Boolean,
         val realtimeClipboardSyncToDevice: Boolean,
+        val fileManagerSortBy: String,
+        val fileManagerSortDescending: Boolean,
         val lastUpdateCheckAt: Long,
     ) : Parcelable {
     }
@@ -233,6 +245,8 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { bundle: Bundle -> bundle.adbAutoLoadAppListOnConnect },
         bundleField(PASSWORD_REQUIRE_AUTH) { bundle: Bundle -> bundle.passwordRequireAuth },
         bundleField(REALTIME_CLIPBOARD_SYNC_TO_DEVICE) { bundle: Bundle -> bundle.realtimeClipboardSyncToDevice },
+        bundleField(FILE_MANAGER_SORT_BY) { bundle: Bundle -> bundle.fileManagerSortBy },
+        bundleField(FILE_MANAGER_SORT_DESCENDING) { bundle: Bundle -> bundle.fileManagerSortDescending },
         bundleField(LAST_UPDATE_CHECK_AT) { bundle: Bundle -> bundle.lastUpdateCheckAt },
     )
 
@@ -267,6 +281,8 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         passwordRequireAuth = preferences.read(PASSWORD_REQUIRE_AUTH),
         realtimeClipboardSyncToDevice = preferences.read(REALTIME_CLIPBOARD_SYNC_TO_DEVICE),
+        fileManagerSortBy = preferences.read(FILE_MANAGER_SORT_BY),
+        fileManagerSortDescending = preferences.read(FILE_MANAGER_SORT_DESCENDING),
         lastUpdateCheckAt = preferences.read(LAST_UPDATE_CHECK_AT),
     )
 

@@ -20,6 +20,7 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Devices
+import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Terminal
 import androidx.compose.runtime.Composable
@@ -28,6 +29,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -103,6 +105,7 @@ private enum class MainBottomTabDestination(
 ) {
     Devices(label = "设备", icon = Icons.Rounded.Devices),
     Terminal(label = "终端", icon = Icons.Rounded.Terminal),
+    Files(label = "文件", icon = Icons.Rounded.Folder),
     Settings(label = "设置", icon = Icons.Rounded.Settings);
 }
 
@@ -141,7 +144,7 @@ fun MainScreen() {
         initialPage = MainBottomTabDestination.Devices.ordinal,
         pageCount = { tabs.size })
     var selectedTabIndex by rememberSaveable {
-        mutableStateOf(MainBottomTabDestination.Devices.ordinal)
+        mutableIntStateOf(MainBottomTabDestination.Devices.ordinal)
     }
     var pagerNavigationJob by remember { mutableStateOf<Job?>(null) }
     var isPagerNavigating by remember { mutableStateOf(false) }
@@ -150,6 +153,8 @@ fun MainScreen() {
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
     var showReorderDevices by rememberSaveable { mutableStateOf(false) }
     var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
+    var fileTabCanNavigateUp by remember { mutableStateOf(false) }
+    var fileTabNavigateUp by remember { mutableStateOf<(() -> Boolean)?>(null) }
 
     // Scroll behaviors
     val devicesPageScrollBehavior = MiuixScrollBehavior(
@@ -323,24 +328,32 @@ fun MainScreen() {
     }
 
     fun handleBackNavigation() {
-        if (rootBackStack.size > 1) {
-            rootNavigator.pop()
-        } else if (selectedTabIndex != MainBottomTabDestination.Devices.ordinal) {
-            navigateToTab(MainBottomTabDestination.Devices)
-        } else {
-            val now = SystemClock.elapsedRealtime()
-            if (now - lastExitBackPressAtMs > 2_000L) {
-                lastExitBackPressAtMs = now
-                Toast.makeText(context, "再按一次返回键退出", Toast.LENGTH_SHORT).show()
-                return
-            }
-            lastExitBackPressAtMs = 0L
-            scope.launch {
-                withContext(Dispatchers.IO) {
-                    runCatching { scrcpy.stop() }
-                    runCatching { NativeAdbService.disconnect() }
+        when {
+            rootBackStack.size > 1 -> rootNavigator.pop()
+
+            selectedTabIndex == MainBottomTabDestination.Files.ordinal
+                    && fileTabCanNavigateUp
+                    && fileTabNavigateUp?.invoke() == true
+                -> return
+
+            selectedTabIndex != MainBottomTabDestination.Devices.ordinal
+                -> navigateToTab(MainBottomTabDestination.Devices)
+
+            else -> {
+                val now = SystemClock.elapsedRealtime()
+                if (now - lastExitBackPressAtMs > 2_000L) {
+                    lastExitBackPressAtMs = now
+                    Toast.makeText(context, "再按一次返回键退出", Toast.LENGTH_SHORT).show()
+                    return
                 }
-                activity?.finish()
+                lastExitBackPressAtMs = 0L
+                scope.launch {
+                    withContext(Dispatchers.IO) {
+                        runCatching { scrcpy.stop() }
+                        runCatching { NativeAdbService.disconnect() }
+                    }
+                    activity?.finish()
+                }
             }
         }
     }
@@ -451,6 +464,12 @@ fun MainScreen() {
 
                                     MainBottomTabDestination.Terminal -> TerminalScreen(
                                         bottomInnerPadding = bottomInnerPadding,
+                                    )
+
+                                    MainBottomTabDestination.Files -> FileManagerScreen(
+                                        bottomInnerPadding = bottomInnerPadding,
+                                        onCanNavigateUpChange = { fileTabCanNavigateUp = it },
+                                        onNavigateUpActionChange = { fileTabNavigateUp = it },
                                     )
 
                                     MainBottomTabDestination.Settings -> SettingsScreen(

@@ -15,9 +15,9 @@ class TerminalInputView @JvmOverloads constructor(
     defStyleAttr: Int = 0,
 ) : View(context, attrs, defStyleAttr) {
     interface InputCallbacks {
+        fun handleKeyEvent(event: KeyEvent): Boolean
         fun handleCommitText(text: CharSequence): Boolean
         fun handleDeleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean
-        fun handleKeyEvent(event: KeyEvent): Boolean
     }
 
     var inputCallbacks: InputCallbacks? = null
@@ -66,9 +66,10 @@ class TerminalInputView @JvmOverloads constructor(
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-                if (inputCallbacks?.handleDeleteSurroundingText(beforeLength, afterLength) == true) {
-                    return true
-                }
+                if (inputCallbacks
+                        ?.handleDeleteSurroundingText(beforeLength, afterLength) == true
+                ) return true
+
                 return super.deleteSurroundingText(beforeLength, afterLength)
             }
 

@@ -18,8 +18,8 @@ internal data class ConnectedDeviceInfo(
  * Fetch basic device properties from an already-connected device.
  *
  * Notes:
- * - This function issues multiple `shell getprop` commands via [adbService.shell].
- *   Each call may block on native I/O, so it should be called from a coroutine context.
+ * - This function issues multiple `getprop` commands over a single reusable shell session
+ *   to avoid reopening a new adb shell stream for every property.
  * - Returns a lightweight [ConnectedDeviceInfo] structure with commonly-used properties.
  */
 internal suspend fun fetchConnectedDeviceInfo(
@@ -27,17 +27,25 @@ internal suspend fun fetchConnectedDeviceInfo(
     host: String,
     port: Int
 ): ConnectedDeviceInfo = withContext(Dispatchers.IO) {
-    suspend fun prop(name: String): String = runCatching {
-        adbService.shell("getprop $name").trim()
-    }.getOrDefault("")
+    val values = runCatching {
+        adbService.shellBatch {
+            command("getprop ro.product.model")
+            command("getprop ro.serialno")
+            command("getprop ro.product.manufacturer")
+            command("getprop ro.product.brand")
+            command("getprop ro.product.device")
+            command("getprop ro.build.version.release")
+            command("getprop ro.build.version.sdk")
+        }
+    }.getOrDefault(emptyList())
 
     ConnectedDeviceInfo(
-        model = prop("ro.product.model").ifBlank { "$host:$port" },
-        serial = prop("ro.serialno"),
-        manufacturer = prop("ro.product.manufacturer"),
-        brand = prop("ro.product.brand"),
-        device = prop("ro.product.device"),
-        androidRelease = prop("ro.build.version.release"),
-        sdkInt = prop("ro.build.version.sdk").toIntOrNull() ?: -1,
+        model = values.getOrNull(0).orEmpty().trim().ifBlank { "$host:$port" },
+        serial = values.getOrNull(1).orEmpty().trim(),
+        manufacturer = values.getOrNull(2).orEmpty().trim(),
+        brand = values.getOrNull(3).orEmpty().trim(),
+        device = values.getOrNull(4).orEmpty().trim(),
+        androidRelease = values.getOrNull(5).orEmpty().trim(),
+        sdkInt = values.getOrNull(6).orEmpty().trim().toIntOrNull() ?: -1,
     )
 }

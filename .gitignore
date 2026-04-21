@@ -36,4 +36,6 @@ google-services.json
 
 .kiro/
 
+.kotlin/
+
 scrcpy.help*

@@ -29,6 +29,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.core.net.toUri
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
@@ -68,6 +69,7 @@ import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import kotlin.math.roundToInt
 import kotlin.system.exitProcess
+import android.provider.Settings as AndroidSettings
 
 @Composable
 fun SettingsScreen(
@@ -480,6 +482,50 @@ fun SettingsPage(
         item {
             SectionSmallTitle("ADB")
             Card {
+                ArrowPreference(
+                    title = "调整后台电池策略",
+                    summary =
+                        """
+                            解决 Scrcpy 切换到后台时无法联网导致 ADB 断连
+                            应用的电池使用情况 -> 允许后台使用 -> 无限制
+                            国产ROM魔改的电源设置一般都可在对应的魔改应用设置中找到
+                        """.trimIndent(),
+                    onClick = {
+                        val appInfoArgs = android.os.Bundle().apply {
+                            putString("package", context.packageName)
+                            putInt("uid", context.applicationInfo.uid)
+                        }
+                        val appDetailsIntent = Intent(Intent.ACTION_MAIN).apply {
+                            setClassName(
+                                "com.android.settings",
+                                "com.android.settings.SubSettings"
+                            )
+                            putExtra(
+                                ":settings:show_fragment",
+                                "com.android.settings.applications.appinfo.AppInfoDashboardFragment"
+                            )
+                            putExtra(
+                                ":settings:show_fragment_title",
+                                "应用信息"
+                            )
+                            putExtra(":settings:show_fragment_args", appInfoArgs)
+                            putExtra("package", context.packageName)
+                            putExtra("uid", context.applicationInfo.uid)
+                            putExtra("android.provider.extra.APP_PACKAGE", context.packageName)
+                        }
+                        val requestIntent = Intent(
+                            AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                            "package:${context.packageName}".toUri()
+                        )
+                        val fallbackIntent = Intent(
+                            AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                        )
+                        runCatching { context.startActivity(appDetailsIntent) }
+                            .recoverCatching { context.startActivity(requestIntent) }
+                            .recoverCatching { context.startActivity(fallbackIntent) }
+                            .onFailure { snackbar.show("无法打开设置") }
+                    },
+                )
                 Column(
                     modifier = Modifier.padding(vertical = UiSpacing.Large),
                     verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),

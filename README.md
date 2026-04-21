@@ -61,7 +61,11 @@
 
 ## FAQ
 
-1. 虚拟屏不显示输入法 / 输入法显示在主屏幕
+1. 切到后台后 ADB 断连
+   - 将国产 ROM 中的 `省电策略` 调整至 `无限制`
+   - 将安卓原生设置中的 `允许后台使用` 启用并设置为 `无限制` (应用设置页中有入口)
+
+2. 虚拟屏不显示输入法 / 输入法显示在主屏幕
    - 将 `--display-ime-policy` 设置为 `local`
    - 自行在悬浮球中拉起本机输入法
 
@@ -88,6 +92,7 @@ specific abi:
 - 界面组件: [YuKongA/miuix](https://github.com/compose-miuix-ui/miuix)
 - 界面设计参考: [tiann/KernelSU/manager](https://github.com/tiann/KernelSU/tree/main/manager), [miuix/example](https://github.com/compose-miuix-ui/miuix/tree/main/example)
 - 画中画实现参考: [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android)
+- 原生应用设置页跳转: [YifePlayte/WOMMO](https://github.com/YifePlayte/WOMMO)
 
 ## License
 

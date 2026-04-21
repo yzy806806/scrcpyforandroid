@@ -6,6 +6,8 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import java.io.InputStream
+import java.io.OutputStream
 import java.nio.file.Path
 import kotlin.time.Duration
 
@@ -135,24 +137,54 @@ object NativeAdbService {
         return response
     }
 
+    suspend fun shellBatch(build: ShellBatchBuilder.() -> Unit): List<String> {
+        val builder = ShellBatchBuilder().apply(build)
+        if (builder.commands.isEmpty()) {
+            return emptyList()
+        }
+        val markers = List(builder.commands.size) { index ->
+            "__SCRCPY_BATCH_${System.nanoTime()}_${index}__"
+        }
+        val script = buildString {
+            builder.commands.forEachIndexed { index, command ->
+                append(command)
+                append("; printf '\\n")
+                append(markers[index])
+                append("\\n'")
+                if (index != builder.commands.lastIndex) {
+                    append("; ")
+                }
+            }
+        }
+        val response = shell(script)
+        val outputs = ArrayList<String>(builder.commands.size)
+        var remaining = response
+        markers.forEach { marker ->
+            val token = "\n$marker\n"
+            val markerIndex = remaining.indexOf(token)
+                .takeIf { it >= 0 }
+                ?: throw IllegalStateException("Shell batch marker missing: $marker")
+            outputs += remaining.substring(0, markerIndex).trimEnd('\r', '\n')
+            remaining = remaining.substring(markerIndex + token.length)
+        }
+        return outputs
+    }
+
     suspend fun startApp(
         packageName: String,
         displayId: Int? = null,
         forceStop: Boolean = false,
     ): String {
-        val conn = snapshotConnection()
         val normalizedPackageName = packageName.trim()
         require(normalizedPackageName.isNotBlank()) { "package name is blank" }
-
-        if (forceStop) {
-            conn.shell(
-                "am force-stop ${quoteShellArg(normalizedPackageName)}"
-            )
-        }
-
-        val resolveOutput = conn.shell(
+        val resolveCommand =
             "cmd package resolve-activity --brief ${quoteShellArg(normalizedPackageName)}"
-        )
+        val resolveOutputIndex = if (forceStop) 1 else 0
+        val batchResult = shellBatch {
+            if (forceStop) command("am force-stop ${quoteShellArg(normalizedPackageName)}")
+            command(resolveCommand)
+        }
+        val resolveOutput = batchResult.getOrElse(resolveOutputIndex) { "" }
         val componentName = resolveOutput
             .lineSequence()
             .map(String::trim)
@@ -166,7 +198,7 @@ object NativeAdbService {
             ?.let { " --display $it" }
             .orEmpty()
         val command = "am start-activity$displayArg -n ${quoteShellArg(componentName)}"
-        val response = conn.shell(command)
+        val response = shell(command)
         Log.d(TAG, "startApp(): package=$normalizedPackageName component=$componentName")
         return response
     }
@@ -175,8 +207,32 @@ object NativeAdbService {
         return snapshotConnection().openStream("shell:$command")
     }
 
+    suspend fun ensureConnectionResponsive() {
+        val conn = snapshotConnection()
+        try {
+            conn.shell("true")
+        } catch (error: Exception) {
+            mutex.withLock {
+                if (connection === conn) disconnectInternal()
+            }
+            throw IllegalStateException("ADB connection is no longer available", error)
+        }
+    }
+
     suspend fun push(localPath: Path, remotePath: String) {
         snapshotConnection().push(localPath.toFile().readBytes(), remotePath)
+    }
+
+    suspend fun push(input: InputStream, remotePath: String, unixMode: Int = 420) {
+        snapshotConnection().push(input, remotePath, unixMode)
+    }
+
+    suspend fun pull(remotePath: String): ByteArray {
+        return snapshotConnection().pull(remotePath)
+    }
+
+    suspend fun pull(remotePath: String, output: OutputStream) {
+        snapshotConnection().pull(remotePath, output)
     }
 
     suspend fun openAbstractSocket(name: String): AdbSocketStream {
@@ -205,6 +261,14 @@ object NativeAdbService {
 
     private fun quoteShellArg(value: String): String {
         return "'" + value.replace("'", "'\\''") + "'"
+    }
+
+    class ShellBatchBuilder internal constructor() {
+        internal val commands = mutableListOf<String>()
+
+        fun command(command: String) {
+            commands += command
+        }
     }
 
     private const val TAG = "NativeAdbService"
