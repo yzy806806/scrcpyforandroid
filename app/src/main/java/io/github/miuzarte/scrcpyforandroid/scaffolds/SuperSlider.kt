@@ -70,8 +70,8 @@ fun SuperSlider(
             val text = if (shouldShowUnit) "$valueText $unit" else valueText
             Text(
                 text = text,
-                fontSize = textStyles.body2.fontSize,
                 color = colorScheme.onSurfaceVariantActions,
+                fontSize = textStyles.body2.fontSize,
             )
         },
         enabled = enabled,

@@ -57,6 +57,7 @@ import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -416,6 +417,7 @@ internal fun ConfigPanel(
     cameraMirroringSupported: Boolean,
     adbConnecting: Boolean,
     isQuickConnected: Boolean,
+    advancedEndActionText: String,
     allAppsEndActionText: String,
     onOpenAllApps: () -> Unit,
     recentTasksEndActionText: String,
@@ -603,6 +605,13 @@ internal fun ConfigPanel(
         ArrowPreference(
             title = if (!hideSimpleConfigItems) "更多参数" else "所有参数",
             summary = "所有 scrcpy 参数",
+            endActions = {
+                Text(
+                    text = advancedEndActionText,
+                    color = colorScheme.onSurfaceVariantActions,
+                    fontSize = textStyles.body2.fontSize,
+                )
+            },
             onClick = onOpenAdvanced,
             enabled = !sessionStarted,
         )
@@ -614,7 +623,6 @@ internal fun ConfigPanel(
                     text = allAppsEndActionText,
                     color = colorScheme.onSurfaceVariantActions,
                     fontSize = textStyles.body2.fontSize,
-                    modifier = Modifier.padding(end = UiSpacing.ContentVertical),
                 )
             },
             onClick = onOpenAllApps,
@@ -627,7 +635,6 @@ internal fun ConfigPanel(
                     text = recentTasksEndActionText,
                     color = colorScheme.onSurfaceVariantActions,
                     fontSize = textStyles.body2.fontSize,
-                    modifier = Modifier.padding(end = UiSpacing.ContentVertical),
                 )
             },
             onClick = onOpenRecentTasks,

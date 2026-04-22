@@ -317,6 +317,12 @@ fun DeviceTabPage(
             adbSession.connectedScrcpyProfileId
 
     val connectedScrcpyBundle = resolveScrcpyBundle(connectedScrcpyProfileId)
+    val connectedScrcpyProfileName = remember(connectedScrcpyProfileId, scrcpyProfilesState) {
+        scrcpyProfilesState.profiles
+            .firstOrNull { it.id == connectedScrcpyProfileId }
+            ?.name
+            ?: ScrcpyOptions.GLOBAL_PROFILE_NAME
+    }
     val apps = remember(listingsRefreshVersion) { scrcpy.listings.apps }
     val recentTasks = remember(listingsRefreshVersion) { scrcpy.listings.recentTasks }
 
@@ -1064,6 +1070,7 @@ fun DeviceTabPage(
                     cameraMirroringSupported = adbSession.cameraMirroringSupported,
                     adbConnecting = adbConnecting,
                     isQuickConnected = isQuickConnected,
+                    advancedEndActionText = connectedScrcpyProfileName,
                     allAppsEndActionText = when {
                         listingsRefreshBusy -> "..."
                         apps.isNotEmpty() -> apps.size.toString()
