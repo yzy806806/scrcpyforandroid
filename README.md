@@ -67,6 +67,10 @@
 - 有线控制 / fastboot
   - 左转甲壳虫
 
+## Change Log
+
+\> [CHANGELOG.md](CHANGELOG.md)
+
 ## 建议搭配模块
 
 - 密码锁屏无法捕获: [LSPosed/DisableFlagSecure](https://github.com/LSPosed/DisableFlagSecure)
@@ -84,6 +88,9 @@
 2. 虚拟屏不显示输入法 / 输入法显示在主屏幕
    - 将 `--display-ime-policy` 设置为 `local`
    - 自行在悬浮球中拉起本机输入法
+
+3. 码率只能拉到 40Mbps 嫌低
+   - 每个 Slider 选项的标题都可以点开自己输入值
 
 ## 构建
 
@@ -109,6 +116,7 @@ specific abi:
 - 界面设计参考: [tiann/KernelSU/manager](https://github.com/tiann/KernelSU/tree/main/manager), [miuix/example](https://github.com/compose-miuix-ui/miuix/tree/main/example)
 - 画中画实现参考: [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android)
 - 原生应用设置页跳转: [YifePlayte/WOMMO](https://github.com/YifePlayte/WOMMO)
+- 终端实现: [reapercanuk39/termux-kotlin-app](https://github.com/reapercanuk39/termux-kotlin-app) (仅 Apache 2 部分)
 
 ## License
 
