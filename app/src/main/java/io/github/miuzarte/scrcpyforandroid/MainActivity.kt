@@ -9,7 +9,7 @@ import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
 import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
 import io.github.miuzarte.scrcpyforandroid.password.hasAuthenticatedOrigin
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
+import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import kotlinx.coroutines.runBlocking
 
 // 生物认证需要 FragmentActivity
@@ -18,7 +18,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         AppRuntime.init(applicationContext)
-        AppWakeLocks.init(applicationContext)
+        AppScreenOn.register(window)
 
         runBlocking {
             PasswordRepository.refresh()
@@ -40,5 +40,10 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         StreamActivity.dismissActivePictureInPicture()
+    }
+
+    override fun onDestroy() {
+        AppScreenOn.unregister(window)
+        super.onDestroy()
     }
 }

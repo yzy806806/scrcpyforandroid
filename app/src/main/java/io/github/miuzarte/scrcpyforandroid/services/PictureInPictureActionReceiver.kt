@@ -17,7 +17,6 @@ class PictureInPictureActionReceiver : BroadcastReceiver() {
             try {
                 val appContext = context.applicationContext
                 AppRuntime.init(appContext)
-                AppWakeLocks.init(appContext)
                 runBlocking {
                     AppRuntime.scrcpy?.stop()
                 }

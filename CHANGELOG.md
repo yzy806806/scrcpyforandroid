@@ -5,6 +5,7 @@
 ## 0.2.2
 
 - 改进: 设备页连接设备后选项卡显示当前配置名
+- 修复: 正确实现 `--disable-screensaver`，`FLAG_KEEP_SCREEN_ON` 而非 `PARTIAL_WAKE_LOCK`
 
 ## 0.2.1
 

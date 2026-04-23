@@ -988,7 +988,7 @@ internal fun ScrcpyAllOptionsPage(
                     },
                 )
                 SwitchPreference(
-                    title = "scrcpy 启动后保持本机屏幕唤醒",
+                    title = "scrcpy 启动后保持本机屏幕常亮",
                     summary = "--disable-screensaver",
                     checked = soBundle.disableScreensaver,
                     onCheckedChange = {
@@ -996,7 +996,7 @@ internal fun ScrcpyAllOptionsPage(
                             disableScreensaver = it
                         )
                         if (it) snackbar.show(
-                            "不保证可用"
+                            "注意防烧屏，画中画也生效"
                         )
                     },
                 )

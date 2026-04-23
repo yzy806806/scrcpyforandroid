@@ -2,8 +2,6 @@
 
 # TODO
 
-fix wake lock
-
 ## PARAMS
 
 ### LOWER PRIORITY

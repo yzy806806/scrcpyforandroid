@@ -39,7 +39,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.AppWakeLocks
+import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbBackgroundRunner
 import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbConnectionCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbSessionState
@@ -235,7 +235,7 @@ fun DeviceTabPage(
 
     DisposableEffect(Unit) {
         onDispose {
-            AppWakeLocks.release()
+            AppScreenOn.release()
         }
     }
     DisposableEffect(adbBackgroundRunner) {
@@ -430,7 +430,7 @@ fun DeviceTabPage(
         // Also stops scrcpy.
         runCatching { scrcpy.stop() }
         runCatching { adbCoordinator.disconnect() }
-        AppWakeLocks.release()
+        AppScreenOn.release()
         adbSession = DeviceAdbSessionState()
         AppRuntime.currentConnectionTarget = null
         clearQuickOnlineForTarget?.let { target ->
@@ -691,7 +691,7 @@ fun DeviceTabPage(
             context.startActivity(StreamActivity.createIntent(context))
         }
         if (resolvedOptions.disableScreensaver)
-            AppWakeLocks.acquire()
+            AppScreenOn.acquire()
 
         adbSession = adbSession.copy(statusLine = "scrcpy 运行中")
         @SuppressLint("DefaultLocale")
@@ -727,7 +727,7 @@ fun DeviceTabPage(
                 showSnackMessage = "scrcpy 已停止，ADB 已断开",
             )
         } else {
-            AppWakeLocks.release()
+            AppScreenOn.release()
             adbSession = adbSession.copy(
                 statusLine = "${currentTarget!!.host}:${currentTarget.port}"
             )

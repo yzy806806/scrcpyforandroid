@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import androidx.core.pip.BasicPictureInPicture
 import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.pages.StreamScreen
+import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.PictureInPictureActionReceiver
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -43,6 +44,7 @@ class StreamActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         currentActivityRef = WeakReference(this)
+        AppScreenOn.register(window)
 
         registerPipActionReceiver()
 
@@ -87,6 +89,7 @@ class StreamActivity : FragmentActivity() {
         currentActivityRef?.get()
             ?.takeIf { it === this }
             ?.let { currentActivityRef = null }
+        AppScreenOn.unregister(window)
         unregisterPipActionReceiver()
         super.onDestroy()
     }
