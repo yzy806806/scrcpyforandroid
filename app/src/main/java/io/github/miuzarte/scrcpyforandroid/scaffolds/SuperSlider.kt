@@ -28,7 +28,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 @Composable
 fun SuperSlider(
     title: String,
-    summary: String,
+    summary: String? = null,
     value: Float,
     onValueChange: (Float) -> Unit,
     valueRange: ClosedFloatingPointRange<Float>,
@@ -42,7 +42,7 @@ fun SuperSlider(
     displayFormatter: (Float) -> String = { it.toInt().toString() },
     displayText: String? = null,
     inputTitle: String = title,
-    inputSummary: String = summary,
+    inputSummary: String? = summary,
     inputLabel: String = unit,
     useLabelAsPlaceholder: Boolean = false,
     inputInitialValue: String = displayFormatter(value),
@@ -110,7 +110,7 @@ fun SuperSlider(
 private fun SliderInputDialog(
     showDialog: Boolean,
     title: String,
-    summary: String,
+    summary: String? = null,
     label: String = "",
     useLabelAsPlaceholder: Boolean = false,
     initialValue: String,

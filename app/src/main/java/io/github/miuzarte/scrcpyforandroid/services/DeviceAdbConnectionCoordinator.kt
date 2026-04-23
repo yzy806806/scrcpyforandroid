@@ -27,18 +27,24 @@ internal class DeviceAdbConnectionCoordinator(
     private val adbService: NativeAdbService = NativeAdbService,
 ) {
     suspend fun connectWithTimeout(host: String, port: Int, timeoutMs: Long) {
-        withTimeout(timeoutMs) {
-            adbService.connect(host, port)
+        withContext(Dispatchers.IO) {
+            withTimeout(timeoutMs) {
+                adbService.connect(host, port)
+            }
         }
     }
 
     suspend fun disconnect() {
-        adbService.disconnect()
+        withContext(Dispatchers.IO) {
+            adbService.disconnect()
+        }
     }
 
     suspend fun isConnected(timeoutMs: Long): Boolean {
-        return withTimeout(timeoutMs) {
-            adbService.isConnected()
+        return withContext(Dispatchers.IO) {
+            withTimeout(timeoutMs) {
+                adbService.isConnected()
+            }
         }
     }
 
@@ -61,24 +67,30 @@ internal class DeviceAdbConnectionCoordinator(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
     ): Pair<String, Int>? {
-        return adbService.discoverPairingService(
-            timeoutMs = timeoutMs,
-            includeLanDevices = includeLanDevices,
-        )
+        return withContext(Dispatchers.IO) {
+            adbService.discoverPairingService(
+                timeoutMs = timeoutMs,
+                includeLanDevices = includeLanDevices,
+            )
+        }
     }
 
     suspend fun discoverConnectService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
     ): Pair<String, Int>? {
-        return adbService.discoverConnectService(
-            timeoutMs = timeoutMs,
-            includeLanDevices = includeLanDevices,
-        )
+        return withContext(Dispatchers.IO) {
+            adbService.discoverConnectService(
+                timeoutMs = timeoutMs,
+                includeLanDevices = includeLanDevices,
+            )
+        }
     }
 
     suspend fun pair(host: String, port: Int, pairingCode: String): Boolean {
-        return adbService.pair(host, port, pairingCode)
+        return withContext(Dispatchers.IO) {
+            adbService.pair(host, port, pairingCode)
+        }
     }
 
     suspend fun startApp(
@@ -86,10 +98,12 @@ internal class DeviceAdbConnectionCoordinator(
         displayId: Int? = null,
         forceStop: Boolean = false,
     ): String {
-        return adbService.startApp(
-            packageName = packageName,
-            displayId = displayId,
-            forceStop = forceStop,
-        )
+        return withContext(Dispatchers.IO) {
+            adbService.startApp(
+                packageName = packageName,
+                displayId = displayId,
+                forceStop = forceStop,
+            )
+        }
     }
 }

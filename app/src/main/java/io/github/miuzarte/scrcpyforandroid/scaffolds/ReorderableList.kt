@@ -18,12 +18,16 @@ import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
+import io.github.miuzarte.scrcpyforandroid.ui.confirm
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
+import io.github.miuzarte.scrcpyforandroid.ui.longPress
+import io.github.miuzarte.scrcpyforandroid.ui.segmentTick
 import sh.calvin.reorderable.ReorderableColumn
 import sh.calvin.reorderable.ReorderableRow
 import top.yukonga.miuix.kmp.basic.Card
@@ -66,7 +70,7 @@ class ReorderableList(
 
     @Composable
     operator fun invoke() {
-        val haptics = LocalAppHaptics.current
+        val haptic = LocalHapticFeedback.current
         val items = itemsProvider()
         when (orientation) {
             Orientation.Column -> {
@@ -75,7 +79,7 @@ class ReorderableList(
                     modifier = modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(UiSpacing.Small),
                     onSettle = onSettle,
-                    onMove = haptics.segmentTick,
+                    onMove = haptic::segmentTick,
                 ) { _, item, _ ->
                     key(item.id) {
                         ReorderableItem {
@@ -136,17 +140,11 @@ class ReorderableList(
                                         }
                                         if (item.dragEnabled) {
                                             IconButton(
-                                                onClick = {
-                                                    haptics.contextClick()
-                                                },
+                                                onClick = haptic::contextClick,
                                                 modifier = Modifier
                                                     .draggableHandle(
-                                                        onDragStarted = {
-                                                            haptics.longPress()
-                                                        },
-                                                        onDragStopped = {
-                                                            haptics.confirm()
-                                                        },
+                                                        onDragStarted = { haptic.longPress() },
+                                                        onDragStopped = { haptic.confirm() },
                                                     ),
                                             ) {
                                                 Icon(
@@ -170,7 +168,7 @@ class ReorderableList(
                     modifier = modifier.fillMaxHeight(),
                     horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small),
                     onSettle = onSettle,
-                    onMove = haptics.segmentTick,
+                    onMove = haptic::segmentTick,
                 ) { _, item, _ ->
                     key(item.id) {
                         ReorderableItem {
@@ -207,12 +205,8 @@ class ReorderableList(
                                                 onClick = {},
                                                 modifier = Modifier
                                                     .draggableHandle(
-                                                        onDragStarted = {
-                                                            haptics.longPress()
-                                                        },
-                                                        onDragStopped = {
-                                                            haptics.confirm()
-                                                        },
+                                                        onDragStarted = { haptic.longPress() },
+                                                        onDragStopped = { haptic.confirm() },
                                                     ),
                                             ) {
                                                 Icon(

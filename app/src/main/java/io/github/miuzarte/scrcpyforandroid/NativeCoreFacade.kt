@@ -30,6 +30,8 @@ object NativeCoreFacade {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bootstrapLock = Any()
     private val bootstrapPackets = ArrayDeque<CachedPacket>()
+    @Volatile
+    private var recordingSurfaceAttached = false
 
     @Volatile
     private var latestConfigPacket: CachedPacket? = null
@@ -109,6 +111,39 @@ object NativeCoreFacade {
                 Log.i(TAG, "detachVideoSurface(): releasing decoder with destroyed surface")
                 decoder?.release()
                 decoder = null
+            } else if (activeSurfaceId == null && !recordingSurfaceAttached) {
+                decoder?.release()
+                decoder = null
+            }
+        }
+    }
+
+    suspend fun attachRecordingSurface(
+        surface: Surface,
+        width: Int,
+        height: Int,
+        onFrameRendered: ((Long) -> Unit)? = null,
+    ) {
+        sessionLifecycleMutex.withLock {
+            recordingSurfaceAttached = true
+            renderer.attachRecordSurface(surface, width, height, onFrameRendered)
+            val session = currentSessionInfo
+            if (session != null && decoder == null) {
+                createOrReplaceDecoder(session)
+            }
+        }
+    }
+
+    suspend fun detachRecordingSurface(
+        surface: Surface? = null,
+        releaseSurface: Boolean = false,
+    ) {
+        sessionLifecycleMutex.withLock {
+            recordingSurfaceAttached = false
+            renderer.detachRecordSurface(surface, releaseSurface)
+            if (activeSurfaceId == null) {
+                decoder?.release()
+                decoder = null
             }
         }
     }
@@ -132,7 +167,7 @@ object NativeCoreFacade {
             bootstrapPackets.clear()
             latestConfigPacket = null
         }
-        if (activeSurfaceId != null) {
+        if (activeSurfaceId != null || recordingSurfaceAttached) {
             Log.i(TAG, "onScrcpySessionStarted(): bind decoder to persistent surface")
             createOrReplaceDecoder(session)
         }
@@ -170,6 +205,7 @@ object NativeCoreFacade {
             latestConfigPacket = null
         }
         currentSessionInfo = null
+        recordingSurfaceAttached = false
     }
 
     private const val TAG = "NativeCoreFacade"

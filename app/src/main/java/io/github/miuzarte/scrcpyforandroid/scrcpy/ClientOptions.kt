@@ -10,6 +10,7 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Orientation
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.OrientationLock
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Tick
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
+import io.github.miuzarte.scrcpyforandroid.services.NativeRecordingSupport
 
 data class ClientOptions(
     // var serial: String = "", // to server
@@ -137,8 +138,7 @@ data class ClientOptions(
     // --turn-screen-off
     var turnScreenOff: Boolean = false,
 
-    // [sc_key_inject_mode]
-    // var keyInjectMode: KeyInjectMode,
+    var keyInjectMode: KeyInjectMode = KeyInjectMode.MIXED,
 
     // var windowBorderless: Boolean,
     // var mipmaps: Boolean,
@@ -152,7 +152,7 @@ data class ClientOptions(
     // --disable-screensaver
     var disableScreensaver: Boolean = false,
 
-    // var forwardKeyRepeat: Boolean,
+    var forwardKeyRepeat: Boolean = true,
     var legacyPaste: Boolean = false,
 
     // --power-off-on-close
@@ -209,15 +209,27 @@ data class ClientOptions(
     // --no-vd-system-decorations
     var vdSystemDecorations: Boolean = true, // to server
 ) {
+    enum class KeyInjectMode(val string: String) {
+        MIXED("mixed"),
+        PREFER_TEXT("prefer_text"),
+        RAW("raw");
+
+        companion object {
+            fun fromString(value: String) =
+                entries.find { it.string.equals(value, ignoreCase = true) }
+                    ?: MIXED
+        }
+    }
+
     enum class RecordFormat(val string: String) {
         AUTO("auto"), // ignore
         MP4("mp4"),
-        MKV("mkv"),
+        MKV("mkv"), // not implemented
         M4A("m4a"),
-        MKA("mka"),
-        OPUS("opus"),
+        MKA("mka"), // not implemented
+        OPUS("opus"), // not implemented
         AAC("aac"),
-        FLAC("flac"),
+        FLAC("flac"), // not implemented
         WAV("wav");
 
         fun isAudioOnly(): Boolean = when (this) {
@@ -229,6 +241,11 @@ data class ClientOptions(
             fun fromString(value: String) =
                 entries.find { it.string.equals(value, ignoreCase = true) }
                     ?: AUTO
+
+            fun guessFromFilename(filename: String): RecordFormat {
+                val extension = filename.substringAfterLast('.', "").trim()
+                return fromString(extension)
+            }
         }
     }
 
@@ -329,7 +346,7 @@ data class ClientOptions(
                 }
             }
 
-            if (cameraHighSpeed && cameraFps > 0u) {
+            if (cameraHighSpeed && cameraFps <= 0u) {
                 throw IllegalArgumentException(
                     "--camera-high-speed requires an explicit --camera-fps value"
                 )
@@ -366,15 +383,16 @@ data class ClientOptions(
 
         if (audio && audioSource == AudioSource.AUTO) {
             // Select the audio source according to the video source
-            audioSource = if (videoSource == VideoSource.DISPLAY) {
-                if (audioDup) {
-                    AudioSource.PLAYBACK
+            audioSource =
+                if (videoSource == VideoSource.DISPLAY) {
+                    if (audioDup) {
+                        AudioSource.PLAYBACK
+                    } else {
+                        AudioSource.OUTPUT
+                    }
                 } else {
-                    AudioSource.OUTPUT
+                    AudioSource.MIC
                 }
-            } else {
-                AudioSource.MIC
-            }
         }
 
         if (audioDup) {
@@ -391,7 +409,7 @@ data class ClientOptions(
             }
         }
 
-        if (recordFormat != RecordFormat.AUTO && recordFilename.isNotBlank()) {
+        if (recordFormat != RecordFormat.AUTO && recordFilename.isBlank()) {
             throw IllegalArgumentException(
                 "Record format specified without recording"
             )
@@ -405,8 +423,19 @@ data class ClientOptions(
             }
 
             if (recordFormat == RecordFormat.AUTO) {
-                // TODO: guess from recordFilename
-                recordFormat = RecordFormat.MP4
+                recordFormat = RecordFormat.guessFromFilename(recordFilename)
+                if (recordFormat == RecordFormat.AUTO) {
+                    throw IllegalArgumentException(
+                        "No format specified for recording file " +
+                                "(try with --record-format=mp4)"
+                    )
+                }
+            }
+
+            if (!NativeRecordingSupport.isSupported(recordFormat)) {
+                throw IllegalArgumentException(
+                    "Android native recording currently supports only MP4/M4A"
+                )
             }
 
             if (recordOrientation != Orientation.ORIENT_0) {
@@ -424,6 +453,8 @@ data class ClientOptions(
                 )
             }
 
+            /*
+            // 录制用的不是 muxer，以下判断无意义
             if (recordFormat == RecordFormat.OPUS && audioCodec != Codec.OPUS) {
                 throw IllegalArgumentException(
                     "Recording to OPUS file requires an OPUS audio stream " +
@@ -459,6 +490,7 @@ data class ClientOptions(
                     "Recording to MP4 container does not support RAW audio"
                 )
             }
+             */
         }
 
         /*
@@ -562,8 +594,6 @@ data class ClientOptions(
 
             cleanUp = cleanup,
             powerOn = powerOn,
-
-            // killAdbOnClose == killAdbOnClose, // client side
 
             cameraHighSpeed = cameraHighSpeed,
             vdDestroyContent = vdDestroyContent,

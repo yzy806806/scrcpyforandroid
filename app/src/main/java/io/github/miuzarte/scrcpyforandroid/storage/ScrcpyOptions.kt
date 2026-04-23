@@ -8,6 +8,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions.KeyInjectMode
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions.RecordFormat
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
@@ -176,6 +177,14 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             booleanPreferencesKey("turn_screen_off"),
             false,
         )
+        val KEY_INJECT_MODE = Pair(
+            stringPreferencesKey("key_inject_mode"),
+            KeyInjectMode.MIXED.string,
+        )
+        val FORWARD_KEY_REPEAT = Pair(
+            booleanPreferencesKey("forward_key_repeat"),
+            true,
+        )
         val STAY_AWAKE = Pair(
             booleanPreferencesKey("stay_awake"),
             false,
@@ -303,6 +312,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
             videoPlayback = VIDEO_PLAYBACK.defaultValue,
             audioPlayback = AUDIO_PLAYBACK.defaultValue,
             turnScreenOff = TURN_SCREEN_OFF.defaultValue,
+            keyInjectMode = KEY_INJECT_MODE.defaultValue,
+            forwardKeyRepeat = FORWARD_KEY_REPEAT.defaultValue,
             stayAwake = STAY_AWAKE.defaultValue,
             disableScreensaver = DISABLE_SCREENSAVER.defaultValue,
             powerOffOnClose = POWER_OFF_ON_CLOSE.defaultValue,
@@ -367,6 +378,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         val videoPlayback: Boolean,
         val audioPlayback: Boolean,
         val turnScreenOff: Boolean,
+        val keyInjectMode: String,
+        val forwardKeyRepeat: Boolean,
         val stayAwake: Boolean,
         val disableScreensaver: Boolean,
         val powerOffOnClose: Boolean,
@@ -430,6 +443,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         bundleField(VIDEO_PLAYBACK) { it.videoPlayback },
         bundleField(AUDIO_PLAYBACK) { it.audioPlayback },
         bundleField(TURN_SCREEN_OFF) { it.turnScreenOff },
+        bundleField(KEY_INJECT_MODE) { it.keyInjectMode },
+        bundleField(FORWARD_KEY_REPEAT) { it.forwardKeyRepeat },
         bundleField(STAY_AWAKE) { it.stayAwake },
         bundleField(DISABLE_SCREENSAVER) { it.disableScreensaver },
         bundleField(POWER_OFF_ON_CLOSE) { it.powerOffOnClose },
@@ -493,6 +508,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         videoPlayback = preferences.read(VIDEO_PLAYBACK),
         audioPlayback = preferences.read(AUDIO_PLAYBACK),
         turnScreenOff = preferences.read(TURN_SCREEN_OFF),
+        keyInjectMode = preferences.read(KEY_INJECT_MODE),
+        forwardKeyRepeat = preferences.read(FORWARD_KEY_REPEAT),
         stayAwake = preferences.read(STAY_AWAKE),
         disableScreensaver = preferences.read(DISABLE_SCREENSAVER),
         powerOffOnClose = preferences.read(POWER_OFF_ON_CLOSE),
@@ -571,6 +588,8 @@ class ScrcpyOptions(context: Context) : Settings(context, "ScrcpyOptions") {
         videoPlayback = bundle.videoPlayback,
         audioPlayback = bundle.audioPlayback,
         turnScreenOff = bundle.turnScreenOff,
+        keyInjectMode = KeyInjectMode.fromString(bundle.keyInjectMode),
+        forwardKeyRepeat = bundle.forwardKeyRepeat,
         stayAwake = bundle.stayAwake,
         disableScreensaver = bundle.disableScreensaver,
         powerOffOnClose = bundle.powerOffOnClose,

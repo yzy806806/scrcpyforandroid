@@ -4,7 +4,7 @@ import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-internal data class ConnectedDeviceInfo(
+data class ConnectedDeviceInfo(
     val model: String,
     val serial: String,
     val manufacturer: String,

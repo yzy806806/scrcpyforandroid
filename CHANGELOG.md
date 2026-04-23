@@ -6,6 +6,10 @@
 
 - 改进: 设备页连接设备后选项卡显示当前配置名
 - 修复: 正确实现 `--disable-screensaver`，`FLAG_KEEP_SCREEN_ON` 而非 `PARTIAL_WAKE_LOCK`
+- 新增: `--record`, `--record-format`
+- 重构: adb / scrcpy 连接断开逻辑、状态管理
+- 修复: 更新不再会重置自定义增加的 Scrcpy 参数配置档
+- 新增: `--new-display` 快捷填入本机数值
 
 ## 0.2.1
 

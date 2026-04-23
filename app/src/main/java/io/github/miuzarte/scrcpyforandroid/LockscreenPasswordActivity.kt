@@ -44,8 +44,6 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
 import io.github.miuzarte.scrcpyforandroid.password.PasswordCreatedState
 import io.github.miuzarte.scrcpyforandroid.password.PasswordEntry
@@ -117,15 +115,12 @@ class LockscreenPasswordActivity : FragmentActivity() {
                 }
             val themeController =
                 remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
-            val haptics = rememberAppHaptics()
-
             MiuixTheme(
                 controller = themeController,
                 smoothRounding = asBundle.smoothCorner,
             ) {
                 CompositionLocalProvider(
                     LocalSnackbarController provides snackbarController,
-                    LocalAppHaptics provides haptics,
                 ) {
                     LockscreenPasswordScreen(
                         activity = this,

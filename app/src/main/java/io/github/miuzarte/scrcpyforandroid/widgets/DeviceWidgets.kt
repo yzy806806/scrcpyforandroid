@@ -54,10 +54,10 @@ import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -69,8 +69,7 @@ import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
@@ -263,7 +262,7 @@ internal fun PreviewCard(
     autoBringIntoView: Boolean = false,
     onAutoBringIntoViewConsumed: () -> Unit = {},
 ) {
-    val haptics = rememberAppHaptics()
+    val haptic = LocalHapticFeedback.current
 
     var previewControlsVisible by rememberSaveable { mutableStateOf(false) }
     val alpha by animateFloatAsState(
@@ -359,7 +358,7 @@ internal fun PreviewCard(
                     Button(
                         onClick = {
                             if (alpha > 0.1f) {
-                                haptics.contextClick()
+                                haptic.contextClick()
                                 onOpenFullscreen()
                             }
                         },
@@ -1028,7 +1027,7 @@ internal fun DeviceTile(
     onEditorDelete: () -> Unit,
     onEditorCancel: () -> Unit,
 ) {
-    val haptics = rememberAppHaptics()
+    val haptic = LocalHapticFeedback.current
     val snackbar = LocalSnackbarController.current
     val scrcpyProfilesState by Storage.scrcpyProfiles.state.collectAsState()
 
@@ -1083,7 +1082,7 @@ internal fun DeviceTile(
                 else colorScheme.surfaceContainer.copy(alpha = 0.6f),
         ),
         pressFeedbackType = if (!editing) PressFeedbackType.Sink else PressFeedbackType.None,
-        onClick = haptics.contextClick,
+        onClick = haptic::contextClick,
     ) {
         Row(
             modifier = Modifier
@@ -1302,7 +1301,7 @@ internal fun QuickConnectCard(
     onAddDevice: () -> Unit,
     enabled: Boolean = true,
 ) {
-    val haptics = LocalAppHaptics.current
+    val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
 
     Card(
@@ -1311,7 +1310,7 @@ internal fun QuickConnectCard(
             if (enabled) PressFeedbackType.Tilt
             else PressFeedbackType.None,
         insideMargin = PaddingValues(UiSpacing.Content),
-        onClick = haptics.contextClick,
+        onClick = haptic::contextClick,
     ) {
         Column(verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical)) {
             Row(

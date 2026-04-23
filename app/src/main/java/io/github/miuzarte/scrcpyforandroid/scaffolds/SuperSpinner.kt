@@ -55,8 +55,8 @@ fun SuperSpinner(
     val interactionSource = remember { MutableInteractionSource() }
     val isDropdownExpanded = rememberSaveable { mutableStateOf(false) }
     val isHoldDown = remember { mutableStateOf(false) }
-    val hapticFeedback = LocalHapticFeedback.current
-    val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
+    val haptic = LocalHapticFeedback.current
+    val hapticLatest by rememberUpdatedState(haptic)
 
     val itemsNotEmpty = items.isNotEmpty()
     val actualEnabled = enabled && itemsNotEmpty
@@ -77,7 +77,7 @@ fun SuperSpinner(
                 isDropdownExpanded.value = !isDropdownExpanded.value
                 if (isDropdownExpanded.value) {
                     isHoldDown.value = true
-                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                    hapticLatest.performHapticFeedback(HapticFeedbackType.ContextClick)
                 }
             }
         }
@@ -116,7 +116,7 @@ fun SuperSpinner(
                     onDismiss = { isDropdownExpanded.value = false },
                     onDismissFinished = { isHoldDown.value = false },
                     maxHeight = maxHeight,
-                    hapticFeedback = hapticFeedback,
+                    hapticFeedback = haptic,
                     spinnerColors = spinnerColors,
                     renderInRootScaffold = renderInRootScaffold,
                     onSelectedIndexChange = onSelectedIndexChange,
@@ -145,12 +145,12 @@ private fun SuperSpinnerPopup(
     onSelectedIndexChange: ((Int) -> Unit)?,
     forceNoSelectedState: Boolean,
 ) {
+    val haptic = LocalHapticFeedback.current
     val onSelectState = rememberUpdatedState(onSelectedIndexChange)
     val currentOnDismiss by rememberUpdatedState(onDismiss)
-    val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
     val onItemSelected: (Int) -> Unit = remember {
         { selectedIdx ->
-            currentHapticFeedback.performHapticFeedback(HapticFeedbackType.Confirm)
+            haptic.performHapticFeedback(HapticFeedbackType.Confirm)
             onSelectState.value?.invoke(selectedIdx)
             currentOnDismiss()
         }

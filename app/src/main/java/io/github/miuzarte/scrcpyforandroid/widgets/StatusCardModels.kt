@@ -20,12 +20,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.CardDefaults.defaultColors
 import top.yukonga.miuix.kmp.basic.Icon
@@ -67,7 +68,8 @@ internal fun StatusCardLayout(
     spec: StatusCardSpec,
     busyLabel: String?,
 ) {
-    val haptics = LocalAppHaptics.current
+    val haptic = LocalHapticFeedback.current
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -81,7 +83,7 @@ internal fun StatusCardLayout(
                 .fillMaxHeight(),
             colors = defaultColors(color = spec.big.containerColor),
             pressFeedbackType = PressFeedbackType.Tilt,
-            onClick = haptics.contextClick,
+            onClick = haptic::contextClick,
         ) {
             Box(modifier = Modifier.fillMaxSize()) {
                 Box(
@@ -153,12 +155,12 @@ internal fun StatusCardLayout(
 
 @Composable
 private fun StatusMetricCard(spec: StatusSmallCardSpec, modifier: Modifier) {
-    val haptics = LocalAppHaptics.current
+    val haptic = LocalHapticFeedback.current
     Card(
         modifier = modifier,
         insideMargin = PaddingValues(UiSpacing.Large),
         pressFeedbackType = PressFeedbackType.Tilt,
-        onClick = haptics.contextClick,
+        onClick = haptic::contextClick,
     ) {
         Text(
             text = spec.title,

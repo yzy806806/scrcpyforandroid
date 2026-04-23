@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,6 +55,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSpinner
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
@@ -70,6 +75,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
+import io.github.miuzarte.scrcpyforandroid.widgets.RecordPreferences
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -415,6 +421,7 @@ internal fun ScrcpyAllOptionsPage(
     onSaveBundleForProfile: suspend (String, ScrcpyOptions.Bundle) -> Unit,
 ) {
     val focusManager = LocalFocusManager.current
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(Dispatchers.IO + SupervisorJob()) }
     val snackbar = LocalSnackbarController.current
@@ -454,6 +461,11 @@ internal fun ScrcpyAllOptionsPage(
                 onSaveBundleForProfile(selectedProfileIdLatest, soBundleLatest)
             }
         }
+    }
+    val listState = rememberSaveable(
+        saver = LazyListState.Saver,
+    ) {
+        LazyListState()
     }
 
     val audioCodecItems = rememberSaveable { Codec.AUDIO.map { it.displayName } }
@@ -612,6 +624,16 @@ internal fun ScrcpyAllOptionsPage(
         AudioSource.entries
             .indexOfFirst { it.string == soBundle.audioSource }
             .coerceAtLeast(0)
+    }
+    val keyInjectModeItems = rememberSaveable {
+        listOf("默认", "优先文本", "原始按键事件")
+    }
+    val keyInjectModeIndex = rememberSaveable(soBundle.keyInjectMode) {
+        when (soBundle.keyInjectMode) {
+            ClientOptions.KeyInjectMode.PREFER_TEXT.string -> 1
+            ClientOptions.KeyInjectMode.RAW.string -> 2
+            else -> 0
+        }
     }
 
     val maxSizePresetIndex = rememberSaveable(soBundle.maxSize) {
@@ -782,6 +804,16 @@ internal fun ScrcpyAllOptionsPage(
     var newDisplayDpiInput by rememberSaveable(soBundle.newDisplay) {
         mutableStateOf(ndDpi?.toString() ?: "")
     }
+    val newDisplayWidthBlank = remember(newDisplayWidthInput) {
+        newDisplayWidthInput.trim().isEmpty()
+    }
+    val newDisplayHeightBlank = remember(newDisplayHeightInput) {
+        newDisplayHeightInput.trim().isEmpty()
+    }
+    val newDisplayAllBlank =
+        remember(newDisplayWidthBlank, newDisplayHeightBlank, newDisplayDpiInput) {
+            newDisplayWidthBlank && newDisplayHeightBlank && newDisplayDpiInput.trim().isEmpty()
+        }
 
     // width:height:x:y
     val (cWidth, cHeight, cX, cY) = remember(soBundle.crop) {
@@ -834,6 +866,7 @@ internal fun ScrcpyAllOptionsPage(
     LazyColumn(
         contentPadding = contentPadding,
         scrollBehavior = scrollBehavior,
+        state = listState,
         bottomInnerPadding = UiSpacing.PageBottom,
     ) {
         item {
@@ -874,8 +907,6 @@ internal fun ScrcpyAllOptionsPage(
                             control = !it
                         )
                     },
-                    // 拦不住同时点, 弃用
-                    // enabled = audio || video,
                 )
                 SwitchPreference(
                     title = "禁用视频",
@@ -886,7 +917,17 @@ internal fun ScrcpyAllOptionsPage(
                             video = !it
                         )
                     },
-                    // enabled = audio || control,
+                )
+                SwitchPreference(
+                    title = "仅转发不播放视频",
+                    summary = "--no-video-playback",
+                    checked = !soBundle.videoPlayback,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            videoPlayback = !it
+                        )
+                    },
+                    enabled = soBundle.video,
                 )
                 SwitchPreference(
                     title = "禁用音频",
@@ -897,7 +938,17 @@ internal fun ScrcpyAllOptionsPage(
                             audio = !it
                         )
                     },
-                    // enabled = control || video,
+                )
+                SwitchPreference(
+                    title = "仅转发不播放",
+                    summary = "--no-audio-playback",
+                    checked = !soBundle.audioPlayback,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            audioPlayback = !it
+                        )
+                    },
+                    enabled = soBundle.audio,
                 )
                 SuperSlider(
                     title = "scrcpy 启动后受控机的息屏时间",
@@ -998,6 +1049,15 @@ internal fun ScrcpyAllOptionsPage(
                         if (it) snackbar.show(
                             "注意防烧屏，画中画也生效"
                         )
+                    },
+                )
+                RecordPreferences(
+                    profileId = selectedProfileId,
+                    recordFilenameTemplate = soBundle.recordFilename,
+                    recordFormat = soBundle.recordFormat,
+                    enabled = true,
+                    onRecordFormatChange = {
+                        soBundle = soBundle.copy(recordFormat = it)
                     },
                 )
                 SwitchPreference(
@@ -1438,16 +1498,6 @@ internal fun ScrcpyAllOptionsPage(
                     },
                 )
                 SwitchPreference(
-                    title = "仅转发不播放",
-                    summary = "--no-audio-playback",
-                    checked = !soBundle.audioPlayback,
-                    onCheckedChange = {
-                        soBundle = soBundle.copy(
-                            audioPlayback = !it
-                        )
-                    },
-                )
-                SwitchPreference(
                     title = "音频转发失败时终止",
                     summary = "--require-audio",
                     checked = soBundle.requireAudio,
@@ -1601,6 +1651,36 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
+                OverlayDropdownPreference(
+                    title = "键盘注入策略",
+                    summary = when (keyInjectModeIndex) {
+                        1 -> "--prefer-text"
+                        2 -> "--raw-key-events"
+                        else -> "默认"
+                    },
+                    items = keyInjectModeItems,
+                    selectedIndex = keyInjectModeIndex,
+                    onSelectedIndexChange = {
+                        soBundle = soBundle.copy(
+                            keyInjectMode = when (it) {
+                                1 -> ClientOptions.KeyInjectMode.PREFER_TEXT.string
+                                2 -> ClientOptions.KeyInjectMode.RAW.string
+                                else -> ClientOptions.KeyInjectMode.MIXED.string
+                            }
+                        )
+                    },
+                )
+                SwitchPreference(
+                    title = "禁用按键重复转发",
+                    summary = "--no-key-repeat",
+                    checked = !soBundle.forwardKeyRepeat,
+                    onCheckedChange = {
+                        soBundle = soBundle.copy(
+                            forwardKeyRepeat = !it
+                        )
+                    },
+                    enabled = soBundle.keyInjectMode != ClientOptions.KeyInjectMode.PREFER_TEXT.string,
+                )
                 SwitchPreference(
                     title = "禁用剪贴板双向同步",
                     summary = "--no-clipboard-autosync",
@@ -1745,13 +1825,11 @@ internal fun ScrcpyAllOptionsPage(
                                 onValueChange = { newDisplayWidthInput = it },
                                 onFocusLost = {
                                     soBundle = soBundle.copy(
-                                        newDisplay = NewDisplay
-                                            .parseFrom(
-                                                newDisplayWidthInput,
-                                                newDisplayHeightInput,
-                                                newDisplayDpiInput
-                                            )
-                                            .toString()
+                                        newDisplay = NewDisplay.parseFrom(
+                                            newDisplayWidthInput,
+                                            newDisplayHeightInput,
+                                            newDisplayDpiInput
+                                        ).toString()
                                     )
                                 },
                                 singleLine = true,
@@ -1770,13 +1848,11 @@ internal fun ScrcpyAllOptionsPage(
                                 onValueChange = { newDisplayHeightInput = it },
                                 onFocusLost = {
                                     soBundle = soBundle.copy(
-                                        newDisplay = NewDisplay
-                                            .parseFrom(
-                                                newDisplayWidthInput,
-                                                newDisplayHeightInput,
-                                                newDisplayDpiInput
-                                            )
-                                            .toString()
+                                        newDisplay = NewDisplay.parseFrom(
+                                            newDisplayWidthInput,
+                                            newDisplayHeightInput,
+                                            newDisplayDpiInput
+                                        ).toString()
                                     )
                                 },
                                 singleLine = true,
@@ -1795,13 +1871,11 @@ internal fun ScrcpyAllOptionsPage(
                                 onValueChange = { newDisplayDpiInput = it },
                                 onFocusLost = {
                                     soBundle = soBundle.copy(
-                                        newDisplay = NewDisplay
-                                            .parseFrom(
-                                                newDisplayWidthInput,
-                                                newDisplayHeightInput,
-                                                newDisplayDpiInput
-                                            )
-                                            .toString()
+                                        newDisplay = NewDisplay.parseFrom(
+                                            newDisplayWidthInput,
+                                            newDisplayHeightInput,
+                                            newDisplayDpiInput
+                                        ).toString()
                                     )
                                 },
                                 singleLine = true,
@@ -1813,6 +1887,59 @@ internal fun ScrcpyAllOptionsPage(
                                     onDone = { focusManager.clearFocus() },
                                 ),
                                 modifier = Modifier.weight(1f),
+                            )
+                        }
+                    }
+                    BoxWithConstraints(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = UiSpacing.Large),
+                    ) {
+                        val gap = UiSpacing.ContentHorizontal
+                        val inputWidth = (maxWidth - gap * 2) / 3
+                        val trailingButtonWidth = inputWidth * 2 + gap
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(gap),
+                        ) {
+                            TextButton(
+                                text = "清空",
+                                onClick = {
+                                    newDisplayWidthInput = ""
+                                    newDisplayHeightInput = ""
+                                    newDisplayDpiInput = ""
+                                    soBundle = soBundle.copy(newDisplay = "")
+                                },
+                                modifier = Modifier.width(inputWidth),
+                                enabled = !newDisplayAllBlank,
+                            )
+                            TextButton(
+                                text =
+                                    if (newDisplayWidthBlank || newDisplayHeightBlank) "本机"
+                                    else "交换",
+                                onClick = {
+                                    if (newDisplayWidthBlank || newDisplayHeightBlank) {
+                                        val metrics = resources.displayMetrics
+                                        newDisplayWidthInput = metrics.widthPixels.toString()
+                                        newDisplayHeightInput = metrics.heightPixels.toString()
+                                        newDisplayDpiInput = metrics.densityDpi
+                                            .takeIf { it > 0 }
+                                            ?.toString()
+                                            .orEmpty()
+                                    } else {
+                                        val currentWidth = newDisplayWidthInput.trim()
+                                        val currentHeight = newDisplayHeightInput.trim()
+                                        newDisplayWidthInput = currentHeight
+                                        newDisplayHeightInput = currentWidth
+                                    }
+                                    soBundle = soBundle.copy(
+                                        newDisplay = NewDisplay.parseFrom(
+                                            newDisplayWidthInput,
+                                            newDisplayHeightInput,
+                                            newDisplayDpiInput
+                                        ).toString()
+                                    )
+                                },
+                                modifier = Modifier.width(trailingButtonWidth),
+                                colors = ButtonDefaults.textButtonColorsPrimary(),
                             )
                         }
                     }
@@ -1845,14 +1972,12 @@ internal fun ScrcpyAllOptionsPage(
                                     onValueChange = { cropWidthInput = it },
                                     onFocusLost = {
                                         soBundle = soBundle.copy(
-                                            crop = Crop
-                                                .parseFrom(
-                                                    cropWidthInput,
-                                                    cropHeightInput,
-                                                    cropXInput,
-                                                    cropYInput
-                                                )
-                                                .toString()
+                                            crop = Crop.parseFrom(
+                                                cropWidthInput,
+                                                cropHeightInput,
+                                                cropXInput,
+                                                cropYInput
+                                            ).toString()
                                         )
                                     },
                                     singleLine = true,
@@ -1871,14 +1996,12 @@ internal fun ScrcpyAllOptionsPage(
                                     onValueChange = { cropHeightInput = it },
                                     onFocusLost = {
                                         soBundle = soBundle.copy(
-                                            crop = Crop
-                                                .parseFrom(
-                                                    cropWidthInput,
-                                                    cropHeightInput,
-                                                    cropXInput,
-                                                    cropYInput
-                                                )
-                                                .toString()
+                                            crop = Crop.parseFrom(
+                                                cropWidthInput,
+                                                cropHeightInput,
+                                                cropXInput,
+                                                cropYInput
+                                            ).toString()
                                         )
                                     },
                                     singleLine = true,
@@ -1902,14 +2025,12 @@ internal fun ScrcpyAllOptionsPage(
                                     onValueChange = { cropXInput = it },
                                     onFocusLost = {
                                         soBundle = soBundle.copy(
-                                            crop = Crop
-                                                .parseFrom(
-                                                    cropWidthInput,
-                                                    cropHeightInput,
-                                                    cropXInput,
-                                                    cropYInput
-                                                )
-                                                .toString()
+                                            crop = Crop.parseFrom(
+                                                cropWidthInput,
+                                                cropHeightInput,
+                                                cropXInput,
+                                                cropYInput
+                                            ).toString()
                                         )
                                     },
                                     singleLine = true,
@@ -1928,14 +2049,12 @@ internal fun ScrcpyAllOptionsPage(
                                     onValueChange = { cropYInput = it },
                                     onFocusLost = {
                                         soBundle = soBundle.copy(
-                                            crop = Crop
-                                                .parseFrom(
-                                                    cropWidthInput,
-                                                    cropHeightInput,
-                                                    cropXInput,
-                                                    cropYInput
-                                                )
-                                                .toString()
+                                            crop = Crop.parseFrom(
+                                                cropWidthInput,
+                                                cropHeightInput,
+                                                cropXInput,
+                                                cropYInput
+                                            ).toString()
                                         )
                                     },
                                     singleLine = true,

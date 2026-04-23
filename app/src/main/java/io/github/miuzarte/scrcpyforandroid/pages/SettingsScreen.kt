@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.FileOpen
@@ -208,11 +209,15 @@ fun SettingsPage(
             }
         }
     }
+    val listState = rememberSaveable(saver = LazyListState.Saver) {
+        LazyListState()
+    }
 
     // 设置
     LazyColumn(
         contentPadding = contentPadding,
         scrollBehavior = scrollBehavior,
+        state = listState,
         bottomInnerPadding = bottomInnerPadding,
     ) {
         item {
@@ -236,6 +241,9 @@ fun SettingsPage(
                         asBundle = asBundle.copy(monet = it)
                     },
                 )
+                // AnimatedVisibility(asBundle.monet) {
+                //    // TODO: 自选 Monet 强调色方案，从默认开始
+                // }
                 SwitchPreference(
                     title = "模糊",
                     summary = "启用顶栏和底栏的模糊效果",
@@ -370,7 +378,7 @@ fun SettingsPage(
                 AnimatedVisibility(asBundle.showFullscreenVirtualButtons) {
                     Column {
                         MultiGroupsDropdownPreference(
-                            title = "全屏虚拟按钮方向",
+                            title = "虚拟按钮方向",
                             summary = fullscreenVirtualButtonDock.summary,
                             groups = listOf(
                                 MultiGroupsDropdownGroup(
@@ -404,8 +412,7 @@ fun SettingsPage(
                             ),
                         )
                         SuperSlider(
-                            title = "全屏虚拟按钮高度",
-                            summary = "调整全屏控制页中虚拟按钮栏的高度",
+                            title = "虚拟按钮高度",
                             value = asBundle.fullscreenVirtualButtonHeightDp.toFloat(),
                             onValueChange = {
                                 asBundle = asBundle.copy(
@@ -442,8 +449,7 @@ fun SettingsPage(
                 AnimatedVisibility(asBundle.showFullscreenFloatingButton) {
                     Column {
                         SuperSlider(
-                            title = "全屏悬浮球尺寸",
-                            summary = "调整全屏控制页悬浮球大小",
+                            title = "悬浮球尺寸",
                             value = asBundle.fullscreenFloatingButtonSizeDp.toFloat(),
                             onValueChange = {
                                 asBundle = asBundle.copy(
@@ -469,7 +475,6 @@ fun SettingsPage(
                         )
                         SuperSlider(
                             title = "悬浮球背景透明度",
-                            summary = "调整悬浮球背景透明度",
                             value = asBundle.fullscreenFloatingButtonBackgroundAlphaPercent.toFloat(),
                             onValueChange = {
                                 asBundle = asBundle.copy(
@@ -494,8 +499,7 @@ fun SettingsPage(
                             },
                         )
                         SuperSlider(
-                            title = "白环透明度",
-                            summary = "调整悬浮球白环透明度",
+                            title = "悬浮球白环透明度",
                             value = asBundle.fullscreenFloatingButtonRingAlphaPercent.toFloat(),
                             onValueChange = {
                                 asBundle = asBundle.copy(

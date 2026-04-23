@@ -15,8 +15,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
@@ -98,7 +96,6 @@ fun StreamScreen(activity: StreamActivity) {
         }
     val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
 
-    val haptics = rememberAppHaptics()
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()
     val snackbarController = remember(snackbarScope, snackbarHostState) {
@@ -111,7 +108,6 @@ fun StreamScreen(activity: StreamActivity) {
     ) {
         CompositionLocalProvider(
             LocalSnackbarController provides snackbarController,
-            LocalAppHaptics provides haptics,
         ) {
             FullscreenControlScreen(
                 scrcpy = scrcpy,

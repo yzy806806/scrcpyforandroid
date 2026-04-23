@@ -3,7 +3,6 @@ package io.github.miuzarte.scrcpyforandroid.services
 import android.content.ContentResolver
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
 import android.webkit.MimeTypeMap
@@ -145,10 +144,7 @@ object FileManagerService {
     ): Boolean = withContext(Dispatchers.IO) {
         runCatching {
             NativeAdbService.ensureConnectionResponsive()
-            val targetRoot = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "Scrcpy"
-            )
+            val targetRoot = PublicDirs.transferDirectory()
             ensureDirectoryExists(targetRoot)
             val targetFile = uniqueFile(targetRoot, fileName)
             targetFile.outputStream().use { output ->
@@ -163,10 +159,7 @@ object FileManagerService {
         runCatching {
             NativeAdbService.ensureConnectionResponsive()
             val rootName = snapshot.remoteRootPath.substringAfterLast('/').ifBlank { "Scrcpy" }
-            val publicRoot = File(
-                Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                "Scrcpy"
-            )
+            val publicRoot = PublicDirs.transferDirectory()
             ensureDirectoryExists(publicRoot)
             val destinationRoot = uniqueDirectory(publicRoot, rootName)
             ensureDirectoryExists(destinationRoot)

@@ -53,6 +53,7 @@ import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
+import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
@@ -334,7 +335,11 @@ fun FullscreenControlScreen(
     }
 
     suspend fun commitImeText(text: String) {
-        submitImeText(scrcpy, text) { error, useClipboardPaste ->
+        submitImeText(
+            scrcpy = scrcpy,
+            text = text,
+            keyInjectMode = currentSession?.keyInjectMode ?: ClientOptions.KeyInjectMode.MIXED,
+        ) { error, useClipboardPaste ->
             Log.w("FullscreenControlPage", "commitImeText failed", error)
             snackbar.show(
                 if (useClipboardPaste) "非 ASCII 文本粘贴失败"
@@ -775,24 +780,20 @@ fun FullscreenControlPage(
                 session = session,
                 imeRequestToken = imeRequestToken,
                 onImeCommitText = onImeCommitText,
-                onImeDeleteSurroundingText = { beforeLength, _ ->
-                    withContext(Dispatchers.IO) {
-                        repeat(beforeLength.coerceAtLeast(1)) {
-                            scrcpy.injectKeycode(0, KeyEvent.KEYCODE_DEL)
-                            scrcpy.injectKeycode(1, KeyEvent.KEYCODE_DEL)
-                        }
-                    }
+                onImeDeleteSurroundingText = { beforeLength, afterLength ->
+                    submitImeDeleteSurroundingText(
+                        scrcpy = scrcpy,
+                        beforeLength = beforeLength,
+                        afterLength = afterLength,
+                    )
                 },
                 onImeKeyEvent = { event ->
-                    withContext(Dispatchers.IO) {
-                        scrcpy.injectKeycode(
-                            action = event.action,
-                            keycode = event.keyCode,
-                            repeat = event.repeatCount,
-                            metaState = event.metaState,
-                        )
-                    }
-                    true
+                    submitImeKeyEvent(
+                        scrcpy = scrcpy,
+                        event = event,
+                        keyInjectMode = session.keyInjectMode,
+                        forwardKeyRepeat = session.forwardKeyRepeat,
+                    )
                 },
             )
         }

@@ -50,12 +50,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiAndroidKeycodes
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
+import io.github.miuzarte.scrcpyforandroid.ui.confirm
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import kotlinx.coroutines.CoroutineScope
@@ -253,13 +255,15 @@ class VirtualButtonBar(
         modifier: Modifier = Modifier,
         passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
     ) {
-        val haptics = LocalAppHaptics.current
+        val haptic = LocalHapticFeedback.current
+
         val activeContainerColor = colorScheme.primary
         val disabledContainerColor = colorScheme.primary.copy(alpha = 0.35f)
         val activeContentColor = colorScheme.onPrimary
         val disabledContentColor = colorScheme.onPrimary.copy(alpha = 0.45f)
 
         var showMorePopup by remember { mutableStateOf(false) }
+
         Row(
             modifier = modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
@@ -269,7 +273,7 @@ class VirtualButtonBar(
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
-                            haptics.contextClick()
+                            haptic.contextClick()
                             when (action) {
                                 VirtualButtonAction.MORE -> {
                                     showMorePopup = true
@@ -348,7 +352,7 @@ class VirtualButtonBar(
         passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
     ) {
         val scope = rememberCoroutineScope()
-        val haptics = LocalAppHaptics.current
+        val haptic = LocalHapticFeedback.current
         var showMorePopup by remember { mutableStateOf(false) }
         var showPasswordPopup by remember { mutableStateOf(false) }
 
@@ -379,7 +383,7 @@ class VirtualButtonBar(
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
-                            haptics.contextClick()
+                            haptic.contextClick()
                             when (action) {
                                 VirtualButtonAction.MORE -> {
                                     showMorePopup = true
@@ -432,7 +436,7 @@ class VirtualButtonBar(
                 Box(modifier = Modifier.weight(1f)) {
                     Button(
                         onClick = {
-                            haptics.contextClick()
+                            haptic.contextClick()
                             when (action) {
                                 VirtualButtonAction.MORE -> {
                                     showMorePopup = true
@@ -501,7 +505,7 @@ class VirtualButtonBar(
     ) {
         val scope = rememberCoroutineScope()
         val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
-        val haptics = LocalAppHaptics.current
+        val haptic = LocalHapticFeedback.current
         var showActions by remember { mutableStateOf(false) }
         var showPasswordPopup by remember { mutableStateOf(false) }
         val asBundleShared by appSettings.bundleState.collectAsState()
@@ -592,7 +596,7 @@ class VirtualButtonBar(
                 Button(
                     modifier = Modifier.fillMaxSize(),
                     onClick = {
-                        haptics.contextClick()
+                        haptic.contextClick()
                         showActions = true
                     },
                     cornerRadius = ballSize / 2,
@@ -664,7 +668,7 @@ class VirtualButtonBar(
         popupAlignment: PopupPositionProvider.Align = PopupPositionProvider.Align.TopEnd,
     ) {
         val scope = rememberCoroutineScope()
-        val haptics = LocalAppHaptics.current
+        val haptic = LocalHapticFeedback.current
         val spinnerItems = remember(actions) {
             actions.map { action ->
                 SpinnerEntry(
@@ -699,7 +703,7 @@ class VirtualButtonBar(
                             spinnerColors = SpinnerDefaults.spinnerColors(),
                             dialogMode = false,
                             onSelectedIndexChange = { selectedIdx ->
-                                haptics.confirm()
+                                haptic.confirm()
                                 val selectedAction = actions[selectedIdx]
                                 if (
                                     selectedAction == VirtualButtonAction.PASSWORD_INPUT &&

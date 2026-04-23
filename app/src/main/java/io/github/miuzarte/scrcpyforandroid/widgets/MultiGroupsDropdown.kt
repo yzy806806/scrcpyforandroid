@@ -49,8 +49,8 @@ fun MultiGroupsDropdownPreference(
     val interactionSource = remember { MutableInteractionSource() }
     val isExpanded = remember { mutableStateOf(false) }
     val isHoldDown = remember { mutableStateOf(false) }
-    val hapticFeedback = LocalHapticFeedback.current
-    val currentHapticFeedback by rememberUpdatedState(hapticFeedback)
+    val haptic = LocalHapticFeedback.current
+    val hapticLatest by rememberUpdatedState(haptic)
 
     val hasOptions = groups.any { it.options.isNotEmpty() }
     val actualEnabled = enabled && hasOptions
@@ -104,7 +104,7 @@ fun MultiGroupsDropdownPreference(
                 isExpanded.value = !isExpanded.value
                 if (isExpanded.value) {
                     isHoldDown.value = true
-                    currentHapticFeedback.performHapticFeedback(HapticFeedbackType.ContextClick)
+                    hapticLatest.performHapticFeedback(HapticFeedbackType.ContextClick)
                 }
             }
         },

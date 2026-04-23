@@ -19,4 +19,5 @@ object AppRuntime {
 
     var scrcpy: Scrcpy? = null
     var currentConnectionTarget: ConnectionTarget? = null
+    var currentConnectedDevice: ConnectedDeviceInfo? = null
 }

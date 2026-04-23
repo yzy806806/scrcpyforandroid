@@ -60,12 +60,15 @@ import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.constants.ThemeModes
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
-import io.github.miuzarte.scrcpyforandroid.haptics.LocalAppHaptics
-import io.github.miuzarte.scrcpyforandroid.haptics.rememberAppHaptics
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
+import io.github.miuzarte.scrcpyforandroid.services.ConnectionController
+import io.github.miuzarte.scrcpyforandroid.services.ConnectionStateStore
+import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbAutoReconnectManager
+import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbConnectionCoordinator
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
@@ -147,6 +150,7 @@ sealed interface RootScreen : NavKey {
     data object Advanced : RootScreen
     data object About : RootScreen
     data object VirtualButtonOrder : RootScreen
+    data class ScrcpyOptionRecord(val profileId: String) : RootScreen
 }
 
 @Composable
@@ -168,7 +172,6 @@ fun MainScreen() {
             hostState = snackHostState,
         )
     }
-    val haptics = rememberAppHaptics()
 
     // Root navigation and UI chrome state
     val saveableStateHolder = rememberSaveableStateHolder()
@@ -202,6 +205,7 @@ fun MainScreen() {
             when (currentRootScreen) {
                 is RootScreen.Advanced -> true
                 is RootScreen.VirtualButtonOrder -> true
+                is RootScreen.ScrcpyOptionRecord -> true
                 else -> false
             }
         })
@@ -291,6 +295,31 @@ fun MainScreen() {
     }
 
     val currentSession by scrcpy.currentSessionState.collectAsState()
+    val deviceConnectionServices = remember(scrcpy) {
+        val adbCoordinator = DeviceAdbConnectionCoordinator()
+        val connectionStateStore = ConnectionStateStore()
+        val connectionController = ConnectionController(
+            scrcpy = scrcpy,
+            stateStore = connectionStateStore,
+            adbCoordinator = adbCoordinator,
+        )
+        val autoReconnectManager = DeviceAdbAutoReconnectManager(
+            controller = connectionController,
+            stateStore = connectionStateStore,
+        )
+        DeviceConnectionServices(
+            adbCoordinator = adbCoordinator,
+            connectionStateStore = connectionStateStore,
+            connectionController = connectionController,
+            autoReconnectManager = autoReconnectManager,
+        )
+    }
+    DisposableEffect(deviceConnectionServices) {
+        onDispose {
+            deviceConnectionServices.autoReconnectManager.close()
+            AppScreenOn.release()
+        }
+    }
 
     // Side-effect launchers and composition locals
     val picker = rememberLauncherForActivityResult(
@@ -530,6 +559,7 @@ fun MainScreen() {
                                     MainBottomTabDestination.Devices -> DeviceTabScreen(
                                         scrollBehavior = devicesPageScrollBehavior,
                                         scrcpy = scrcpy,
+                                        connectionServices = deviceConnectionServices,
                                         bottomInnerPadding = bottomInnerPadding,
                                         onOpenReorderDevices = { showReorderDevices = true },
                                     )
@@ -625,6 +655,14 @@ fun MainScreen() {
             )
         }
 
+        entry<RootScreen.ScrcpyOptionRecord> { route ->
+            RecordPreferencesScreen(
+                scrollBehavior = advancedPageScrollBehavior,
+                profileId = route.profileId,
+                scrcpy = scrcpy,
+            )
+        }
+
     }
 
     val rootEntries = rememberDecoratedNavEntries(
@@ -649,7 +687,6 @@ fun MainScreen() {
             LocalEnableFloatingBottomBarBlur provides asBundle.floatingBottomBarBlur,
             LocalRootNavigator provides rootNavigator,
             LocalSnackbarController provides snackbarController,
-            LocalAppHaptics provides haptics,
             LocalServerPicker provides serverPicker,
             LocalTerminalFontPicker provides terminalFontPicker,
         ) {

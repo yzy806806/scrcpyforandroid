@@ -15,8 +15,13 @@ import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.EncoderType
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.ListOptions
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
 import io.github.miuzarte.scrcpyforandroid.services.LocalInputService
+import io.github.miuzarte.scrcpyforandroid.services.NativeAacRecorder
+import io.github.miuzarte.scrcpyforandroid.services.NativeMp4Recorder
+import io.github.miuzarte.scrcpyforandroid.services.NativeWavRecorder
+import io.github.miuzarte.scrcpyforandroid.services.RecordingFileResolver
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -94,6 +99,12 @@ class Scrcpy(
 
     @Volatile
     private var audioPlayer: ScrcpyAudioPlayer? = null
+    @Volatile
+    private var mp4Recorder: NativeMp4Recorder? = null
+    @Volatile
+    private var wavRecorder: NativeWavRecorder? = null
+    @Volatile
+    private var aacRecorder: NativeAacRecorder? = null
 
     val listings = Listings()
 
@@ -149,10 +160,15 @@ class Scrcpy(
             }
 
             // Execute server
-            val info = executeServer(
+            val rawInfo = executeServer(
                 serverJar = serverJar,
                 options = options,
                 scid = scid,
+            )
+            val currentTarget = AppRuntime.currentConnectionTarget
+            val info = rawInfo.copy(
+                host = currentTarget?.host ?: "",
+                port = currentTarget?.port ?: Defaults.ADB_PORT,
             )
 
             // Turn screen off if requested
@@ -170,6 +186,10 @@ class Scrcpy(
                 legacyPaste = options.legacyPaste,
                 mouseHover = options.mouseHover,
                 killAdbOnClose = options.killAdbOnClose,
+                videoPlayback = options.videoPlayback,
+                audioPlayback = options.audioPlayback,
+                keyInjectMode = options.keyInjectMode,
+                forwardKeyRepeat = options.forwardKeyRepeat,
             )
             isRunning = true
             startClipboardSync()
@@ -182,6 +202,12 @@ class Scrcpy(
             // Setup audio player
             audioPlayer?.release()
             audioPlayer = null
+            mp4Recorder?.release()
+            mp4Recorder = null
+            wavRecorder?.release()
+            wavRecorder = null
+            aacRecorder?.release()
+            aacRecorder = null
             if (info.audioCodecId != 0 && options.audioPlayback) {
                 Log.i(
                     TAG,
@@ -198,6 +224,63 @@ class Scrcpy(
                 Log.i(TAG, "start(): audio playback disabled for this session")
             }
 
+            if (options.recordFilename.isNotBlank()) {
+                val recordFile = RecordingFileResolver.resolve(options, info)
+                when (options.recordFormat) {
+                    ClientOptions.RecordFormat.MP4,
+                    ClientOptions.RecordFormat.M4A,
+                    -> {
+                        val recorder = NativeMp4Recorder(
+                            outputFile = recordFile,
+                            includeVideo = options.video,
+                            includeAudio = options.audio && info.audioCodec != null,
+                            inputAudioCodec = info.audioCodec,
+                            width = info.width,
+                            height = info.height,
+                            videoBitRate = options.videoBitRate,
+                            audioBitRate = options.audioBitRate,
+                        )
+                        recorder.start()
+                        mp4Recorder = recorder
+                        if (options.audio && info.audioCodec != null) {
+                            session.attachAudioConsumer { packet ->
+                                recorder.feedAudioPacket(packet.data, packet.ptsUs, packet.isConfig)
+                            }
+                        }
+                    }
+
+                    ClientOptions.RecordFormat.WAV -> {
+                        val codec = info.audioCodec
+                            ?: throw IllegalStateException("WAV recording requires an audio stream")
+                        val recorder = NativeWavRecorder(
+                            outputFile = recordFile,
+                            inputCodec = codec,
+                        )
+                        wavRecorder = recorder
+                        session.attachAudioConsumer { packet ->
+                            recorder.feedPacket(packet.data, packet.ptsUs, packet.isConfig)
+                        }
+                    }
+
+                    ClientOptions.RecordFormat.AAC -> {
+                        val codec = info.audioCodec
+                            ?: throw IllegalStateException("AAC recording requires an audio stream")
+                        val recorder = NativeAacRecorder(
+                            outputFile = recordFile,
+                            inputCodec = codec,
+                            bitRate = options.audioBitRate,
+                        )
+                        aacRecorder = recorder
+                        session.attachAudioConsumer { packet ->
+                            recorder.feedPacket(packet.data, packet.ptsUs, packet.isConfig)
+                        }
+                    }
+
+                    else -> Unit
+                }
+                Log.i(TAG, "start(): recording -> ${recordFile.absolutePath}")
+            }
+
             Log.i(
                 TAG, "start(): Session started successfully - device=${info.deviceName}, " +
                         "video=${if (options.video) "${info.codec?.string ?: "null"} ${info.width}x${info.height}" else "off"}, " +
@@ -209,6 +292,14 @@ class Scrcpy(
 
         } catch (e: Exception) {
             Log.e(TAG, "start(): Failed to start scrcpy session", e)
+            audioPlayer?.release()
+            audioPlayer = null
+            runCatching { mp4Recorder?.release() }
+            mp4Recorder = null
+            runCatching { wavRecorder?.release() }
+            wavRecorder = null
+            runCatching { aacRecorder?.release() }
+            aacRecorder = null
             isRunning = false
             _currentSessionState.value = null
             throw e
@@ -224,9 +315,15 @@ class Scrcpy(
         Log.i(TAG, "stop(): Stopping scrcpy session")
 
         return@withContext try {
-            NativeCoreFacade.onScrcpySessionStopped()
             session.clearVideoConsumer()
             session.clearAudioConsumer()
+            mp4Recorder?.release()
+            mp4Recorder = null
+            wavRecorder?.release()
+            wavRecorder = null
+            aacRecorder?.release()
+            aacRecorder = null
+            NativeCoreFacade.onScrcpySessionStopped()
             session.stop()
             audioPlayer?.release()
             audioPlayer = null
@@ -243,23 +340,31 @@ class Scrcpy(
 
     fun isStarted(): Boolean = isRunning && session.isStarted()
 
-    suspend fun startApp(name: String) = session.startApp(name)
+    suspend fun startApp(name: String) = withContext(Dispatchers.IO) {
+        session.startApp(name)
+    }
 
     suspend fun injectKeycode(
         action: Int,
         keycode: Int,
         repeat: Int = 0,
         metaState: Int = 0,
-    ) = session.injectKeycode(
-        action = action,
-        keycode = keycode,
-        repeat = repeat,
-        metaState = metaState,
-    )
+    ) = withContext(Dispatchers.IO) {
+        session.injectKeycode(
+            action = action,
+            keycode = keycode,
+            repeat = repeat,
+            metaState = metaState,
+        )
+    }
 
-    suspend fun injectText(text: String) = session.injectText(text)
+    suspend fun injectText(text: String) = withContext(Dispatchers.IO) {
+        session.injectText(text)
+    }
 
-    suspend fun setClipboard(text: String, paste: Boolean) = session.setClipboard(text, paste)
+    suspend fun setClipboard(text: String, paste: Boolean) = withContext(Dispatchers.IO) {
+        session.setClipboard(text, paste)
+    }
 
     suspend fun injectTouch(
         action: Int,
@@ -271,17 +376,19 @@ class Scrcpy(
         pressure: Float,
         actionButton: Int = 0,
         buttons: Int = 0,
-    ) = session.injectTouch(
-        action = action,
-        pointerId = pointerId,
-        x = x,
-        y = y,
-        screenWidth = screenWidth,
-        screenHeight = screenHeight,
-        pressure = pressure,
-        actionButton = actionButton,
-        buttons = buttons,
-    )
+    ) = withContext(Dispatchers.IO) {
+        session.injectTouch(
+            action = action,
+            pointerId = pointerId,
+            x = x,
+            y = y,
+            screenWidth = screenWidth,
+            screenHeight = screenHeight,
+            pressure = pressure,
+            actionButton = actionButton,
+            buttons = buttons,
+        )
+    }
 
     suspend fun injectScroll(
         x: Int,
@@ -291,18 +398,22 @@ class Scrcpy(
         hScroll: Float,
         vScroll: Float,
         buttons: Int,
-    ) = session.injectScroll(
-        x = x,
-        y = y,
-        screenWidth = screenWidth,
-        screenHeight = screenHeight,
-        hScroll = hScroll,
-        vScroll = vScroll,
-        buttons = buttons,
-    )
+    ) = withContext(Dispatchers.IO) {
+        session.injectScroll(
+            x = x,
+            y = y,
+            screenWidth = screenWidth,
+            screenHeight = screenHeight,
+            hScroll = hScroll,
+            vScroll = vScroll,
+            buttons = buttons,
+        )
+    }
 
     suspend fun pressBackOrTurnScreenOn(action: Int = KeyEvent.ACTION_DOWN) =
-        session.pressBackOrTurnScreenOn(action)
+        withContext(Dispatchers.IO) {
+            session.pressBackOrTurnScreenOn(action)
+        }
 
     fun updateCurrentSessionSize(width: Int, height: Int) {
         val current = _currentSessionState.value ?: return
@@ -815,14 +926,12 @@ class Scrcpy(
         @Volatile
         private var activeSession: ActiveSession? = null
 
-        @Volatile
-        private var videoConsumer: ((VideoPacket) -> Unit)? = null
+        private val videoConsumers = linkedSetOf<(VideoPacket) -> Unit>()
 
         @Volatile
         private var videoReaderThread: Thread? = null
 
-        @Volatile
-        private var audioConsumer: ((AudioPacket) -> Unit)? = null
+        private val audioConsumers = linkedSetOf<(AudioPacket) -> Unit>()
 
         @Volatile
         private var audioReaderThread: Thread? = null
@@ -947,6 +1056,7 @@ class Scrcpy(
                     width = width,
                     height = height,
                     audioCodecId = audioCodecId,
+                    audioCodec = Codec.fromId(audioCodecId, Codec.Type.AUDIO),
                     controlEnabled = controlStream != null,
                 )
 
@@ -987,7 +1097,7 @@ class Scrcpy(
             val session = activeSession ?: throw IllegalStateException("scrcpy session not started")
             val vInput = session.videoInput ?: return
             val vStream = session.videoStream ?: return
-            videoConsumer = consumer
+            videoConsumers += consumer
             if (videoReaderThread?.isAlive == true) {
                 return
             }
@@ -1008,14 +1118,13 @@ class Scrcpy(
                             val config = (ptsAndFlags and PACKET_FLAG_CONFIG) != 0L
                             val keyFrame = (ptsAndFlags and PACKET_FLAG_KEY_FRAME) != 0L
                             val ptsUs = ptsAndFlags and PACKET_PTS_MASK
-                            videoConsumer?.invoke(
-                                VideoPacket(
-                                    data = payload,
-                                    ptsUs = ptsUs,
-                                    isConfig = config,
-                                    isKeyFrame = keyFrame,
-                                ),
+                            val packet = VideoPacket(
+                                data = payload,
+                                ptsUs = ptsUs,
+                                isConfig = config,
+                                isKeyFrame = keyFrame,
                             )
+                            videoConsumers.forEach { it(packet) }
                         } catch (_: EOFException) {
                             break
                         } catch (_: InterruptedException) {
@@ -1033,13 +1142,13 @@ class Scrcpy(
             }
         }
 
-        suspend fun clearVideoConsumer() = mutex.withLock { videoConsumer = null }
+        suspend fun clearVideoConsumer() = mutex.withLock { videoConsumers.clear() }
 
         suspend fun attachAudioConsumer(consumer: (AudioPacket) -> Unit): Unit = mutex.withLock {
             val session = activeSession ?: throw IllegalStateException("scrcpy session not started")
             val aInput = session.audioInput ?: return
             val aStream = session.audioStream ?: return
-            audioConsumer = consumer
+            audioConsumers += consumer
             if (audioReaderThread?.isAlive == true) return
 
             audioReaderThread = thread(start = true, name = "scrcpy-audio-reader") {
@@ -1055,13 +1164,12 @@ class Scrcpy(
 
                             val isConfig = (ptsAndFlags and PACKET_FLAG_CONFIG) != 0L
                             val ptsUs = ptsAndFlags and PACKET_PTS_MASK
-                            audioConsumer?.invoke(
-                                AudioPacket(
-                                    data = payload,
-                                    ptsUs = ptsUs,
-                                    isConfig = isConfig
-                                )
+                            val packet = AudioPacket(
+                                data = payload,
+                                ptsUs = ptsUs,
+                                isConfig = isConfig
                             )
+                            audioConsumers.forEach { it(packet) }
                         } catch (_: EOFException) {
                             break
                         } catch (_: InterruptedException) {
@@ -1079,7 +1187,7 @@ class Scrcpy(
             }
         }
 
-        suspend fun clearAudioConsumer() = mutex.withLock { audioConsumer = null }
+        suspend fun clearAudioConsumer() = mutex.withLock { audioConsumers.clear() }
 
         suspend fun startApp(name: String) = mutex.withLock {
             try {
@@ -1194,8 +1302,8 @@ class Scrcpy(
         private fun stopInternal() {
             val session = activeSession ?: return
             activeSession = null
-            videoConsumer = null
-            audioConsumer = null
+            videoConsumers.clear()
+            audioConsumers.clear()
 
             if (Thread.currentThread() !== videoReaderThread) {
                 runCatching { videoReaderThread?.interrupt() }
@@ -1367,10 +1475,15 @@ class Scrcpy(
             val width: Int,
             val height: Int,
             val audioCodecId: Int = 0,
+            val audioCodec: Codec? = null,
             val controlEnabled: Boolean,
             val legacyPaste: Boolean = false,
             val mouseHover: Boolean = true,
             val killAdbOnClose: Boolean = false,
+            val videoPlayback: Boolean = true,
+            val audioPlayback: Boolean = true,
+            val keyInjectMode: ClientOptions.KeyInjectMode = ClientOptions.KeyInjectMode.MIXED,
+            val forwardKeyRepeat: Boolean = true,
             val host: String = "",
             val port: Int = Defaults.ADB_PORT,
         )
