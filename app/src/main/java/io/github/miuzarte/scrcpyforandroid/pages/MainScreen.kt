@@ -75,6 +75,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
+import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableFloatingBottomBar
@@ -98,10 +99,8 @@ import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.basic.SnackbarHost
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
 import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
-import top.yukonga.miuix.kmp.theme.ThemeController
 import top.yukonga.miuix.kmp.blur.layerBackdrop as miuixLayerBackdrop
 import java.io.File
 
@@ -670,12 +669,15 @@ fun MainScreen() {
         entryProvider = rootEntryProvider,
     )
 
-    val themeMode = when (asBundle.themeBaseIndex.coerceIn(0, ThemeModes.baseOptions.lastIndex)) {
-        1 -> if (!asBundle.monet) ColorSchemeMode.Light else ColorSchemeMode.MonetLight
-        2 -> if (!asBundle.monet) ColorSchemeMode.Dark else ColorSchemeMode.MonetDark
-        else -> if (!asBundle.monet) ColorSchemeMode.System else ColorSchemeMode.MonetSystem
+    val themeController = remember(
+        asBundle.themeBaseIndex,
+        asBundle.monet,
+        asBundle.monetSeedIndex,
+        asBundle.monetPaletteStyle,
+        asBundle.monetColorSpec,
+    ) {
+        asBundle.createThemeController()
     }
-    val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
 
     MiuixTheme(
         controller = themeController,

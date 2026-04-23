@@ -55,6 +55,7 @@ import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -89,11 +90,9 @@ import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.overlay.OverlayListPopup
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
-import top.yukonga.miuix.kmp.theme.ThemeController
 
 class LockscreenPasswordActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -107,14 +106,15 @@ class LockscreenPasswordActivity : FragmentActivity() {
             val snackbarController = remember(scope, hostState) {
                 SnackbarController(scope = scope, hostState = hostState)
             }
-            val themeMode =
-                when (asBundle.themeBaseIndex.coerceIn(0, ThemeModes.baseOptions.lastIndex)) {
-                    1 -> if (!asBundle.monet) ColorSchemeMode.Light else ColorSchemeMode.MonetLight
-                    2 -> if (!asBundle.monet) ColorSchemeMode.Dark else ColorSchemeMode.MonetDark
-                    else -> if (!asBundle.monet) ColorSchemeMode.System else ColorSchemeMode.MonetSystem
-                }
-            val themeController =
-                remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
+            val themeController = remember(
+                asBundle.themeBaseIndex,
+                asBundle.monet,
+                asBundle.monetSeedIndex,
+                asBundle.monetPaletteStyle,
+                asBundle.monetColorSpec,
+            ) {
+                asBundle.createThemeController()
+            }
             MiuixTheme(
                 controller = themeController,
                 smoothRounding = asBundle.smoothCorner,

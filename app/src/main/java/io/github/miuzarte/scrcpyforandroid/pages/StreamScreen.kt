@@ -19,12 +19,11 @@ import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
+import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
 import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTarget
 import io.github.miuzarte.scrcpyforandroid.widgets.VideoOutputTargetState
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.theme.ThemeController
 
 @Composable
 fun StreamScreen(activity: StreamActivity) {
@@ -88,13 +87,15 @@ fun StreamScreen(activity: StreamActivity) {
         }
     }
 
-    val themeMode =
-        when (asBundle.themeBaseIndex.coerceIn(0, ThemeModes.baseOptions.lastIndex)) {
-            1 -> if (!asBundle.monet) ColorSchemeMode.Light else ColorSchemeMode.MonetLight
-            2 -> if (!asBundle.monet) ColorSchemeMode.Dark else ColorSchemeMode.MonetDark
-            else -> if (!asBundle.monet) ColorSchemeMode.System else ColorSchemeMode.MonetSystem
-        }
-    val themeController = remember(themeMode) { ThemeController(colorSchemeMode = themeMode) }
+    val themeController = remember(
+        asBundle.themeBaseIndex,
+        asBundle.monet,
+        asBundle.monetSeedIndex,
+        asBundle.monetPaletteStyle,
+        asBundle.monetColorSpec,
+    ) {
+        asBundle.createThemeController()
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val snackbarScope = rememberCoroutineScope()

@@ -48,6 +48,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
+import io.github.miuzarte.scrcpyforandroid.ui.MonetKeyColorOptions
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import io.github.miuzarte.scrcpyforandroid.widgets.MultiGroupsDropdownGroup
 import io.github.miuzarte.scrcpyforandroid.widgets.MultiGroupsDropdownPreference
@@ -70,11 +71,15 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import top.yukonga.miuix.kmp.theme.ThemeColorSpec
+import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 import java.io.File
 import kotlin.math.roundToInt
 import android.provider.Settings as AndroidSettings
 
 private const val TERMINAL_FONT_RELATIVE_PATH = "terminal/font.ttf"
+private val monetPaletteStyleOptions = ThemePaletteStyle.entries.map { it.name }
+private val monetColorSpecOptions = ThemeColorSpec.entries.map { it.name }
 
 private fun terminalFontFile(context: android.content.Context): File {
     return File(context.filesDir, TERMINAL_FONT_RELATIVE_PATH)
@@ -241,9 +246,42 @@ fun SettingsPage(
                         asBundle = asBundle.copy(monet = it)
                     },
                 )
-                // AnimatedVisibility(asBundle.monet) {
-                //    // TODO: 自选 Monet 强调色方案，从默认开始
-                // }
+                AnimatedVisibility(asBundle.monet) {
+                    OverlayDropdownPreference(
+                        title = "Monet Key Color",
+                        summary = "设置 Monet 强调色",
+                        items = MonetKeyColorOptions,
+                        selectedIndex = asBundle.monetSeedIndex
+                            .coerceIn(0, MonetKeyColorOptions.lastIndex),
+                        onSelectedIndexChange = {
+                            asBundle = asBundle.copy(monetSeedIndex = it)
+                        },
+                    )
+                }
+                AnimatedVisibility(asBundle.monet && asBundle.monetSeedIndex > 0) {
+                    Column {
+                        OverlayDropdownPreference(
+                            title = "Monet Palette Style",
+                            summary = "设置 Monet 调色板风格",
+                            items = monetPaletteStyleOptions,
+                            selectedIndex = asBundle.monetPaletteStyle
+                                .coerceIn(0, monetPaletteStyleOptions.lastIndex),
+                            onSelectedIndexChange = {
+                                asBundle = asBundle.copy(monetPaletteStyle = it)
+                            },
+                        )
+                        OverlayDropdownPreference(
+                            title = "Monet Color Spec",
+                            summary = "设置 Monet 色彩规格",
+                            items = monetColorSpecOptions,
+                            selectedIndex = asBundle.monetColorSpec
+                                .coerceIn(0, monetColorSpecOptions.lastIndex),
+                            onSelectedIndexChange = {
+                                asBundle = asBundle.copy(monetColorSpec = it)
+                            },
+                        )
+                    }
+                }
                 SwitchPreference(
                     title = "模糊",
                     summary = "启用顶栏和底栏的模糊效果",

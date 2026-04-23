@@ -76,6 +76,18 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
             booleanPreferencesKey("monet"),
             false,
         )
+        val MONET_SEED_INDEX = Pair(
+            intPreferencesKey("monet_seed_index"),
+            0,
+        )
+        val MONET_PALETTE_STYLE = Pair(
+            intPreferencesKey("monet_palette_style"),
+            0,
+        )
+        val MONET_COLOR_SPEC = Pair(
+            intPreferencesKey("monet_color_spec"),
+            0,
+        )
         val BLUR = Pair(
             booleanPreferencesKey("blur"),
             true,
@@ -249,6 +261,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         // Theme
         val themeBaseIndex: Int,
         val monet: Boolean,
+        val monetSeedIndex: Int,
+        val monetPaletteStyle: Int,
+        val monetColorSpec: Int,
         val blur: Boolean,
         val floatingBottomBar: Boolean,
         val floatingBottomBarBlur: Boolean,
@@ -302,6 +317,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         // Theme
         bundleField(THEME_BASE_INDEX) { it.themeBaseIndex },
         bundleField(MONET) { it.monet },
+        bundleField(MONET_SEED_INDEX) { it.monetSeedIndex },
+        bundleField(MONET_PALETTE_STYLE) { it.monetPaletteStyle },
+        bundleField(MONET_COLOR_SPEC) { it.monetColorSpec },
         bundleField(BLUR) { it.blur },
         bundleField(FLOATING_BOTTOM_BAR) { it.floatingBottomBar },
         bundleField(FLOATING_BOTTOM_BAR_BLUR) { it.floatingBottomBarBlur },
@@ -356,6 +374,9 @@ class AppSettings(context: Context) : Settings(context, "AppSettings") {
         // Theme
         themeBaseIndex = preferences.read(THEME_BASE_INDEX),
         monet = preferences.read(MONET),
+        monetSeedIndex = preferences.read(MONET_SEED_INDEX),
+        monetPaletteStyle = preferences.read(MONET_PALETTE_STYLE),
+        monetColorSpec = preferences.read(MONET_COLOR_SPEC),
         blur = preferences.read(BLUR),
         floatingBottomBar = preferences.read(FLOATING_BOTTOM_BAR),
         floatingBottomBarBlur = preferences.read(FLOATING_BOTTOM_BAR_BLUR),
