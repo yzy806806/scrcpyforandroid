@@ -36,6 +36,42 @@ internal class DeviceAdbConnectionCoordinator(
         }
     }
 
+    suspend fun connectFirstReachable(
+        addresses: List<String>,
+        timeoutMs: Long,
+        probeTimeoutMs: Int,
+    ): ConnectionTarget {
+        var lastError: Throwable? = null
+        return withContext(Dispatchers.IO) {
+            val candidates = addresses.mapNotNull { addr ->
+                val target = ConnectionTarget.unmarshalFrom(addr) ?: return@mapNotNull null
+                val resolved = resolveHost(target.host)
+                val latencyNs = runCatching {
+                    val startNs = System.nanoTime()
+                    Socket().use { socket ->
+                        socket.connect(InetSocketAddress(resolved, target.port), probeTimeoutMs)
+                    }
+                    System.nanoTime() - startNs
+                }.getOrElse { e ->
+                    lastError = e
+                    return@mapNotNull null
+                }
+                Triple(latencyNs, target, resolved)
+            }.sortedBy { it.first }
+            for ((_, target, resolved) in candidates) {
+                try {
+                    withTimeout(timeoutMs) {
+                        adbService.connect(resolved, target.port)
+                    }
+                    return@withContext target
+                } catch (e: Exception) {
+                    lastError = e
+                }
+            }
+            throw (lastError ?: IllegalStateException("All addresses unreachable: $addresses"))
+        }
+    }
+
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
             adbService.disconnect()
