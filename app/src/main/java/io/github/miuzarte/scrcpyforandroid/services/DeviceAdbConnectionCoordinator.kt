@@ -43,6 +43,16 @@ internal class DeviceAdbConnectionCoordinator(
     ): ConnectionTarget {
         var lastError: Throwable? = null
         return withContext(Dispatchers.IO) {
+            if (addresses.size == 1) {
+                val target = ConnectionTarget.unmarshalFrom(addresses[0])
+                    ?: throw IllegalStateException("Invalid address: ${addresses[0]}")
+                val resolved = resolveHost(target.host)
+                withTimeout(timeoutMs) {
+                    adbService.connect(resolved, target.port)
+                }
+                return@withContext target
+            }
+
             val candidates = addresses.mapNotNull { addr ->
                 val target = ConnectionTarget.unmarshalFrom(addr) ?: return@mapNotNull null
                 val resolved = resolveHost(target.host)
