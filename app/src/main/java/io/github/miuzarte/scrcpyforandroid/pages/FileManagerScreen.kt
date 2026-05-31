@@ -358,7 +358,7 @@ fun FileManagerScreen(
     }
     if (showPathDialog) {
         PathJumpDialog(
-            show = true,
+            show = showPathDialog,
             path = pathInput,
             onPathChange = { pathInput = it },
             onDismissRequest = { showPathDialog = false },
@@ -370,7 +370,7 @@ fun FileManagerScreen(
     }
     if (showCreateFolderDialog) {
         CreateFolderDialog(
-            show = true,
+            show = showCreateFolderDialog,
             folderName = newFolderName,
             onFolderNameChange = { newFolderName = it },
             onDismissRequest = { showCreateFolderDialog = false },

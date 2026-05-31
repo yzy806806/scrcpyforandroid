@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.ImeAction
@@ -47,6 +48,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -123,6 +125,8 @@ private fun RecordPreferencesPage(
     val focusManager = LocalFocusManager.current
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val currentSession by scrcpy.currentSessionState.collectAsState()
+
+    val haptic = LocalHapticFeedback.current
 
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
     val scrcpyProfilesState by scrcpyProfiles.state.collectAsState()
@@ -269,6 +273,7 @@ private fun RecordPreferencesPage(
                         TextButton(
                             text = entry.value,
                             onClick = {
+                                haptic.contextClick()
                                 draftTemplate = draftTemplate.replaceSelection(entry.value)
                             },
                             insideMargin = PaddingValues(horizontal = 10.dp, vertical = 8.dp),

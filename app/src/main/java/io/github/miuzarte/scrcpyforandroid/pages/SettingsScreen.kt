@@ -47,7 +47,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
-import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -459,7 +459,7 @@ fun SettingsPage(
                         )
                     },
                 )
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.pref_title_preview_card_height),
                     summary = stringResource(R.string.pref_summary_preview_card_height),
                     value = asBundle.devicePreviewCardHeightDp.toFloat(),
@@ -598,7 +598,7 @@ fun SettingsPage(
                                     stringResource(R.string.dock_display_on) +
                                     stringResource(fullscreenVirtualButtonDock.directionLabelResId),
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.pref_title_virtual_button_height),
                             value = asBundle.fullscreenVirtualButtonHeightDp.toFloat(),
                             onValueChange = {
@@ -637,7 +637,7 @@ fun SettingsPage(
                 )
                 AnimatedVisibility(asBundle.showFullscreenFloatingButton) {
                     Column {
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.pref_title_floating_button_size),
                             value = asBundle.fullscreenFloatingButtonSizeDp.toFloat(),
                             onValueChange = {
@@ -662,7 +662,7 @@ fun SettingsPage(
                                 }
                             },
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.pref_title_floating_button_bg_opacity),
                             value = asBundle.fullscreenFloatingButtonBackgroundAlphaPercent.toFloat(),
                             onValueChange = {
@@ -687,7 +687,7 @@ fun SettingsPage(
                                 }
                             },
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.pref_title_floating_button_ring_opacity),
                             value = asBundle.fullscreenFloatingButtonRingAlphaPercent.toFloat(),
                             onValueChange = {
@@ -1064,7 +1064,7 @@ fun SettingsPage(
         item {
             SectionSmallTitle(stringResource(R.string.section_terminal))
             Card {
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.pref_title_terminal_font_size),
                     summary = stringResource(R.string.pref_summary_terminal_font_size),
                     value = asBundle.terminalFontSizeSp,

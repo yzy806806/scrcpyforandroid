@@ -6,20 +6,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
@@ -29,20 +22,12 @@ import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
@@ -51,6 +36,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 internal fun VirtualButtonOrderScreen(
     scrollBehavior: ScrollBehavior,
 ) {
+    val haptic = LocalHapticFeedback.current
     val navigator = LocalRootNavigator.current
     val blurBackdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = blurBackdrop != null
@@ -65,7 +51,12 @@ internal fun VirtualButtonOrderScreen(
                         if (blurActive) Color.Transparent
                         else colorScheme.surface,
                     navigationIcon = {
-                        IconButton(onClick = navigator.pop) {
+                        IconButton(
+                            onClick = {
+                                haptic.contextClick()
+                                navigator.pop()
+                            },
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(R.string.cd_back),
@@ -169,10 +160,10 @@ internal fun VirtualButtonOrderPage(
                                         }
                                         asBundle = asBundle.copy(
                                             virtualButtonsLayout = VirtualButtonActions
-                                                .encodeStoredLayout(buttonItems)
+                                                .encodeStoredLayout(buttonItems),
                                         )
                                     },
-                                )
+                                ),
                             ),
                         )
                     }
@@ -183,7 +174,7 @@ internal fun VirtualButtonOrderPage(
                         .apply { add(toIndex, removeAt(fromIndex)) }
                     asBundle = asBundle.copy(
                         virtualButtonsLayout = VirtualButtonActions
-                            .encodeStoredLayout(buttonItems)
+                            .encodeStoredLayout(buttonItems),
                     )
                 },
             )()

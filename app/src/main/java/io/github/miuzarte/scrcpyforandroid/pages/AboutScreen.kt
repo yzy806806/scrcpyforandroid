@@ -2,32 +2,14 @@ package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.content.Intent
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.BlendMode
@@ -40,6 +22,7 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -53,31 +36,20 @@ import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.pages.effect.BgEffectBackground
 import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
 import kotlinx.coroutines.flow.onEach
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.blur.BlendColorEntry
-import top.yukonga.miuix.kmp.blur.BlurBlendMode
-import top.yukonga.miuix.kmp.blur.BlurColors
-import top.yukonga.miuix.kmp.blur.BlurDefaults
-import top.yukonga.miuix.kmp.blur.isRenderEffectSupported
-import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.textureBlur
+import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.*
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.shader.isRenderEffectSupported
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 import java.util.Locale.getDefault
 
 @Composable
 internal fun AboutScreen() {
+    val haptic = LocalHapticFeedback.current
     val navigator = LocalRootNavigator.current
     val enableBlur = LocalEnableBlur.current
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -115,7 +87,12 @@ internal fun AboutScreen() {
                 titleColor = colorScheme.onSurface.copy(alpha = scrollProgress),
                 defaultWindowInsetsPadding = false,
                 navigationIcon = {
-                    IconButton(onClick = navigator.pop) {
+                    IconButton(
+                        onClick = {
+                            haptic.contextClick()
+                            navigator.pop()
+                        },
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
                             contentDescription = stringResource(R.string.cd_back),
@@ -356,7 +333,7 @@ private fun AboutContent(
                             detectTapGestures(
                                 onDoubleTap = {
                                     isOs3Effect = !isOs3Effect
-                                }
+                                },
                             )
                         }
                         .onSizeChanged { onLogoHeightChanged(it.height) }
@@ -387,7 +364,7 @@ private fun AboutContent(
                             },
                             onClick = {
                                 context.startActivity(
-                                    Intent(Intent.ACTION_VIEW, AppUpdateChecker.REPO_URL.toUri())
+                                    Intent(Intent.ACTION_VIEW, AppUpdateChecker.REPO_URL.toUri()),
                                 )
                             },
                         )
@@ -407,7 +384,7 @@ private fun AboutContent(
                                     Intent(
                                         Intent.ACTION_VIEW,
                                         releasesUrl.toUri(),
-                                    )
+                                    ),
                                 )
                             },
                         )
@@ -427,7 +404,7 @@ private fun AboutContent(
                                     Intent(
                                         Intent.ACTION_VIEW,
                                         "https://www.apache.org/licenses/LICENSE-2.0.txt".toUri(),
-                                    )
+                                    ),
                                 )
                             },
                         )
@@ -451,7 +428,7 @@ private fun AboutContent(
                                         Intent(
                                             Intent.ACTION_VIEW,
                                             repo.toUri(),
-                                        )
+                                        ),
                                     )
                                 },
                             )

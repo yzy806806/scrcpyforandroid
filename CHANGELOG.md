@@ -1,5 +1,12 @@
 # Change Log
 
+## 0.4.1
+
+- 依赖: 同步 submodule/miuix
+- 改进: 补全 haptic feedback
+- 新增: 设备支持多个 IP, 自动选择延迟最低的路径
+- 新增: 主页允许调整卡片顺序
+
 ## 0.4.0
 
 - 依赖: scrcpy 升级至 v4.0

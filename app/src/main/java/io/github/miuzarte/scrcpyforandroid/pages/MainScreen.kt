@@ -26,28 +26,15 @@ import androidx.compose.material.icons.rounded.Devices
 import androidx.compose.material.icons.rounded.Folder
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Terminal
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableLongStateOf
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -64,44 +51,16 @@ import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
-import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.AppScreenOn
-import io.github.miuzarte.scrcpyforandroid.services.AppUpdateChecker
-import io.github.miuzarte.scrcpyforandroid.services.ConnectionController
-import io.github.miuzarte.scrcpyforandroid.services.ConnectionStateStore
-import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbAutoReconnectManager
-import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbConnectionCoordinator
-import io.github.miuzarte.scrcpyforandroid.services.EventLogger
-import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
-import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
-import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableFloatingBottomBar
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableFloatingBottomBarBlur
+import io.github.miuzarte.scrcpyforandroid.ui.*
 import io.github.miuzarte.scrcpyforandroid.ui.component.FloatingBottomBar
 import io.github.miuzarte.scrcpyforandroid.ui.component.FloatingBottomBarItem
-import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
-import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.NavigationBar
-import top.yukonga.miuix.kmp.basic.NavigationBarItem
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.Text
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import java.io.File
@@ -147,18 +106,19 @@ private enum class MainBottomTabDestination(
     Settings(labelResId = R.string.main_tab_settings, icon = Icons.Rounded.Settings);
 }
 
-sealed interface RootScreen : NavKey {
-    data object Home : RootScreen
-    data object Advanced : RootScreen
-    data object About : RootScreen
-    data object VirtualButtonOrder : RootScreen
-    data object FullscreenControl : RootScreen // compatibility mode
-    data class ScrcpyOptionRecord(val profileId: String) : RootScreen
+sealed interface RootScreen: NavKey {
+    data object Home: RootScreen
+    data object Advanced: RootScreen
+    data object About: RootScreen
+    data object VirtualButtonOrder: RootScreen
+    data object FullscreenControl: RootScreen // compatibility mode
+    data class ScrcpyOptionRecord(val profileId: String): RootScreen
 }
 
 @Composable
 fun MainScreen() {
     // Environment
+    val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val appContext = context.applicationContext
     val activity = remember(context) { context as? Activity }
@@ -186,7 +146,8 @@ fun MainScreen() {
     val tabs = remember { MainBottomTabDestination.entries }
     val pagerState = rememberPagerState(
         initialPage = MainBottomTabDestination.Devices.ordinal,
-        pageCount = { tabs.size })
+        pageCount = { tabs.size },
+    )
     var selectedTabIndex by rememberSaveable {
         mutableIntStateOf(MainBottomTabDestination.Devices.ordinal)
     }
@@ -204,11 +165,14 @@ fun MainScreen() {
 
     // Scroll behaviors
     val devicesPageScrollBehavior = MiuixScrollBehavior(
-        canScroll = { currentTab == MainBottomTabDestination.Devices })
+        canScroll = { currentTab == MainBottomTabDestination.Devices },
+    )
     val terminalPageScrollBehavior = MiuixScrollBehavior(
-        canScroll = { currentTab == MainBottomTabDestination.Terminal })
+        canScroll = { currentTab == MainBottomTabDestination.Terminal },
+    )
     val settingsPageScrollBehavior = MiuixScrollBehavior(
-        canScroll = { currentTab == MainBottomTabDestination.Settings })
+        canScroll = { currentTab == MainBottomTabDestination.Settings },
+    )
     val advancedPageScrollBehavior = MiuixScrollBehavior(
         canScroll = {
             when (currentRootScreen) {
@@ -217,7 +181,8 @@ fun MainScreen() {
                 is RootScreen.ScrcpyOptionRecord -> true
                 else -> false
             }
-        })
+        },
+    )
 
     // Navigation helpers
     val rootNavigator = remember {
@@ -336,13 +301,13 @@ fun MainScreen() {
 
     // Side-effect launchers and composition locals
     val picker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         runCatching {
             context.contentResolver.takePersistableUriPermission(
                 uri,
-                Intent.FLAG_GRANT_READ_URI_PERMISSION
+                Intent.FLAG_GRANT_READ_URI_PERMISSION,
             )
         }
         asBundle = asBundle.copy(customServerUri = uri.toString())
@@ -353,13 +318,13 @@ fun MainScreen() {
                 arrayOf(
                     "application/java-archive",
                     "application/octet-stream",
-                    "*/*"
-                )
+                    "*/*",
+                ),
             )
         }
     }
     val terminalFontDocumentPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         taskScope.launch {
@@ -392,7 +357,7 @@ fun MainScreen() {
                     "application/x-font-ttf",
                     "application/x-font-otf",
                     "*/*",
-                )
+                ),
             )
         }
     }
@@ -538,7 +503,10 @@ fun MainScreen() {
                                 tabs.forEach { tab ->
                                     NavigationBarItem(
                                         selected = currentTab == tab,
-                                        onClick = { navigateToTab(tab) },
+                                        onClick = {
+                                            haptic.contextClick()
+                                            navigateToTab(tab)
+                                        },
                                         icon = tab.icon,
                                         label = stringResource(tab.labelResId),
                                     )
@@ -577,7 +545,7 @@ fun MainScreen() {
                                         Modifier.layerBackdrop(glassBackdrop)
                                     } else {
                                         Modifier
-                                    }
+                                    },
                                 ),
                             state = pagerState,
                             beyondViewportPageCount = 1,

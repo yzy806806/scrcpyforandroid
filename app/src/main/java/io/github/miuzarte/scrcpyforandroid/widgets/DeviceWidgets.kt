@@ -57,7 +57,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.pointerInteropFilter
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -79,7 +78,7 @@ import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.constants.ScrcpyPresets
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
-import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
@@ -587,7 +586,7 @@ internal fun ConfigPanel(
                 enabled = !sessionStarted && soBundle.audio,
             )
             AnimatedVisibility(audioBitRateVisibility) {
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.device_config_audio_bitrate),
                     summary = "--audio-bit-rate",
                     value = ScrcpyPresets.AudioBitRate
@@ -634,7 +633,7 @@ internal fun ConfigPanel(
                 },
                 enabled = !sessionStarted,
             )
-            SuperSlider(
+            ArrowSlider(
                 title = stringResource(R.string.device_config_video_bitrate),
                 summary = "--video-bit-rate",
                 value = soBundle.videoBitRate / 1_000_000f,

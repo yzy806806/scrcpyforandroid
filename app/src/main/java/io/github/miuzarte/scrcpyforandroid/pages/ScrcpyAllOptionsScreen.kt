@@ -54,7 +54,7 @@ import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.NewDisplay
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.OverlaySpinnerWithFallback
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
-import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperSlider
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -117,7 +117,6 @@ internal fun ScrcpyAllOptionsScreen(
     val blurBackdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = blurBackdrop != null
     val scope = rememberCoroutineScope()
-    var showProfileMenu by rememberSaveable { mutableStateOf(false) }
     var showManageProfilesSheet by rememberSaveable { mutableStateOf(false) }
     val qdBundleShared by quickDevices.bundleState.collectAsState()
     val soBundleShared by scrcpyOptions.bundleState.collectAsState()
@@ -235,7 +234,6 @@ internal fun ScrcpyAllOptionsScreen(
                                         text = stringResource(R.string.scrcpyopt_manage_profiles),
                                         onClick = {
                                             showManageProfilesSheet = true
-                                            showProfileMenu = false
                                         },
                                     )
                                 )
@@ -957,7 +955,7 @@ internal fun ScrcpyAllOptionsPage(
                     },
                     enabled = soBundle.audio,
                 )
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.scrcpyopt_screen_off_timeout),
                     summary = "--screen-off-timeout",
                     value = screenOffTimeoutPresetIndex.toFloat(),
@@ -1103,7 +1101,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.scrcpyopt_audio_bitrate),
                     summary = "--audio-bit-rate",
                     value = ScrcpyPresets.AudioBitRate
@@ -1148,7 +1146,7 @@ internal fun ScrcpyAllOptionsPage(
                         )
                     },
                 )
-                SuperSlider(
+                ArrowSlider(
                     title = stringResource(R.string.scrcpyopt_video_bitrate),
                     summary = "--video-bit-rate",
                     value = soBundle.videoBitRate / 1_000_000f,
@@ -1242,7 +1240,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.scrcpyopt_min_size_alignment),
                             summary = "--min-size-alignment",
                             value = minSizeAlignmentPresetIndex.toFloat(),
@@ -1265,17 +1263,17 @@ internal fun ScrcpyAllOptionsPage(
                             inputFilter = { it.filter(Char::isDigit) },
                             inputValueRange = 1f..16f,
                             onInputConfirm = { raw ->
-                                val parsed = raw.toIntOrNull() ?: return@SuperSlider
+                                val parsed = raw.toIntOrNull() ?: return@ArrowSlider
                                 if (parsed and (parsed - 1) != 0) {
                                     AppRuntime.snackbar(R.string.scrcpyopt_min_size_alignment_invalid)
-                                    return@SuperSlider
+                                    return@ArrowSlider
                                 }
                                 soBundle = soBundle.copy(
                                     minSizeAlignment = parsed
                                 )
                             },
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.scrcpyopt_max_size),
                             summary = "--max-size",
                             value = maxSizePresetIndex.toFloat(),
@@ -1306,7 +1304,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             },
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.scrcpyopt_max_fps),
                             summary = "--max-fps",
                             value = maxFpsPresetIndex.toFloat(),
@@ -1498,7 +1496,7 @@ internal fun ScrcpyAllOptionsPage(
                                 .fillMaxWidth()
                                 .padding(all = UiSpacing.Large),
                         )
-                        SuperSlider(
+                        ArrowSlider(
                             title = stringResource(R.string.scrcpyopt_camera_fps),
                             summary = "--camera-fps",
                             value = cameraFpsPresetIndex.toFloat(),
