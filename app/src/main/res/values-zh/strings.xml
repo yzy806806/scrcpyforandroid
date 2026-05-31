@@ -174,6 +174,7 @@
     <string name="pref_summary_hide_simple_settings">启用后设备页仅保留更多参数、所有应用、最近任务和启动/停止按钮</string>
     <string name="pref_title_preview_card_on_top">使预览卡显示在配置卡上方</string>
     <string name="pref_summary_preview_card_on_top">启用后设备页预览卡和虚拟按钮将显示在 Scrcpy 配置卡的上方</string>
+    <string name="pref_tips_preview_card_on_top">推荐同时启用“隐藏设备页日志框”</string>
     <string name="pref_title_preview_card_height">预览卡高度</string>
     <string name="pref_summary_preview_card_height">设备页预览卡高度</string>
     <string name="pref_title_quick_device_sort">快速设备排序</string>

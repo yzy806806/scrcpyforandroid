@@ -493,7 +493,7 @@ internal fun DeviceTabPage(
                     forwardKeyRepeat = sessionInfo?.forwardKeyRepeat ?: true,
                 )
             },
-            autoBringIntoView = pendingScrollToPreview && !directControlEnabled,
+            autoBringIntoView = pendingScrollToPreview && !directControlEnabled && !asBundle.previewCardOnTop,
             onAutoBringIntoViewConsumed = { viewModel.clearPendingScrollToPreview() },
             onTouchActiveChanged = {
                 if (directControlEnabled) onPreviewGestureLockChanged(it)

@@ -78,7 +78,7 @@ internal fun ScrcpyAllOptionsScreen(
             ScrcpyOptions.GLOBAL_PROFILE_ID
         } else {
             DeviceShortcuts.unmarshalFrom(qdBundleShared.quickDevicesList)
-                .get(currentTarget.host, currentTarget.port)
+                .firstOrNull { it.matchesAddress(currentTarget) }
                 ?.scrcpyProfileId
                 ?: ScrcpyOptions.GLOBAL_PROFILE_ID
         }

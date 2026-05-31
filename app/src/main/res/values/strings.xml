@@ -174,6 +174,7 @@
     <string name="pref_summary_hide_simple_settings">When enabled, the device page only keeps More parameters, All apps, Recent tasks, and Start/Stop buttons</string>
     <string name="pref_title_preview_card_on_top">Show preview card above config</string>
     <string name="pref_summary_preview_card_on_top">When enabled, the preview card and virtual buttons appear above the Scrcpy config card on the device page</string>
+    <string name="pref_tips_preview_card_on_top">It is recommended to also enable \"Hide device page log box\"</string>
     <string name="pref_title_preview_card_height">Preview card height</string>
     <string name="pref_summary_preview_card_height">Preview card height on device page</string>
     <string name="pref_title_quick_device_sort">Quick device sort</string>

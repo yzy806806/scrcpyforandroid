@@ -434,7 +434,10 @@ fun SettingsPage(
                     summary = stringResource(R.string.pref_summary_preview_card_on_top),
                     checked = asBundle.previewCardOnTop,
                     onCheckedChange = {
-                        asBundle = asBundle.copy(previewCardOnTop = it)
+                        asBundle = asBundle.copy(
+                            previewCardOnTop = it,
+                        )
+                        if (it) AppRuntime.snackbar(R.string.pref_tips_preview_card_on_top)
                     },
                 )
                 ArrowSlider(
