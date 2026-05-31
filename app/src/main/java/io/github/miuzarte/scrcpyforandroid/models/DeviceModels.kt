@@ -136,11 +136,11 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>): List<DeviceShortcut> b
         val updateById = id != null
 
         val updatedAddresses = when {
-            updateById -> {
-                val h = host ?: old.host
+            updateById && host != null -> {
                 val p = port ?: old.port
-                listOf("$h:$p")
+                listOf("$host:$p")
             }
+            updateById -> old.addresses
 
             newPort != null -> {
                 old.addresses.map { addr ->

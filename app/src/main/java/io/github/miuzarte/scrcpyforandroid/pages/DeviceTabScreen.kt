@@ -32,6 +32,7 @@ import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.services.*
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.contextClick
@@ -202,6 +203,7 @@ internal fun DeviceTabPage(
     val connectedScrcpyProfileId by viewModel.connectedScrcpyProfileId.collectAsState()
     val connectedScrcpyBundle by viewModel.connectedScrcpyBundle.collectAsState()
     val connectedScrcpyProfileName by viewModel.connectedScrcpyProfileName.collectAsState()
+    val scrcpyProfilesState by scrcpyProfiles.state.collectAsState()
     val canShowPreviewControls by viewModel.canShowPreviewControls.collectAsState()
     val virtualButtonLayout by viewModel.virtualButtonLayout.collectAsState()
 
@@ -580,6 +582,45 @@ internal fun DeviceTabPage(
         }
     }
 
+    @Composable
+    fun ProfilesTabRow() {
+        val profileTabs = remember(scrcpyProfilesState.profiles) {
+            scrcpyProfilesState.profiles.map { it.name }
+        }
+        val profileIds = remember(scrcpyProfilesState.profiles) {
+            scrcpyProfilesState.profiles.map { it.id }
+        }
+        val selectedProfileIndex = remember(connectedScrcpyProfileId, profileIds) {
+            profileIds.indexOf(connectedScrcpyProfileId).coerceAtLeast(0)
+        }
+        val textGlobal = stringResource(R.string.text_global)
+
+        TabRow(
+            tabs = profileTabs,
+            selectedTabIndex = selectedProfileIndex,
+            onTabSelected = { index ->
+                val newProfileId = profileIds.getOrNull(index) ?: return@TabRow
+                if (newProfileId == connectedScrcpyProfileId) return@TabRow
+                haptic.contextClick()
+                val device = currentTarget?.let { ct ->
+                    savedShortcuts.firstOrNull { it.matchesAddress(ct) }
+                }
+                if (device != null) {
+                    viewModel.updateShortcut(id = device.id, scrcpyProfileId = newProfileId)
+                }
+                val profileName = profileTabs.getOrElse(index) { textGlobal }
+                AppRuntime.snackbar(R.string.device_switched_profile, device?.name ?: "", profileName)
+            },
+            modifier = Modifier
+                .padding(bottom = UiSpacing.Medium),
+            minWidth = 96.dp,
+            maxWidth = 192.dp,
+            height = 48.dp,
+            itemSpacing = UiSpacing.Medium,
+        )
+    }
+
+
     val pageContentPadding = contentPadding
     val pageBottomInnerPadding = bottomInnerPadding
 
@@ -615,12 +656,14 @@ internal fun DeviceTabPage(
                     }
                     item { VirtualButtonsSection() }
                     item {
+                        if (sessionInfo == null) ProfilesTabRow()
                         if (useTwoPaneConfigPanel) ScrcpyConfigSectionForTwoPane()
                         else ScrcpyConfigSection()
                     }
                 } else {
                     item {
                         SectionSmallTitle(stringResource(R.string.device_section_scrcpy))
+                        if (sessionInfo == null) ProfilesTabRow()
                         if (useTwoPaneConfigPanel) ScrcpyConfigSectionForTwoPane()
                         else ScrcpyConfigSection()
                     }

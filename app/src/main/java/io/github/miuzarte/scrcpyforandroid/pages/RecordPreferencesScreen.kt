@@ -48,6 +48,7 @@ internal fun RecordPreferencesScreen(
     profileId: String,
     scrcpy: Scrcpy,
 ) {
+    val haptic = LocalHapticFeedback.current
     val navigator = LocalRootNavigator.current
     val blurBackdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = blurBackdrop != null
@@ -63,7 +64,12 @@ internal fun RecordPreferencesScreen(
                         if (blurActive) Color.Transparent
                         else colorScheme.surface,
                     navigationIcon = {
-                        IconButton(onClick = navigator.pop) {
+                        IconButton(
+                            onClick = {
+                                haptic.contextClick()
+                                navigator.pop()
+                            },
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(R.string.cd_back),

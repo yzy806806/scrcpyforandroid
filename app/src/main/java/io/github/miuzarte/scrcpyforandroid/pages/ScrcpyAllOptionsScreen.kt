@@ -63,6 +63,7 @@ internal fun ScrcpyAllOptionsScreen(
     scrollBehavior: ScrollBehavior,
     scrcpy: Scrcpy,
 ) {
+    val haptic = LocalHapticFeedback.current
     val navigator = LocalRootNavigator.current
     val blurBackdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = blurBackdrop != null
@@ -148,11 +149,11 @@ internal fun ScrcpyAllOptionsScreen(
     suspend fun bindCurrentConnectedDevice(profileId: String) {
         val target = AppRuntime.currentConnectionTarget ?: return
         val shortcuts = DeviceShortcuts.unmarshalFrom(qdBundleShared.quickDevicesList)
-        val updated = shortcuts.update(
-            host = target.host,
-            port = target.port,
+        val device = shortcuts.firstOrNull { it.matchesAddress(target) }
+        val updated = if (device != null) shortcuts.update(
+            id = device.id,
             scrcpyProfileId = profileId,
-        )
+        ) else shortcuts
         if (updated != shortcuts) {
             quickDevices.updateBundle { bundle ->
                 bundle.copy(quickDevicesList = updated.marshalToString())
@@ -169,7 +170,12 @@ internal fun ScrcpyAllOptionsScreen(
                         if (blurActive) Color.Transparent
                         else colorScheme.surface,
                     navigationIcon = {
-                        IconButton(onClick = navigator.pop) {
+                        IconButton(
+                            onClick = {
+                                haptic.contextClick()
+                                navigator.pop()
+                            },
+                        ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
                                 contentDescription = stringResource(R.string.cd_back),
@@ -205,6 +211,7 @@ internal fun ScrcpyAllOptionsScreen(
                                 val nextProfileId = profileIds.getOrNull(index)
                                     ?: return@TabRow
                                 if (nextProfileId == selectedProfileId) return@TabRow
+                                haptic.contextClick()
                                 scope.launch {
                                     saveBundleForProfile(selectedProfileId, soBundleState.value)
                                     bindCurrentConnectedDevice(nextProfileId)
@@ -220,8 +227,8 @@ internal fun ScrcpyAllOptionsScreen(
                                 }
                             },
                             modifier = Modifier
-                                .padding(bottom = UiSpacing.Medium)
-                                .padding(horizontal = UiSpacing.Medium),
+                                .padding(bottom = UiSpacing.PageHorizontal)
+                                .padding(horizontal = UiSpacing.PageVertical),
                             minWidth = 96.dp,
                             maxWidth = 192.dp,
                             height = 48.dp,

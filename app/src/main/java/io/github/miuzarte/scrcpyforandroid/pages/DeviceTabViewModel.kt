@@ -141,7 +141,7 @@ internal class DeviceTabViewModel(
     ) { session, shortcuts ->
         val target = session.currentTarget
         if (session.isConnected && target != null)
-            shortcuts.get(target.host, target.port)?.scrcpyProfileId
+            shortcuts.firstOrNull { it.matchesAddress(target) }?.scrcpyProfileId
                 ?: session.connectedScrcpyProfileId
         else
             session.connectedScrcpyProfileId
@@ -907,7 +907,7 @@ internal class DeviceTabViewModel(
                 Triple(connected, target, shortcuts)
             }.collect { (connected, target, shortcuts) ->
                 if (!connected || target == null) return@collect
-                val boundProfileId = shortcuts.get(target.host, target.port)
+                val boundProfileId = shortcuts.firstOrNull { it.matchesAddress(target) }
                     ?.scrcpyProfileId ?: ScrcpyOptions.GLOBAL_PROFILE_ID
                 if (boundProfileId != connectionState.value.adbSession.connectedScrcpyProfileId) {
                     connectionController.syncConnectedScrcpyProfileId(boundProfileId)
