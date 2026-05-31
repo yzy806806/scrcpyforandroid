@@ -1,36 +1,15 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import androidx.activity.compose.LocalActivity
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.RowScope
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -52,39 +31,16 @@ import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
-import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.ConnectionController
-import io.github.miuzarte.scrcpyforandroid.services.ConnectionStateStore
-import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbAutoReconnectManager
-import io.github.miuzarte.scrcpyforandroid.services.DeviceAdbConnectionCoordinator
-import io.github.miuzarte.scrcpyforandroid.services.EventLogger
+import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
 import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
 import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import io.github.miuzarte.scrcpyforandroid.widgets.AppListBottomSheet
-import io.github.miuzarte.scrcpyforandroid.widgets.AppListEntry
-import io.github.miuzarte.scrcpyforandroid.widgets.ConfigPanel
-import io.github.miuzarte.scrcpyforandroid.widgets.DeviceTileList
-import io.github.miuzarte.scrcpyforandroid.widgets.PairingCard
-import io.github.miuzarte.scrcpyforandroid.widgets.PreviewCard
-import io.github.miuzarte.scrcpyforandroid.widgets.QuickConnectCard
-import io.github.miuzarte.scrcpyforandroid.widgets.StatusCard
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonCard
+import io.github.miuzarte.scrcpyforandroid.widgets.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -114,6 +70,7 @@ internal fun DeviceTabScreen(
     val viewModel: DeviceTabViewModel = viewModel(factory = viewModelFactory)
 
     val navigator = LocalRootNavigator.current
+    val haptic = LocalHapticFeedback.current
     var useCompactTopAppBar by remember { mutableStateOf(false) }
     var showTwoPaneSideAction by remember { mutableStateOf(false) }
     var configPanelOnLeft by remember { mutableStateOf(true) }
@@ -130,13 +87,16 @@ internal fun DeviceTabScreen(
                 val topAppBarActions: @Composable RowScope.() -> Unit = {
                     if (showTwoPaneSideAction) {
                         IconButton(
-                            onClick = { twoPaneSideToggleRequest++ },
+                            onClick = {
+                                haptic.contextClick()
+                                twoPaneSideToggleRequest++
+                            },
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.SwapHoriz,
                                 contentDescription = stringResource(
                                     if (configPanelOnLeft) R.string.device_cd_config_right
-                                    else R.string.device_cd_config_left
+                                    else R.string.device_cd_config_left,
                                 ),
                             )
                         }
@@ -162,9 +122,9 @@ internal fun DeviceTabScreen(
                                     onClick = {
                                         EventLogger.clearLogs()
                                     },
-                                )
-                            )
-                        )
+                                ),
+                            ),
+                        ),
                     ) {
                         Icon(
                             imageVector = MiuixIcons.More,
@@ -175,13 +135,13 @@ internal fun DeviceTabScreen(
                 if (useCompactTopAppBar) SmallTopAppBar(
                     title = stringResource(R.string.device_title),
                     color = topAppBarColor,
-                    actions = topAppBarActions
+                    actions = topAppBarActions,
                 )
                 else TopAppBar(
                     title = stringResource(R.string.device_title),
                     color = topAppBarColor,
                     actions = topAppBarActions,
-                    scrollBehavior = scrollBehavior
+                    scrollBehavior = scrollBehavior,
                 )
             }
         },
@@ -286,7 +246,7 @@ internal fun DeviceTabPage(
 
     DisposableEffect(lifecycleOwner) {
         viewModel.setAppInForeground(
-            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED),
         )
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
@@ -378,7 +338,7 @@ internal fun DeviceTabPage(
                 } else {
                     viewModel.setEditingDeviceId(
                         if (editingDeviceId != device.id) device.id
-                        else null
+                        else null,
                     )
                 }
             },
@@ -476,7 +436,6 @@ internal fun DeviceTabPage(
                     }
             },
             onOpenAdvanced = { navigator.push(RootScreen.Advanced) },
-            onStartStopHaptic = haptic::contextClick,
             onStart = viewModel::startScrcpy,
             onStop = viewModel::stopScrcpy,
             sessionInfo = sessionInfo,
@@ -588,7 +547,6 @@ internal fun DeviceTabPage(
                     }
             },
             onOpenAdvanced = { navigator.push(RootScreen.Advanced) },
-            onStartStopHaptic = haptic::contextClick,
             onStart = viewModel::startScrcpy,
             onStop = viewModel::stopScrcpy,
             sessionInfo = sessionInfo,
@@ -715,7 +673,7 @@ internal fun DeviceTabPage(
                     .padding(contentPadding)
                     .padding(
                         horizontal = UiSpacing.PageHorizontal,
-                        vertical = UiSpacing.PageVertical
+                        vertical = UiSpacing.PageVertical,
                     ),
                 horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
             ) {
@@ -791,6 +749,7 @@ internal fun DeviceTabPage(
                 summary = if (app?.label != null) task.packageName else null,
                 system = app?.system,
                 onClick = {
+                    haptic.contextClick()
                     viewModel.hideRecentTasks()
                     if (sessionInfo == null) viewModel.startScrcpy(task.packageName)
                     else viewModel.launchAppWithFallback(task.packageName)

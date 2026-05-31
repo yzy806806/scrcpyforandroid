@@ -3,42 +3,22 @@ package io.github.miuzarte.scrcpyforandroid.pages
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.InsertDriveFile
-import androidx.compose.material.icons.rounded.Download
-import androidx.compose.material.icons.rounded.Folder
-import androidx.compose.material.icons.rounded.Image
-import androidx.compose.material.icons.rounded.Link
-import androidx.compose.material.icons.rounded.RawOff
-import androidx.compose.material.icons.rounded.RawOn
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -50,28 +30,9 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
-import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
-import io.github.miuzarte.scrcpyforandroid.services.DirectoryDownloadSnapshot
-import io.github.miuzarte.scrcpyforandroid.services.FileManagerService
-import io.github.miuzarte.scrcpyforandroid.services.RemoteFileEntry
-import io.github.miuzarte.scrcpyforandroid.services.RemoteFileKind
-import io.github.miuzarte.scrcpyforandroid.services.RemoteFileStat
-import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
-import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.PullToRefresh
-import top.yukonga.miuix.kmp.basic.PullToRefreshState
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.rememberPullToRefreshState
+import io.github.miuzarte.scrcpyforandroid.services.*
+import io.github.miuzarte.scrcpyforandroid.ui.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -90,6 +51,7 @@ fun FileManagerScreen(
     onNavigateUpActionChange: (((() -> Boolean)?) -> Unit)? = null,
 ) {
     val viewModel: FileManagerViewModel = viewModel()
+    val haptic = LocalHapticFeedback.current
     val context = LocalContext.current
     val blurBackdrop = rememberBlurBackdrop(LocalEnableBlur.current)
     val blurActive = blurBackdrop != null
@@ -178,7 +140,10 @@ fun FileManagerScreen(
                         else colorScheme.surface,
                     navigationIcon = {
                         IconButton(
-                            onClick = viewModel::navigateUp,
+                            onClick = {
+                                haptic.contextClick()
+                                viewModel.navigateUp()
+                            },
                             enabled = pathStack.size > 1,
                         ) {
                             Icon(
@@ -194,10 +159,12 @@ fun FileManagerScreen(
                                 .fillMaxWidth()
                                 .combinedClickable(
                                     onClick = {
+                                        haptic.contextClick()
                                         pathInput = currentPath
                                         showPathDialog = true
                                     },
                                     onLongClick = {
+                                        // 自带 haptic
                                         pathInput = currentPath
                                         showPathDialog = true
                                     },
@@ -244,11 +211,11 @@ fun FileManagerScreen(
                                                         2 -> FileManagerSortField.TIME
                                                         3 -> FileManagerSortField.EXTENSION
                                                         else -> FileManagerSortField.NAME
-                                                    }
+                                                    },
                                                 )
                                             },
                                         )
-                                    }
+                                    },
                                 ),
                                 DropdownEntry(
                                     items = dirOptions.mapIndexed { i, option ->
@@ -257,13 +224,13 @@ fun FileManagerScreen(
                                             selected = i == dirIdx,
                                             onClick = {
                                                 viewModel.updateSort(
-                                                    descending = i == 1
+                                                    descending = i == 1,
                                                 )
                                             },
                                         )
-                                    }
+                                    },
                                 ),
-                            )
+                            ),
                         ) {
                             Icon(
                                 imageVector = MiuixIcons.Tune,
@@ -286,9 +253,9 @@ fun FileManagerScreen(
                                         onClick = {
                                             uploadLauncher.launch(arrayOf("*/*"))
                                         },
-                                    )
-                                )
-                            )
+                                    ),
+                                ),
+                            ),
                         ) {
                             Icon(
                                 imageVector = MiuixIcons.More,
@@ -303,7 +270,7 @@ fun FileManagerScreen(
         Box(
             modifier =
                 if (blurActive) Modifier.layerBackdrop(blurBackdrop)
-                else Modifier
+                else Modifier,
         ) {
             FileManagerPage(
                 contentPadding = pagePadding,
@@ -320,7 +287,7 @@ fun FileManagerScreen(
                     viewModel.saveScrollPosition(
                         currentPath,
                         listState.firstVisibleItemIndex,
-                        listState.firstVisibleItemScrollOffset
+                        listState.firstVisibleItemScrollOffset,
                     )
                     viewModel.openEntry(entry)
                 },
@@ -356,30 +323,28 @@ fun FileManagerScreen(
                     && (!entry.isDirectory || selectedSnapshot != null),
         )
     }
-    if (showPathDialog) {
-        PathJumpDialog(
-            show = showPathDialog,
-            path = pathInput,
-            onPathChange = { pathInput = it },
-            onDismissRequest = { showPathDialog = false },
-            onConfirm = {
-                showPathDialog = false
-                viewModel.jumpToPath(pathInput)
-            },
-        )
-    }
-    if (showCreateFolderDialog) {
-        CreateFolderDialog(
-            show = showCreateFolderDialog,
-            folderName = newFolderName,
-            onFolderNameChange = { newFolderName = it },
-            onDismissRequest = { showCreateFolderDialog = false },
-            onConfirm = {
-                showCreateFolderDialog = false
-                viewModel.createFolder(newFolderName)
-            },
-        )
-    }
+
+    PathJumpDialog(
+        show = showPathDialog,
+        path = pathInput,
+        onPathChange = { pathInput = it },
+        onDismissRequest = { showPathDialog = false },
+        onConfirm = {
+            showPathDialog = false
+            viewModel.jumpToPath(pathInput)
+        },
+    )
+
+    CreateFolderDialog(
+        show = showCreateFolderDialog,
+        folderName = newFolderName,
+        onFolderNameChange = { newFolderName = it },
+        onDismissRequest = { showCreateFolderDialog = false },
+        onConfirm = {
+            showCreateFolderDialog = false
+            viewModel.createFolder(newFolderName)
+        },
+    )
 }
 
 @Composable
@@ -430,17 +395,17 @@ private fun FileManagerPage(
                 when {
                     loading -> FileManagerStatusCard(
                         message = stringResource(R.string.text_loading),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     errorText != null -> FileManagerStatusCard(
                         message = stringResource(R.string.fm_load_failed, errorText),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
 
                     displayedEntries.isEmpty() -> FileManagerStatusCard(
                         message = stringResource(R.string.fm_empty_dir),
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
@@ -457,7 +422,7 @@ private fun FileManagerPage(
                     items(fileRows) { rowEntries ->
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem)
+                            horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
                         ) {
                             rowEntries.forEach { entry ->
                                 FileManagerItemCard(
@@ -503,10 +468,15 @@ private fun FileManagerItemCard(
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     Card(
         modifier = modifier
             .combinedClickable(
-                onClick = onClick,
+                onClick = {
+                    haptic.contextClick()
+                    onClick()
+                },
                 onLongClick = onLongClick,
             ),
     ) {
@@ -560,6 +530,8 @@ private fun FileDetailsBottomSheet(
     onDownload: () -> Unit,
     downloadEnabled: Boolean,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     OverlayBottomSheet(
         show = show,
         title = stringResource(R.string.fm_file_details),
@@ -567,7 +539,10 @@ private fun FileDetailsBottomSheet(
         onDismissFinished = onDismissFinished,
         startAction = {
             IconButton(
-                onClick = onToggleRaw
+                onClick = {
+                    haptic.contextClick()
+                    onToggleRaw()
+                },
             ) {
                 Icon(
                     imageVector =
@@ -575,14 +550,17 @@ private fun FileDetailsBottomSheet(
                         else Icons.Rounded.RawOn,
                     contentDescription = stringResource(
                         if (!showingRaw) R.string.fm_show_raw
-                        else R.string.fm_show_parsed
+                        else R.string.fm_show_parsed,
                     ),
                 )
             }
         },
         endAction = {
             IconButton(
-                onClick = onDownload,
+                onClick = {
+                    haptic.contextClick()
+                    onDownload()
+                },
                 enabled = downloadEnabled,
             ) {
                 Icon(
@@ -595,7 +573,7 @@ private fun FileDetailsBottomSheet(
         LazyColumn(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(2f / 3f)
+                .fillMaxHeight(2f / 3f),
         ) {
             item {
                 TextField(
@@ -618,6 +596,8 @@ private fun PathJumpDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     OverlayDialog(
         show = show,
         title = stringResource(R.string.fm_goto_path),
@@ -628,17 +608,26 @@ private fun PathJumpDialog(
             TextField(
                 value = path,
                 onValueChange = onPathChange,
-                label = "/storage/emulated/0",
-                useLabelAsPlaceholder = true,
+                // label = "/storage/emulated/0",
+                // useLabelAsPlaceholder = true,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
+            ) {
                 TextButton(
                     text = stringResource(R.string.button_cancel),
-                    onClick = onDismissRequest,
+                    onClick = {
+                        haptic.contextClick()
+                        onDismissRequest()
+                    },
                 )
                 TextButton(
                     text = stringResource(R.string.button_confirm),
-                    onClick = onConfirm,
+                    onClick = {
+                        haptic.confirm()
+                        onConfirm()
+                    },
                 )
             }
         }
@@ -653,6 +642,8 @@ private fun CreateFolderDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     OverlayDialog(
         show = show,
         title = stringResource(R.string.fm_title_create_folder),
@@ -666,14 +657,23 @@ private fun CreateFolderDialog(
                 label = stringResource(R.string.fm_label_new_folder),
                 useLabelAsPlaceholder = true,
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
+            ) {
                 TextButton(
                     text = stringResource(R.string.button_cancel),
-                    onClick = onDismissRequest,
+                    onClick = {
+                        haptic.contextClick()
+                        onDismissRequest()
+                    },
                 )
                 TextButton(
                     text = stringResource(R.string.fm_button_create),
-                    onClick = onConfirm,
+                    onClick = {
+                        haptic.confirm()
+                        onConfirm()
+                    },
                 )
             }
         }
@@ -695,13 +695,13 @@ private fun buildDetailsText(
 ): String {
     val details = StringBuilder(
         if (showRaw) stat.rawOutput
-        else FileManagerService.formatStatDetails(stat, directorySnapshot)
+        else FileManagerService.formatStatDetails(stat, directorySnapshot),
     )
     if (targetStat != null) {
         details.append("\n\n${AppRuntime.stringResource(R.string.fm_stat_target_info)}\n")
         details.append(
             if (showRaw) targetStat.rawOutput
-            else FileManagerService.formatStatDetails(targetStat)
+            else FileManagerService.formatStatDetails(targetStat),
         )
     }
     return details.toString()

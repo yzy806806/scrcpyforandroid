@@ -10,44 +10,16 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AddLink
-import androidx.compose.material.icons.rounded.CheckCircleOutline
-import androidx.compose.material.icons.rounded.Fullscreen
-import androidx.compose.material.icons.rounded.LinkOff
-import androidx.compose.material.icons.rounded.Wifi
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.material.icons.rounded.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -89,6 +61,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.ui.confirm
 import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -98,21 +71,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Button
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.CardDefaults
-import top.yukonga.miuix.kmp.basic.CircularProgressIndicator
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
-import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.CheckboxLocation
-import top.yukonga.miuix.kmp.preference.CheckboxPreference
-import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.preference.*
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.isDynamicColor
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
@@ -230,6 +191,8 @@ internal fun PairingCard(
     onDiscoverTarget: (suspend () -> Pair<String, Int>?)? = null,
     onPair: (host: String, port: String, code: String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     val showPairDialog = remember { mutableStateOf(false) }
     val holdDownState = remember { mutableStateOf(false) }
 
@@ -237,6 +200,7 @@ internal fun PairingCard(
         ArrowPreference(
             title = stringResource(R.string.device_pairing_title),
             onClick = {
+                haptic.contextClick()
                 showPairDialog.value = true
                 holdDownState.value = true
             },
@@ -295,7 +259,7 @@ internal fun PreviewCard(
     var nextPointerLabel by rememberSaveable { mutableIntStateOf(1) }
     val alpha by animateFloatAsState(
         if (previewControlsVisible) 1f else 0f,
-        label = "preview-controls"
+        label = "preview-controls",
     )
     val lifecycleOwner = LocalLifecycleOwner.current
     val bringIntoViewRequester = remember { BringIntoViewRequester() }
@@ -361,7 +325,7 @@ internal fun PreviewCard(
     Card(
         modifier = Modifier
             .bringIntoViewRequester(bringIntoViewRequester)
-            .then(modifier)
+            .then(modifier),
     ) {
         Box(
             modifier = Modifier
@@ -373,17 +337,20 @@ internal fun PreviewCard(
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> onTouchActiveChanged(true)
                                 MotionEvent.ACTION_UP,
-                                MotionEvent.ACTION_CANCEL -> onTouchActiveChanged(false)
+                                MotionEvent.ACTION_CANCEL,
+                                    -> onTouchActiveChanged(false)
                             }
                             touchEventHandler.handleMotionEvent(event)
                         }
                     } else {
                         Modifier.pointerInput(sessionInfo) {
-                            detectTapGestures(onTap = {
-                                previewControlsVisible = !previewControlsVisible
-                            })
+                            detectTapGestures(
+                                onTap = {
+                                    previewControlsVisible = !previewControlsVisible
+                                },
+                            )
                         }
-                    }
+                    },
                 )
                 .onSizeChanged { touchAreaSize = it },
         ) {
@@ -496,7 +463,6 @@ internal fun ConfigPanel(
     recentTasksEndActionText: String,
     onOpenRecentTasks: () -> Unit,
     onOpenAdvanced: () -> Unit,
-    onStartStopHaptic: () -> Unit,
     onStart: () -> Unit,
     onStop: () -> Unit,
     sessionInfo: Scrcpy.Session.SessionInfo?,
@@ -505,6 +471,7 @@ internal fun ConfigPanel(
     onOpenFullscreen: () -> Unit = {},
     reverseSideActions: Boolean = false,
 ) {
+    val haptic = LocalHapticFeedback.current
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
     val sessionStarted = sessionInfo != null
@@ -563,7 +530,7 @@ internal fun ConfigPanel(
                 checked = soBundle.audio,
                 onCheckedChange = {
                     soBundle = soBundle.copy(
-                        audio = it
+                        audio = it,
                     )
                 },
                 enabled = !sessionStarted
@@ -578,7 +545,7 @@ internal fun ConfigPanel(
                 onSelectedIndexChange = {
                     val codec = Codec.AUDIO[it]
                     soBundle = soBundle.copy(
-                        audioCodec = codec.string
+                        audioCodec = codec.string,
                     )
                     if (codec == Codec.FLAC)
                         AppRuntime.snackbar(R.string.device_config_audio_codec_note)
@@ -596,7 +563,7 @@ internal fun ConfigPanel(
                         val idx = value.roundToInt()
                             .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
                         soBundle = soBundle.copy(
-                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000,
                         )
                     },
                     valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
@@ -626,7 +593,7 @@ internal fun ConfigPanel(
                 onSelectedIndexChange = {
                     val codec = Codec.VIDEO[it]
                     soBundle = soBundle.copy(
-                        videoCodec = codec.string
+                        videoCodec = codec.string,
                     )
                     if (codec == Codec.AV1)
                         AppRuntime.snackbar(R.string.device_config_video_codec_note)
@@ -639,7 +606,7 @@ internal fun ConfigPanel(
                 value = soBundle.videoBitRate / 1_000_000f,
                 onValueChange = { mbps ->
                     soBundle = soBundle.copy(
-                        videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10)
+                        videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10),
                     )
                 },
                 valueRange = 0f..40f,
@@ -669,7 +636,7 @@ internal fun ConfigPanel(
                     raw.toFloatOrNull()?.let { parsed ->
                         if (parsed >= 0f) {
                             soBundle = soBundle.copy(
-                                videoBitRate = (parsed * 1_000_000f).roundToInt()
+                                videoBitRate = (parsed * 1_000_000f).roundToInt(),
                             )
                         }
                     }
@@ -681,7 +648,7 @@ internal fun ConfigPanel(
         ArrowPreference(
             title = stringResource(
                 if (!hideSimpleConfigItems) R.string.device_config_more_params
-                else R.string.device_config_all_params
+                else R.string.device_config_all_params,
             ),
             summary = stringResource(R.string.device_config_all_scrcpy_params),
             endActions = {
@@ -691,7 +658,10 @@ internal fun ConfigPanel(
                     fontSize = textStyles.body2.fontSize,
                 )
             },
-            onClick = onOpenAdvanced,
+            onClick = {
+                haptic.contextClick()
+                onOpenAdvanced()
+            },
             enabled = !sessionStarted,
         )
 
@@ -704,7 +674,10 @@ internal fun ConfigPanel(
                     fontSize = textStyles.body2.fontSize,
                 )
             },
-            onClick = onOpenAllApps,
+            onClick = {
+                haptic.contextClick()
+                onOpenAllApps()
+            },
             enabled = !busy && !adbConnecting,
         )
         ArrowPreference(
@@ -716,7 +689,10 @@ internal fun ConfigPanel(
                     fontSize = textStyles.body2.fontSize,
                 )
             },
-            onClick = onOpenRecentTasks,
+            onClick = {
+                haptic.contextClick()
+                onOpenRecentTasks()
+            },
             enabled = !busy && !adbConnecting,
         )
 
@@ -738,7 +714,7 @@ internal fun ConfigPanel(
                 if (isQuickConnected) TextButton(
                     text = stringResource(R.string.button_disconnect),
                     onClick = {
-                        onStartStopHaptic()
+                        haptic.contextClick()
                         onDisconnect()
                     },
                     modifier = Modifier.weight(sideButtonWeight),
@@ -751,7 +727,7 @@ internal fun ConfigPanel(
                 if (!sessionStarted) TextButton(
                     text = stringResource(R.string.button_start),
                     onClick = {
-                        onStartStopHaptic()
+                        haptic.contextClick()
                         onStart()
                     },
                     modifier = Modifier.weight(mainButtonWeight),
@@ -761,7 +737,7 @@ internal fun ConfigPanel(
                 if (sessionStarted) TextButton(
                     text = stringResource(R.string.button_stop),
                     onClick = {
-                        onStartStopHaptic()
+                        haptic.contextClick()
                         onStop()
                     },
                     modifier = Modifier.weight(mainButtonWeight),
@@ -774,7 +750,7 @@ internal fun ConfigPanel(
                 if (showFullscreenAction) TextButton(
                     text = stringResource(R.string.button_fullscreen),
                     onClick = {
-                        onStartStopHaptic()
+                        haptic.contextClick()
                         onOpenFullscreen()
                     },
                     modifier = Modifier.weight(sideButtonWeight),
@@ -818,6 +794,8 @@ private fun PairingDialog(
     onDismissFinished: () -> Unit,
     onConfirm: (host: String, port: String, code: String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     var host by rememberSaveable(showDialog) { mutableStateOf("") }
     var port by rememberSaveable(showDialog) { mutableStateOf("") }
     var code by rememberSaveable(showDialog) { mutableStateOf("") }
@@ -869,7 +847,7 @@ private fun PairingDialog(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Next) },
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
             TextField(
                 value = port,
@@ -883,7 +861,7 @@ private fun PairingDialog(
                 keyboardActions = KeyboardActions(
                     onNext = { focusManager.moveFocus(FocusDirection.Next) },
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
             TextField(
                 value = code,
@@ -897,7 +875,7 @@ private fun PairingDialog(
                 keyboardActions = KeyboardActions(
                     onDone = { focusManager.clearFocus() },
                 ),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
             )
         }
 
@@ -909,9 +887,10 @@ private fun PairingDialog(
             TextButton(
                 text = stringResource(
                     if (!discoveringPort) R.string.button_auto_discover
-                    else R.string.button_discovering
+                    else R.string.button_discovering,
                 ),
                 onClick = {
+                    haptic.contextClick()
                     if (enabled && onDiscoverTarget != null && !discoveringPort)
                         scope.launch { doDiscover() }
                 },
@@ -924,6 +903,7 @@ private fun PairingDialog(
                 TextButton(
                     text = stringResource(R.string.button_cancel),
                     onClick = {
+                        haptic.contextClick()
                         onDismissRequest()
                     },
                     modifier = Modifier.weight(1f),
@@ -931,6 +911,7 @@ private fun PairingDialog(
                 TextButton(
                     text = stringResource(R.string.button_pair),
                     onClick = {
+                        haptic.confirm()
                         onConfirm(host.trim(), port.trim(), code.trim())
                         onDismissRequest()
                     },
@@ -1053,7 +1034,7 @@ fun ScrcpyVideoSurface(
         factory = { context ->
             ScrcpyInputSurfaceView(context).apply {
                 currentSurfaceView = this
-                inputCallbacks = object : ScrcpyInputSurfaceView.InputCallbacks {
+                inputCallbacks = object: ScrcpyInputSurfaceView.InputCallbacks {
                     override fun handleKeyEvent(event: KeyEvent): Boolean {
                         val handler = onImeKeyEvent ?: return false
                         taskScope.launch {
@@ -1076,7 +1057,7 @@ fun ScrcpyVideoSurface(
 
                     override fun handleDeleteSurroundingText(
                         beforeLength: Int,
-                        afterLength: Int
+                        afterLength: Int,
                     ): Boolean {
                         val handler = onImeDeleteSurroundingText ?: return false
                         taskScope.launch {
@@ -1087,46 +1068,48 @@ fun ScrcpyVideoSurface(
                         return true
                     }
                 }
-                holder.addCallback(object : SurfaceHolder.Callback {
-                    override fun surfaceCreated(holder: SurfaceHolder) {
-                        val newSurface = holder.surface
-                        if (!newSurface.isValid) return
-                        currentSurface = newSurface
-                        // Register immediately when surface becomes available
-                        if (latestSession != null) {
-                            scope.launch {
-                                NativeCoreFacade.attachVideoSurface(newSurface)
+                holder.addCallback(
+                    object: SurfaceHolder.Callback {
+                        override fun surfaceCreated(holder: SurfaceHolder) {
+                            val newSurface = holder.surface
+                            if (!newSurface.isValid) return
+                            currentSurface = newSurface
+                            // Register immediately when surface becomes available
+                            if (latestSession != null) {
+                                scope.launch {
+                                    NativeCoreFacade.attachVideoSurface(newSurface)
+                                }
                             }
                         }
-                    }
 
-                    override fun surfaceChanged(
-                        holder: SurfaceHolder,
-                        format: Int,
-                        width: Int,
-                        height: Int,
-                    ) {
-                        if (width <= 0 || height <= 0) return
-                        if (!holder.surface.isValid) return
-                        val surface = holder.surface
-                        currentSurface = surface
-                        if (latestSession != null) {
-                            scope.launch {
-                                NativeCoreFacade.attachVideoSurface(surface)
+                        override fun surfaceChanged(
+                            holder: SurfaceHolder,
+                            format: Int,
+                            width: Int,
+                            height: Int,
+                        ) {
+                            if (width <= 0 || height <= 0) return
+                            if (!holder.surface.isValid) return
+                            val surface = holder.surface
+                            currentSurface = surface
+                            if (latestSession != null) {
+                                scope.launch {
+                                    NativeCoreFacade.attachVideoSurface(surface)
+                                }
                             }
                         }
-                    }
 
-                    override fun surfaceDestroyed(holder: SurfaceHolder) {
-                        val surface = currentSurface
-                        if (surface != null) {
-                            taskScope.launch {
-                                NativeCoreFacade.detachVideoSurface(surface)
+                        override fun surfaceDestroyed(holder: SurfaceHolder) {
+                            val surface = currentSurface
+                            if (surface != null) {
+                                taskScope.launch {
+                                    NativeCoreFacade.detachVideoSurface(surface)
+                                }
+                                currentSurface = null
                             }
-                            currentSurface = null
                         }
-                    }
-                })
+                    },
+                )
             }
         },
         update = {},
@@ -1201,7 +1184,6 @@ internal fun DeviceTile(
                 else colorScheme.surfaceContainer.copy(alpha = 0.6f),
         ),
         pressFeedbackType = if (!editing) PressFeedbackType.Sink else PressFeedbackType.None,
-        onClick = haptic::contextClick,
     ) {
         Row(
             modifier = Modifier
@@ -1209,10 +1191,13 @@ internal fun DeviceTile(
                 .then(
                     if (!isConnected)
                         Modifier.combinedClickable(
-                            onClick = onClick,
+                            onClick = {
+                                haptic.contextClick()
+                                onClick()
+                            },
                             onLongClick = onLongClick,
                         )
-                    else Modifier
+                    else Modifier,
                 )
                 .padding(UiSpacing.PageItem),
             verticalAlignment = Alignment.CenterVertically,
@@ -1261,7 +1246,7 @@ internal fun DeviceTile(
                 TextButton(
                     text = stringResource(
                         if (!isConnected) R.string.button_connect
-                        else R.string.button_disconnect
+                        else R.string.button_disconnect,
                     ),
                     onClick = onAction,
                     enabled = actionEnabled && !actionInProgress,
@@ -1303,7 +1288,7 @@ internal fun DeviceTile(
                         onValueChange = {
                             draftPortText = it.filter(Char::isDigit)
                             draft = currentDraft.copy(
-                                port = draftPortText?.toIntOrNull() ?: Defaults.ADB_PORT
+                                port = draftPortText?.toIntOrNull() ?: Defaults.ADB_PORT,
                             )
                         },
                         label = stringResource(R.string.label_port),
@@ -1473,13 +1458,19 @@ internal fun QuickConnectCard(
             ) {
                 TextButton(
                     text = stringResource(R.string.button_add_device),
-                    onClick = onAddDevice,
+                    onClick = {
+                        haptic.contextClick()
+                        onAddDevice()
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = enabled,
                 )
                 TextButton(
                     text = stringResource(R.string.button_direct_connect),
-                    onClick = onConnect,
+                    onClick = {
+                        haptic.confirm()
+                        onConnect()
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = enabled,
                     colors = ButtonDefaults.textButtonColorsPrimary(),

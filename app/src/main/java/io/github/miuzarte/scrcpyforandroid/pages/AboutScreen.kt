@@ -124,6 +124,7 @@ private fun AboutContent(
     onLogoHeightChanged: (Int) -> Unit,
 ) {
     val context = LocalContext.current
+    val haptic = LocalHapticFeedback.current
     val updateState by AppUpdateChecker.state.collectAsState()
     val backdrop = rememberLayerBackdrop()
     var isOs3Effect by remember { mutableStateOf(true) }
@@ -363,6 +364,7 @@ private fun AboutContent(
                                 )
                             },
                             onClick = {
+                                haptic.contextClick()
                                 context.startActivity(
                                     Intent(Intent.ACTION_VIEW, AppUpdateChecker.REPO_URL.toUri()),
                                 )
@@ -380,6 +382,7 @@ private fun AboutContent(
                                 }
                             },
                             onClick = {
+                                haptic.contextClick()
                                 context.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
@@ -400,6 +403,7 @@ private fun AboutContent(
                                 )
                             },
                             onClick = {
+                                haptic.contextClick()
                                 context.startActivity(
                                     Intent(
                                         Intent.ACTION_VIEW,
@@ -424,6 +428,7 @@ private fun AboutContent(
                                     )
                                 },
                                 onClick = {
+                                    haptic.contextClick()
                                     context.startActivity(
                                         Intent(
                                             Intent.ACTION_VIEW,

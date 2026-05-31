@@ -6,14 +6,7 @@ import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -22,21 +15,12 @@ import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Password
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -45,11 +29,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.password.BiometricGate
-import io.github.miuzarte.scrcpyforandroid.password.PasswordCreatedState
-import io.github.miuzarte.scrcpyforandroid.password.PasswordEntry
-import io.github.miuzarte.scrcpyforandroid.password.PasswordRepository
-import io.github.miuzarte.scrcpyforandroid.password.PasswordSanitizer
+import io.github.miuzarte.scrcpyforandroid.password.*
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -57,28 +37,12 @@ import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import io.github.miuzarte.scrcpyforandroid.ui.confirm
+import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
 import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.MiuixScrollBehavior
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.SnackbarHostState
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Close
@@ -93,7 +57,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 
-class LockscreenPasswordActivity : FragmentActivity() {
+class LockscreenPasswordActivity: FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
@@ -153,6 +117,8 @@ private fun LockscreenPasswordScreen(
     val scope = rememberCoroutineScope()
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val scrollBehavior = MiuixScrollBehavior()
+
+    val haptic = LocalHapticFeedback.current
 
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
@@ -232,10 +198,15 @@ private fun LockscreenPasswordScreen(
                     if (blurBackdrop != null) Color.Transparent
                     else colorScheme.surface,
                 navigationIcon = {
-                    IconButton(onClick = { activity.onBackPressedDispatcher.onBackPressed() }) {
+                    IconButton(
+                        onClick = {
+                            haptic.contextClick()
+                            activity.onBackPressedDispatcher.onBackPressed()
+                        },
+                    ) {
                         Icon(
                             Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back)
+                            contentDescription = stringResource(R.string.cd_back),
                         )
                     }
                 },
@@ -248,9 +219,9 @@ private fun LockscreenPasswordScreen(
                                     text = textCreateNew,
                                     onClick = {
                                         pendingCreate = true
-                                    }
-                                )
-                            )
+                                    },
+                                ),
+                            ),
                         ),
                     ) {
                         Icon(
@@ -300,80 +271,86 @@ private fun LockscreenPasswordScreen(
             },
         )
 
-        if (showRiskDialog) {
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.password_no_lock_screen),
-                summary = stringResource(R.string.password_no_lock_screen_warn),
-                defaultWindowInsetsPadding = false,
-                onDismissRequest = activity::finish,
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
-                    TextButton(
-                        text = stringResource(R.string.button_cancel),
-                        onClick = activity::finish,
-                        modifier = Modifier.weight(1f),
-                    )
-                    TextButton(
-                        text = stringResource(R.string.password_agree),
-                        onClick = { showRiskDialog = false },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                    )
-                }
+        OverlayDialog(
+            show = showRiskDialog,
+            title = stringResource(R.string.password_no_lock_screen),
+            summary = stringResource(R.string.password_no_lock_screen_warn),
+            defaultWindowInsetsPadding = false,
+            onDismissRequest = activity::finish,
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
+                TextButton(
+                    text = stringResource(R.string.button_cancel),
+                    onClick = {
+                        haptic.contextClick()
+                        activity.finish()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.password_agree),
+                    onClick = {
+                        haptic.confirm()
+                        showRiskDialog = false
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
             }
         }
 
-        if (showDisableDialog) {
-            OverlayDialog(
-                show = true,
-                title = stringResource(R.string.password_auth_lost_warn),
-                summary = stringResource(R.string.password_auth_lost_detail),
-                defaultWindowInsetsPadding = false,
-                onDismissRequest = { showDisableDialog = false },
-            ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
-                    TextButton(
-                        text = stringResource(R.string.button_cancel),
-                        onClick = { showDisableDialog = false },
-                        modifier = Modifier.weight(1f),
-                    )
-                    val textAuthToDisable = stringResource(R.string.password_auth_to_disable)
-                    val textAuthSubtitle = stringResource(R.string.password_auth_subtitle)
-                    TextButton(
-                        text = stringResource(R.string.password_continue_disable),
-                        onClick = {
-                            scope.launch {
-                                if (entries.any { it.cipherText != null }) {
-                                    val ok = BiometricGate.authenticate(
-                                        activity = activity,
-                                        title = textAuthToDisable,
-                                        subtitle = textAuthSubtitle,
-                                    )
-                                    if (!ok) {
-                                        AppRuntime.snackbar(R.string.password_auth_failed)
-                                        showDisableDialog = false
-                                        return@launch
-                                    }
+        OverlayDialog(
+            show = showDisableDialog,
+            title = stringResource(R.string.password_auth_lost_warn),
+            summary = stringResource(R.string.password_auth_lost_detail),
+            defaultWindowInsetsPadding = false,
+            onDismissRequest = { showDisableDialog = false },
+        ) {
+            Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
+                TextButton(
+                    text = stringResource(R.string.button_cancel),
+                    onClick = {
+                        haptic.contextClick()
+                        showDisableDialog = false
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                val textAuthToDisable = stringResource(R.string.password_auth_to_disable)
+                val textAuthSubtitle = stringResource(R.string.password_auth_subtitle)
+                TextButton(
+                    text = stringResource(R.string.password_continue_disable),
+                    onClick = {
+                        haptic.confirm()
+                        scope.launch {
+                            if (entries.any { it.cipherText != null }) {
+                                val ok = BiometricGate.authenticate(
+                                    activity = activity,
+                                    title = textAuthToDisable,
+                                    subtitle = textAuthSubtitle,
+                                )
+                                if (!ok) {
+                                    AppRuntime.snackbar(R.string.password_auth_failed)
+                                    showDisableDialog = false
+                                    return@launch
                                 }
-                                asBundle = asBundle.copy(passwordRequireAuth = false)
-                                entries.forEach { entry ->
-                                    PasswordRepository.update(
-                                        entry.copy(
-                                            cipherText = entry.cipherText?.copyOf(),
-                                            createdWithAuth = entry.createdWithAuth
-                                                .takeIf { it != PasswordCreatedState.AuthenticatedCreated }
-                                                ?: PasswordCreatedState.AuthenticatedCreatedModified
-                                        )
-                                    )
-                                }
-                                showDisableDialog = false
                             }
-                        },
-                        modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.textButtonColorsPrimary(),
-                    )
-                }
+                            asBundle = asBundle.copy(passwordRequireAuth = false)
+                            entries.forEach { entry ->
+                                PasswordRepository.update(
+                                    entry.copy(
+                                        cipherText = entry.cipherText?.copyOf(),
+                                        createdWithAuth = entry.createdWithAuth
+                                            .takeIf { it != PasswordCreatedState.AuthenticatedCreated }
+                                            ?: PasswordCreatedState.AuthenticatedCreatedModified,
+                                    ),
+                                )
+                            }
+                            showDisableDialog = false
+                        }
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                )
             }
         }
 
@@ -390,12 +367,16 @@ private fun LockscreenPasswordScreen(
                     Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal)) {
                         TextButton(
                             text = stringResource(R.string.button_cancel),
-                            onClick = { pendingDeleteId = null },
+                            onClick = {
+                                haptic.contextClick()
+                                pendingDeleteId = null
+                            },
                             modifier = Modifier.weight(1f),
                         )
                         TextButton(
                             text = stringResource(R.string.button_delete),
                             onClick = {
+                                haptic.confirm()
                                 PasswordRepository.delete(target.id)
                                 pendingDeleteId = null
                             },
@@ -467,6 +448,8 @@ private fun LockscreenPasswordPage(
     onDelete: (PasswordEntry) -> Unit,
     onMove: (Int, Int) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     LazyColumn(
         contentPadding = contentPadding,
         scrollBehavior = scrollBehavior,
@@ -478,7 +461,7 @@ private fun LockscreenPasswordPage(
                     title = stringResource(R.string.password_require_auth),
                     summary = stringResource(
                         if (canAuthenticate) R.string.password_require_auth_detail
-                        else R.string.password_no_auth_capability
+                        else R.string.password_no_auth_capability,
                     ),
                     checked = requireAuth,
                     enabled = canAuthenticate || requireAuth,
@@ -494,7 +477,10 @@ private fun LockscreenPasswordPage(
                 ArrowPreference(
                     title = stringResource(R.string.password_create_new),
                     summary = stringResource(R.string.password_or_menu_hint),
-                    onClick = onCreate,
+                    onClick = {
+                        haptic.contextClick()
+                        onCreate()
+                    },
                 )
             }
         }
@@ -521,17 +507,26 @@ private fun LockscreenPasswordPage(
                                     PasswordCreatedState.UnauthenticatedCreated -> textUnauthenticated
                                     PasswordCreatedState.AuthenticatedCreatedModified -> textBurned
                                 },
-                            onClick = { if (entry.cipherText != null) onRename(entry) },
+                            onClick = {
+                                haptic.contextClick()
+                                if (entry.cipherText != null) onRename(entry)
+                            },
                             endActions = listOf(
                                 ReorderableList.EndAction.Icon(
                                     icon = Icons.Rounded.Edit,
                                     contentDescription = textEdit,
-                                    onClick = { if (entry.cipherText != null) onRename(entry) },
+                                    onClick = {
+                                        haptic.contextClick()
+                                        if (entry.cipherText != null) onRename(entry)
+                                    },
                                 ),
                                 ReorderableList.EndAction.Icon(
                                     icon = Icons.Rounded.DeleteOutline,
                                     contentDescription = textConfirm,
-                                    onClick = { onDelete(entry) },
+                                    onClick = {
+                                        haptic.contextClick()
+                                        onDelete(entry)
+                                    },
                                 ),
                             ),
                         )
@@ -563,6 +558,8 @@ private fun PasswordEditorSheet(
     onDismissRequest: () -> Unit,
     onConfirm: (String, String) -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
+
     val focusManager = LocalFocusManager.current
     var nameBuffer by rememberSaveable(mode, show, initialName) { mutableStateOf(initialName) }
     var passwordBuffer by rememberSaveable(mode, show) { mutableStateOf("") }
@@ -571,12 +568,17 @@ private fun PasswordEditorSheet(
         show = show,
         title = stringResource(
             if (mode == PasswordDialogMode.Create) R.string.password_create_new
-            else R.string.password_rename
+            else R.string.password_rename,
         ),
         defaultWindowInsetsPadding = false,
         onDismissRequest = onDismissRequest,
         startAction = {
-            IconButton(onClick = onDismissRequest) {
+            IconButton(
+                onClick = {
+                    haptic.contextClick()
+                    onDismissRequest()
+                },
+            ) {
                 Icon(
                     imageVector = MiuixIcons.Close,
                     contentDescription = stringResource(R.string.cd_close),
@@ -584,7 +586,12 @@ private fun PasswordEditorSheet(
             }
         },
         endAction = {
-            IconButton(onClick = { onConfirm(nameBuffer, passwordBuffer) }) {
+            IconButton(
+                onClick = {
+                    haptic.contextClick()
+                    onConfirm(nameBuffer, passwordBuffer)
+                },
+            ) {
                 Icon(
                     imageVector = MiuixIcons.Ok,
                     contentDescription = stringResource(R.string.cd_save),

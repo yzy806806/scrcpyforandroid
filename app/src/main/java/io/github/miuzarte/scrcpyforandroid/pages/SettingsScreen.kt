@@ -9,32 +9,18 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Refresh
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -45,9 +31,9 @@ import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
+import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
-import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
@@ -57,26 +43,9 @@ import io.github.miuzarte.scrcpyforandroid.storage.AppSettings.FullscreenVirtual
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.adbClientData
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
-import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
-import io.github.miuzarte.scrcpyforandroid.ui.MonetKeyColorOptions
-import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import io.github.miuzarte.scrcpyforandroid.ui.*
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -172,6 +141,7 @@ fun SettingsPage(
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
     val scope = rememberCoroutineScope()
 
+    val haptic = LocalHapticFeedback.current
     val navigator = LocalRootNavigator.current
     val serverPicker = LocalServerPicker.current
     val terminalFontPicker = LocalTerminalFontPicker.current
@@ -215,19 +185,19 @@ fun SettingsPage(
     var serverRemotePathInput by rememberSaveable(asBundle.serverRemotePath) {
         mutableStateOf(
             if (asBundle.serverRemotePath == AppSettings.SERVER_REMOTE_PATH.defaultValue) ""
-            else asBundle.serverRemotePath
+            else asBundle.serverRemotePath,
         )
     }
 
     var adbKeyNameInput by rememberSaveable(asBundle.adbKeyName) {
         mutableStateOf(
             if (asBundle.adbKeyName == AppSettings.ADB_KEY_NAME.defaultValue) ""
-            else asBundle.adbKeyName
+            else asBundle.adbKeyName,
         )
     }
 
     val adbPrivateKeyPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -247,7 +217,7 @@ fun SettingsPage(
         }
     }
     val adbPublicKeyPicker = rememberLauncherForActivityResult(
-        ActivityResultContracts.OpenDocument()
+        ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         scope.launch {
@@ -310,7 +280,7 @@ fun SettingsPage(
                                     selected = lang.second == asBundle.languageTag,
                                     onClick = {
                                         asBundle = asBundle.copy(
-                                            languageTag = lang.second
+                                            languageTag = lang.second,
                                         )
                                         MainActivity.setAppLanguageTag(context, lang.second)
                                         activity?.recreate()
@@ -328,7 +298,7 @@ fun SettingsPage(
                         .coerceIn(0, AppSettings.ThemeModes.baseOptions.lastIndex),
                     onSelectedIndexChange = {
                         asBundle = asBundle.copy(
-                            themeBaseIndex = it
+                            themeBaseIndex = it,
                         )
                     },
                 )
@@ -338,7 +308,7 @@ fun SettingsPage(
                     checked = asBundle.monet,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            monet = it
+                            monet = it,
                         )
                     },
                 )
@@ -352,7 +322,7 @@ fun SettingsPage(
                                 .coerceIn(0, MonetKeyColorOptions.lastIndex),
                             onSelectedIndexChange = {
                                 asBundle = asBundle.copy(
-                                    monetSeedIndex = it
+                                    monetSeedIndex = it,
                                 )
                             },
                         )
@@ -368,7 +338,7 @@ fun SettingsPage(
                                 .coerceIn(0, monetPaletteStyleOptions.lastIndex),
                             onSelectedIndexChange = {
                                 asBundle = asBundle.copy(
-                                    monetPaletteStyle = it
+                                    monetPaletteStyle = it,
                                 )
                             },
                         )
@@ -380,7 +350,7 @@ fun SettingsPage(
                                 .coerceIn(0, monetColorSpecOptions.lastIndex),
                             onSelectedIndexChange = {
                                 asBundle = asBundle.copy(
-                                    monetColorSpec = it
+                                    monetColorSpec = it,
                                 )
                             },
                         )
@@ -392,9 +362,9 @@ fun SettingsPage(
                     checked = asBundle.blur,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            blur = it
+                            blur = it,
                         )
-                    }
+                    },
                 )
                 SwitchPreference(
                     title = stringResource(R.string.pref_title_floating_bottom_bar),
@@ -402,9 +372,9 @@ fun SettingsPage(
                     checked = asBundle.floatingBottomBar,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            floatingBottomBar = it
+                            floatingBottomBar = it,
                         )
-                    }
+                    },
                 )
                 AnimatedVisibility(asBundle.floatingBottomBar && asBundle.blur) {
                     Column {
@@ -415,9 +385,9 @@ fun SettingsPage(
                                     && asBundle.floatingBottomBarBlur,
                             onCheckedChange = {
                                 asBundle = asBundle.copy(
-                                    floatingBottomBarBlur = it
+                                    floatingBottomBarBlur = it,
                                 )
-                            }
+                            },
                         )
                     }
                 }
@@ -435,7 +405,7 @@ fun SettingsPage(
                     onCheckedChange = {
                         if (!isScrcpyStreaming)
                             asBundle = asBundle.copy(
-                                lowLatency = it
+                                lowLatency = it,
                             )
                     },
                 )
@@ -445,7 +415,7 @@ fun SettingsPage(
                     checked = asBundle.fullscreenDebugInfo,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            fullscreenDebugInfo = it
+                            fullscreenDebugInfo = it,
                         )
                     },
                 )
@@ -455,7 +425,7 @@ fun SettingsPage(
                     checked = asBundle.hideSimpleConfigItems,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            hideSimpleConfigItems = it
+                            hideSimpleConfigItems = it,
                         )
                     },
                 )
@@ -466,7 +436,7 @@ fun SettingsPage(
                     onValueChange = {
                         asBundle = asBundle.copy(
                             devicePreviewCardHeightDp =
-                                it.roundToInt().coerceAtLeast(120)
+                                it.roundToInt().coerceAtLeast(120),
                         )
                     },
                     valueRange = 160f..600f,
@@ -479,7 +449,7 @@ fun SettingsPage(
                     onInputConfirm = { input ->
                         input.toIntOrNull()?.let {
                             asBundle = asBundle.copy(
-                                devicePreviewCardHeightDp = it.coerceAtLeast(120)
+                                devicePreviewCardHeightDp = it.coerceAtLeast(120),
                             )
                         }
                     },
@@ -487,17 +457,24 @@ fun SettingsPage(
                 ArrowPreference(
                     title = stringResource(R.string.pref_title_quick_device_sort),
                     summary = stringResource(R.string.pref_summary_quick_device_sort),
-                    onClick = onOpenReorderDevices,
+                    onClick = {
+                        haptic.contextClick()
+                        onOpenReorderDevices()
+                    },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.pref_title_virtual_button_sort),
                     summary = stringResource(R.string.pref_summary_virtual_button_sort),
-                    onClick = { navigator.push(RootScreen.VirtualButtonOrder) },
+                    onClick = {
+                        haptic.contextClick()
+                        navigator.push(RootScreen.VirtualButtonOrder)
+                    },
                 )
                 ArrowPreference(
                     title = stringResource(R.string.pref_title_password_autofill),
                     summary = stringResource(R.string.pref_summary_password_autofill),
                     onClick = {
+                        haptic.contextClick()
                         context.startActivity(LockscreenPasswordActivity.createIntent(context))
                     },
                 )
@@ -507,7 +484,7 @@ fun SettingsPage(
                     checked = asBundle.realtimeClipboardSyncToDevice,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            realtimeClipboardSyncToDevice = it
+                            realtimeClipboardSyncToDevice = it,
                         )
                     },
                 )
@@ -523,7 +500,7 @@ fun SettingsPage(
                     checked = asBundle.fullscreenControlIgnoreSystemRotationLock,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            fullscreenControlIgnoreSystemRotationLock = it
+                            fullscreenControlIgnoreSystemRotationLock = it,
                         )
                     },
                 )
@@ -533,7 +510,7 @@ fun SettingsPage(
                     checked = asBundle.fullscreenControlBackToDevice,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            fullscreenControlBackToDevice = it
+                            fullscreenControlBackToDevice = it,
                         )
                     },
                 )
@@ -543,7 +520,7 @@ fun SettingsPage(
                     checked = asBundle.showFullscreenVirtualButtons,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            showFullscreenVirtualButtons = it
+                            showFullscreenVirtualButtons = it,
                         )
                     },
                 )
@@ -564,7 +541,7 @@ fun SettingsPage(
                                                                 modeIndex = index,
                                                                 directionIndex = fullscreenVirtualButtonDock.directionIndex,
                                                             )
-                                                            .toStoredValue()
+                                                            .toStoredValue(),
                                                     )
                                                 },
                                             )
@@ -583,7 +560,7 @@ fun SettingsPage(
                                                                 modeIndex = fullscreenVirtualButtonDock.modeIndex,
                                                                 directionIndex = index,
                                                             )
-                                                            .toStoredValue()
+                                                            .toStoredValue(),
                                                     )
                                                 },
                                             )
@@ -593,7 +570,7 @@ fun SettingsPage(
                             title = stringResource(R.string.pref_title_virtual_button_direction),
                             summary = stringResource(
                                 if (fullscreenVirtualButtonDock.isFixed) R.string.dock_fixed
-                                else R.string.dock_follow
+                                else R.string.dock_follow,
                             ) +
                                     stringResource(R.string.dock_display_on) +
                                     stringResource(fullscreenVirtualButtonDock.directionLabelResId),
@@ -604,7 +581,7 @@ fun SettingsPage(
                             onValueChange = {
                                 asBundle = asBundle.copy(
                                     fullscreenVirtualButtonHeightDp =
-                                        it.roundToInt().coerceIn(16, 80)
+                                        it.roundToInt().coerceIn(16, 80),
                                 )
                             },
                             valueRange = 16f..80f,
@@ -618,7 +595,7 @@ fun SettingsPage(
                                 input.toIntOrNull()?.let {
                                     asBundle = asBundle.copy(
                                         fullscreenVirtualButtonHeightDp =
-                                            it.coerceIn(1, 160)
+                                            it.coerceIn(1, 160),
                                     )
                                 }
                             },
@@ -631,7 +608,7 @@ fun SettingsPage(
                     checked = asBundle.showFullscreenFloatingButton,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            showFullscreenFloatingButton = it
+                            showFullscreenFloatingButton = it,
                         )
                     },
                 )
@@ -643,7 +620,7 @@ fun SettingsPage(
                             onValueChange = {
                                 asBundle = asBundle.copy(
                                     fullscreenFloatingButtonSizeDp =
-                                        it.roundToInt().coerceIn(32, 64)
+                                        it.roundToInt().coerceIn(32, 64),
                                 )
                             },
                             valueRange = 32f..64f,
@@ -657,7 +634,7 @@ fun SettingsPage(
                                 input.toIntOrNull()?.let {
                                     asBundle = asBundle.copy(
                                         fullscreenFloatingButtonSizeDp =
-                                            it.coerceIn(16, 96)
+                                            it.coerceIn(16, 96),
                                     )
                                 }
                             },
@@ -668,7 +645,7 @@ fun SettingsPage(
                             onValueChange = {
                                 asBundle = asBundle.copy(
                                     fullscreenFloatingButtonBackgroundAlphaPercent =
-                                        it.roundToInt().coerceIn(10, 100)
+                                        it.roundToInt().coerceIn(10, 100),
                                 )
                             },
                             valueRange = 10f..100f,
@@ -682,7 +659,7 @@ fun SettingsPage(
                                 input.toIntOrNull()?.let {
                                     asBundle = asBundle.copy(
                                         fullscreenFloatingButtonBackgroundAlphaPercent =
-                                            it.coerceIn(10, 100)
+                                            it.coerceIn(10, 100),
                                     )
                                 }
                             },
@@ -693,7 +670,7 @@ fun SettingsPage(
                             onValueChange = {
                                 asBundle = asBundle.copy(
                                     fullscreenFloatingButtonRingAlphaPercent =
-                                        it.roundToInt().coerceIn(0, 100)
+                                        it.roundToInt().coerceIn(0, 100),
                                 )
                             },
                             valueRange = 0f..100f,
@@ -707,7 +684,7 @@ fun SettingsPage(
                                 input.toIntOrNull()?.let {
                                     asBundle = asBundle.copy(
                                         fullscreenFloatingButtonRingAlphaPercent =
-                                            it.coerceIn(0, 100)
+                                            it.coerceIn(0, 100),
                                     )
                                 }
                             },
@@ -720,7 +697,7 @@ fun SettingsPage(
                     checked = asBundle.fullscreenCompatibilityMode,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            fullscreenCompatibilityMode = it
+                            fullscreenCompatibilityMode = it,
                         )
                     },
                 )
@@ -752,11 +729,12 @@ fun SettingsPage(
                             trailingIcon = {
                                 Row(
                                     modifier = Modifier
-                                        .padding(end = UiSpacing.Medium)
+                                        .padding(end = UiSpacing.Medium),
                                 ) {
                                     if (asBundle.customServerUri.isNotBlank())
                                         IconButton(
                                             onClick = {
+                                                haptic.contextClick()
                                                 asBundle = asBundle.copy(
                                                     customServerUri = "",
                                                     customServerVersion = "",
@@ -768,7 +746,12 @@ fun SettingsPage(
                                                 contentDescription = stringResource(R.string.cd_clear),
                                             )
                                         }
-                                    IconButton(onClick = serverPicker.pick) {
+                                    IconButton(
+                                        onClick = {
+                                            haptic.contextClick()
+                                            serverPicker.pick()
+                                        },
+                                    ) {
                                         Icon(
                                             imageVector = Icons.Rounded.FileOpen,
                                             contentDescription = stringResource(R.string.cd_select_file),
@@ -795,7 +778,7 @@ fun SettingsPage(
                                         customServerVersionInput = ""
                                     asBundle = asBundle.copy(
                                         customServerVersion = customServerVersionInput
-                                            .ifBlank { AppSettings.CUSTOM_SERVER_VERSION.defaultValue }
+                                            .ifBlank { AppSettings.CUSTOM_SERVER_VERSION.defaultValue },
                                     )
                                 },
                                 label = Scrcpy.DEFAULT_SERVER_VERSION,
@@ -821,7 +804,7 @@ fun SettingsPage(
                                     serverRemotePathInput = ""
                                 asBundle = asBundle.copy(
                                     serverRemotePath = serverRemotePathInput
-                                        .ifBlank { AppSettings.SERVER_REMOTE_PATH.defaultValue }
+                                        .ifBlank { AppSettings.SERVER_REMOTE_PATH.defaultValue },
                                 )
                             },
                             label = Scrcpy.DEFAULT_REMOTE_PATH,
@@ -842,6 +825,7 @@ fun SettingsPage(
                     title = stringResource(R.string.pref_title_battery_optimization),
                     summary = stringResource(R.string.pref_summary_battery_optimization),
                     onClick = {
+                        haptic.contextClick()
                         val appInfoArgs = Bundle().apply {
                             putString("package", context.packageName)
                             putInt("uid", context.applicationInfo.uid)
@@ -866,10 +850,10 @@ fun SettingsPage(
                         }
                         val requestIntent = Intent(
                             AndroidSettings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-                            "package:${context.packageName}".toUri()
+                            "package:${context.packageName}".toUri(),
                         )
                         val fallbackIntent = Intent(
-                            AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS
+                            AndroidSettings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS,
                         )
                         runCatching { context.startActivity(appDetailsIntent) }
                             .recoverCatching { context.startActivity(requestIntent) }
@@ -897,7 +881,7 @@ fun SettingsPage(
                                     adbKeyNameInput = ""
                                 asBundle = asBundle.copy(
                                     adbKeyName = adbKeyNameInput
-                                        .ifBlank { AppSettings.ADB_KEY_NAME.defaultValue }
+                                        .ifBlank { AppSettings.ADB_KEY_NAME.defaultValue },
                                 )
                             },
                             label = AppSettings.ADB_KEY_NAME.defaultValue,
@@ -931,7 +915,7 @@ fun SettingsPage(
                                         R.string.pref_adb_key_imported
 
                                     else -> R.string.pref_adb_key_generated
-                                }
+                                },
                             ),
                             useLabelAsPlaceholder = true,
                             modifier = Modifier.fillMaxWidth(),
@@ -939,6 +923,7 @@ fun SettingsPage(
                                 Row(modifier = Modifier.padding(end = UiSpacing.Medium)) {
                                     IconButton(
                                         onClick = {
+                                            haptic.contextClick()
                                             scope.launch {
                                                 runCatching {
                                                     withContext(Dispatchers.IO) {
@@ -972,7 +957,10 @@ fun SettingsPage(
                                         )
                                     }
                                     IconButton(
-                                        onClick = { adbPrivateKeyPicker.launch(arrayOf("*/*")) },
+                                        onClick = {
+                                            haptic.contextClick()
+                                            adbPrivateKeyPicker.launch(arrayOf("*/*"))
+                                        },
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.FileOpen,
@@ -997,7 +985,7 @@ fun SettingsPage(
                                     R.string.pref_adb_key_imported
 
                                 else -> R.string.pref_adb_key_generated
-                            }
+                            },
                         )
                         Text(
                             text = stringResource(R.string.pref_title_adb_public_key),
@@ -1013,7 +1001,10 @@ fun SettingsPage(
                             trailingIcon = {
                                 Row(modifier = Modifier.padding(end = UiSpacing.Medium)) {
                                     IconButton(
-                                        onClick = { adbPublicKeyPicker.launch(arrayOf("*/*")) },
+                                        onClick = {
+                                            haptic.contextClick()
+                                            adbPublicKeyPicker.launch(arrayOf("*/*"))
+                                        },
                                     ) {
                                         Icon(
                                             imageVector = Icons.Rounded.FileOpen,
@@ -1031,7 +1022,7 @@ fun SettingsPage(
                     checked = asBundle.adbPairingAutoDiscoverOnDialogOpen,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            adbPairingAutoDiscoverOnDialogOpen = it
+                            adbPairingAutoDiscoverOnDialogOpen = it,
                         )
                     },
                 )
@@ -1041,7 +1032,7 @@ fun SettingsPage(
                     checked = asBundle.adbAutoReconnectPairedDevice,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            adbAutoReconnectPairedDevice = it
+                            adbAutoReconnectPairedDevice = it,
                         )
                     },
                 )
@@ -1051,10 +1042,10 @@ fun SettingsPage(
                     checked = asBundle.adbAutoLoadAppListOnConnect,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            adbAutoLoadAppListOnConnect = it
+                            adbAutoLoadAppListOnConnect = it,
                         )
                         if (it) AppRuntime.snackbar(
-                            R.string.pref_warning_list_apps
+                            R.string.pref_warning_list_apps,
                         )
                     },
                 )
@@ -1070,7 +1061,7 @@ fun SettingsPage(
                     value = asBundle.terminalFontSizeSp,
                     onValueChange = {
                         asBundle = asBundle.copy(
-                            terminalFontSizeSp = it.roundToInt().toFloat()
+                            terminalFontSizeSp = it.roundToInt().toFloat(),
                         )
                     },
                     valueRange = 1f..32f,
@@ -1083,7 +1074,7 @@ fun SettingsPage(
                     onInputConfirm = { input ->
                         input.toIntOrNull()?.let {
                             asBundle = asBundle.copy(
-                                terminalFontSizeSp = it.coerceIn(1, 32).toFloat()
+                                terminalFontSizeSp = it.coerceIn(1, 32).toFloat(),
                             )
                         }
                     },
@@ -1112,14 +1103,15 @@ fun SettingsPage(
                                     if (asBundle.terminalFontDisplayName.isNotBlank()) {
                                         IconButton(
                                             onClick = {
+                                                haptic.contextClick()
                                                 scope.launch {
                                                     val cleared = clearTerminalFont(context)
                                                     asBundle = asBundle.copy(
-                                                        terminalFontDisplayName = ""
+                                                        terminalFontDisplayName = "",
                                                     )
                                                     AppRuntime.snackbar(
                                                         if (cleared) R.string.pref_font_restored
-                                                        else R.string.pref_no_custom_font
+                                                        else R.string.pref_no_custom_font,
                                                     )
                                                 }
                                             },
@@ -1130,7 +1122,12 @@ fun SettingsPage(
                                             )
                                         }
                                     }
-                                    IconButton(onClick = terminalFontPicker.pick) {
+                                    IconButton(
+                                        onClick = {
+                                            haptic.contextClick()
+                                            terminalFontPicker.pick()
+                                        },
+                                    ) {
                                         Icon(
                                             imageVector = Icons.Rounded.FileOpen,
                                             contentDescription = stringResource(R.string.cd_select_font),
@@ -1153,7 +1150,7 @@ fun SettingsPage(
                     checked = asBundle.clearLogsOnExit,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            clearLogsOnExit = it
+                            clearLogsOnExit = it,
                         )
                     },
                 )
@@ -1163,7 +1160,7 @@ fun SettingsPage(
                     checked = asBundle.hideDeviceLogs,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            hideDeviceLogs = it
+                            hideDeviceLogs = it,
                         )
                     },
                 )
@@ -1176,7 +1173,10 @@ fun SettingsPage(
                 ArrowPreference(
                     title = stringResource(R.string.about_title),
                     summary = updateSummary,
-                    onClick = { navigator.push(RootScreen.About) },
+                    onClick = {
+                        haptic.contextClick()
+                        navigator.push(RootScreen.About)
+                    },
                 )
             }
         }

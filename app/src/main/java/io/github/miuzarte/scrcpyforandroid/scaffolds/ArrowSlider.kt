@@ -19,6 +19,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import io.github.miuzarte.scrcpyforandroid.R
+import io.github.miuzarte.scrcpyforandroid.ui.confirm
 import io.github.miuzarte.scrcpyforandroid.ui.contextClick
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Slider
@@ -174,7 +175,7 @@ private fun SliderInputDialog(
             TextButton(
                 text = stringResource(R.string.button_confirm),
                 onClick = {
-                    haptic.contextClick()
+                    haptic.confirm()
                     val inputValue = text.toFloatOrNull() ?: 0f
                     if (inputValue >= inputValueRange.start && inputValue <= inputValueRange.endInclusive) {
                         onConfirm(text.trim())

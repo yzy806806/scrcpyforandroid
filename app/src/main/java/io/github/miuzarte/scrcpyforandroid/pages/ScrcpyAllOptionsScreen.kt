@@ -1,17 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -21,23 +11,13 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Android
 import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.MutableState
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusDirection
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -51,20 +31,10 @@ import io.github.miuzarte.scrcpyforandroid.miuix.SpinnerEntry
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.Crop
 import io.github.miuzarte.scrcpyforandroid.models.ScrcpyOptions.NewDisplay
-import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
-import io.github.miuzarte.scrcpyforandroid.scaffolds.OverlaySpinnerWithFallback
-import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
-import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
-import io.github.miuzarte.scrcpyforandroid.scaffolds.SuperTextField
+import io.github.miuzarte.scrcpyforandroid.scaffolds.*
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.AudioSource
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.CameraFacing
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.DisplayImePolicy
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.LogLevel
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Tick
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.VideoSource
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.*
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyProfiles
@@ -72,30 +42,10 @@ import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
-import io.github.miuzarte.scrcpyforandroid.ui.BlurredBar
-import io.github.miuzarte.scrcpyforandroid.ui.LocalEnableBlur
-import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
+import io.github.miuzarte.scrcpyforandroid.ui.*
 import io.github.miuzarte.scrcpyforandroid.widgets.RecordPreferences
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import top.yukonga.miuix.kmp.basic.ButtonDefaults
-import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.DropdownEntry
-import top.yukonga.miuix.kmp.basic.DropdownItem
-import top.yukonga.miuix.kmp.basic.Icon
-import top.yukonga.miuix.kmp.basic.IconButton
-import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.ScrollBehavior
-import top.yukonga.miuix.kmp.basic.SnackbarHost
-import top.yukonga.miuix.kmp.basic.TabRow
-import top.yukonga.miuix.kmp.basic.Text
-import top.yukonga.miuix.kmp.basic.TextButton
-import top.yukonga.miuix.kmp.basic.TextField
-import top.yukonga.miuix.kmp.basic.TopAppBar
+import kotlinx.coroutines.*
+import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
@@ -142,7 +92,7 @@ internal fun ScrcpyAllOptionsScreen(
                 soBundleShared
             else scrcpyProfilesState.profiles
                 .firstOrNull { it.id == selectedProfileId }
-                ?.bundle ?: soBundleShared
+                ?.bundle ?: soBundleShared,
         )
     }
     val lastValidSoBundleState = rememberSaveable(selectedProfileId) {
@@ -186,7 +136,7 @@ internal fun ScrcpyAllOptionsScreen(
                 if (device.scrcpyProfileId == profileId)
                     device.copy(scrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID)
                 else device
-            }
+            },
         )
         if (updated != shortcuts) {
             quickDevices.updateBundle { bundle ->
@@ -235,9 +185,9 @@ internal fun ScrcpyAllOptionsScreen(
                                         onClick = {
                                             showManageProfilesSheet = true
                                         },
-                                    )
-                                )
-                            )
+                                    ),
+                                ),
+                            ),
                         ) {
                             Icon(
                                 imageVector = MiuixIcons.More,
@@ -277,7 +227,7 @@ internal fun ScrcpyAllOptionsScreen(
                             height = 48.dp,
                             itemSpacing = UiSpacing.Medium,
                         )
-                    }
+                    },
                 )
             }
         },
@@ -286,7 +236,7 @@ internal fun ScrcpyAllOptionsScreen(
         Box(
             modifier =
                 if (blurActive) Modifier.layerBackdrop(blurBackdrop)
-                else Modifier
+                else Modifier,
         ) {
             ScrcpyAllOptionsPage(
                 contentPadding = contentPadding,
@@ -606,7 +556,7 @@ internal fun ScrcpyAllOptionsPage(
 
     val screenOffTimeoutPresetIndex = rememberSaveable(soBundle.screenOffTimeout) {
         ScrcpyPresets.ScreenOffTimeout.indexOfOrNearest(
-            Tick(soBundle.screenOffTimeout).sec.toInt().coerceAtLeast(0)
+            Tick(soBundle.screenOffTimeout).sec.toInt().coerceAtLeast(0),
         )
     }
 
@@ -671,7 +621,7 @@ internal fun ScrcpyAllOptionsPage(
                         SpinnerEntry(
                             title = info.id,
                             summary = info.type.s,
-                        )
+                        ),
                     )
                 }
             }
@@ -702,7 +652,7 @@ internal fun ScrcpyAllOptionsPage(
                         SpinnerEntry(
                             title = info.id,
                             summary = info.type.s,
-                        )
+                        ),
                     )
                 }
             }
@@ -760,7 +710,7 @@ internal fun ScrcpyAllOptionsPage(
                             },
                             title = app.label?.takeIf { it.isNotBlank() } ?: app.packageName,
                             summary = app.packageName,
-                        )
+                        ),
                     )
                 }
             }
@@ -893,13 +843,13 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.turnScreenOff,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            turnScreenOff = it
+                            turnScreenOff = it,
                         )
                         if (it) AppRuntime.snackbar(
                             // github.com/Genymobile/scrcpy/issues/3376
                             // github.com/Genymobile/scrcpy/issues/4587
                             // github.com/Genymobile/scrcpy/issues/5676
-                            R.string.scrcpyopt_turn_screen_off_note
+                            R.string.scrcpyopt_turn_screen_off_note,
                         )
                     },
                 )
@@ -909,7 +859,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.control,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            control = !it
+                            control = !it,
                         )
                     },
                 )
@@ -919,7 +869,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.video,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            video = !it
+                            video = !it,
                         )
                     },
                 )
@@ -929,7 +879,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.videoPlayback,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            videoPlayback = !it
+                            videoPlayback = !it,
                         )
                     },
                     enabled = soBundle.video,
@@ -940,7 +890,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.audio,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            audio = !it
+                            audio = !it,
                         )
                     },
                 )
@@ -950,7 +900,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.audioPlayback,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            audioPlayback = !it
+                            audioPlayback = !it,
                         )
                     },
                     enabled = soBundle.audio,
@@ -968,7 +918,7 @@ internal fun ScrcpyAllOptionsPage(
                                 ?.toLong()
                                 ?.let(Tick::fromSec)
                                 ?.value
-                                ?: -1
+                                ?: -1,
                         )
                     },
                     valueRange = 0f..ScrcpyPresets.ScreenOffTimeout.lastIndex.toFloat(),
@@ -989,7 +939,7 @@ internal fun ScrcpyAllOptionsPage(
                                 ?.takeIf { value -> value > 0 }
                                 ?.let(Tick::fromSec)
                                 ?.value
-                                ?: -1
+                                ?: -1,
                         )
                     },
                 )
@@ -999,7 +949,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.powerOn,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            powerOn = !it
+                            powerOn = !it,
                         )
                     },
                 )
@@ -1009,7 +959,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.powerOffOnClose,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            powerOffOnClose = it
+                            powerOffOnClose = it,
                         )
                     },
                 )
@@ -1019,7 +969,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.stayAwake,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            stayAwake = it
+                            stayAwake = it,
                         )
                     },
                 )
@@ -1029,7 +979,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.keepActive,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            keepActive = it
+                            keepActive = it,
                         )
                     },
                 )
@@ -1039,7 +989,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.showTouches,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            showTouches = it
+                            showTouches = it,
                         )
                     },
                 )
@@ -1049,7 +999,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.fullscreen,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            fullscreen = it
+                            fullscreen = it,
                         )
                     },
                 )
@@ -1059,10 +1009,10 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.disableScreensaver,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            disableScreensaver = it
+                            disableScreensaver = it,
                         )
                         if (it) AppRuntime.snackbar(
-                            R.string.scrcpyopt_disable_screensaver_note
+                            R.string.scrcpyopt_disable_screensaver_note,
                         )
                     },
                 )
@@ -1081,7 +1031,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.killAdbOnClose,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            killAdbOnClose = it
+                            killAdbOnClose = it,
                         )
                     },
                 )
@@ -1097,7 +1047,7 @@ internal fun ScrcpyAllOptionsPage(
                     selectedIndex = audioCodecIndex,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
-                            audioCodec = Codec.AUDIO[it].string
+                            audioCodec = Codec.AUDIO[it].string,
                         )
                     },
                 )
@@ -1111,7 +1061,7 @@ internal fun ScrcpyAllOptionsPage(
                         val idx = value.roundToInt()
                             .coerceIn(0, ScrcpyPresets.AudioBitRate.lastIndex)
                         soBundle = soBundle.copy(
-                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000
+                            audioBitRate = ScrcpyPresets.AudioBitRate[idx] * 1000,
                         )
                     },
                     valueRange = 0f..ScrcpyPresets.AudioBitRate.lastIndex.toFloat(),
@@ -1129,7 +1079,7 @@ internal fun ScrcpyAllOptionsPage(
                             ?.takeIf { it >= 0 }
                             ?.let {
                                 soBundle = soBundle.copy(
-                                    audioBitRate = it * 1000
+                                    audioBitRate = it * 1000,
                                 )
                             }
                     },
@@ -1142,7 +1092,7 @@ internal fun ScrcpyAllOptionsPage(
                     selectedIndex = videoCodecIndex,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
-                            videoCodec = Codec.VIDEO[it].string
+                            videoCodec = Codec.VIDEO[it].string,
                         )
                     },
                 )
@@ -1152,7 +1102,7 @@ internal fun ScrcpyAllOptionsPage(
                     value = soBundle.videoBitRate / 1_000_000f,
                     onValueChange = { mbps ->
                         soBundle = soBundle.copy(
-                            videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10)
+                            videoBitRate = (mbps * 10).roundToInt() * (1_000_000 / 10),
                         )
                     },
                     valueRange = 0f..40f,
@@ -1182,7 +1132,7 @@ internal fun ScrcpyAllOptionsPage(
                         raw.toFloatOrNull()?.let { parsed ->
                             if (parsed >= 0f) {
                                 soBundle = soBundle.copy(
-                                    videoBitRate = (parsed * 1_000_000f).roundToInt()
+                                    videoBitRate = (parsed * 1_000_000f).roundToInt(),
                                 )
                             }
                         }
@@ -1200,7 +1150,7 @@ internal fun ScrcpyAllOptionsPage(
                     selectedIndex = videoSourceIndex,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
-                            videoSource = VideoSource.entries[it].string
+                            videoSource = VideoSource.entries[it].string,
                         )
                     },
                 )
@@ -1236,7 +1186,7 @@ internal fun ScrcpyAllOptionsPage(
                                 soBundle = soBundle.copy(
                                     displayId =
                                         if (it == 0) -1
-                                        else displays[it - 1].id
+                                        else displays[it - 1].id,
                                 )
                             },
                         )
@@ -1248,7 +1198,7 @@ internal fun ScrcpyAllOptionsPage(
                                 val idx = it.roundToInt()
                                     .coerceIn(0, ScrcpyPresets.MinSizeAlignment.lastIndex)
                                 soBundle = soBundle.copy(
-                                    minSizeAlignment = ScrcpyPresets.MinSizeAlignment[idx]
+                                    minSizeAlignment = ScrcpyPresets.MinSizeAlignment[idx],
                                 )
                             },
                             valueRange = 0f..ScrcpyPresets.MinSizeAlignment.lastIndex.toFloat(),
@@ -1269,7 +1219,7 @@ internal fun ScrcpyAllOptionsPage(
                                     return@ArrowSlider
                                 }
                                 soBundle = soBundle.copy(
-                                    minSizeAlignment = parsed
+                                    minSizeAlignment = parsed,
                                 )
                             },
                         )
@@ -1281,7 +1231,7 @@ internal fun ScrcpyAllOptionsPage(
                                 val idx = it.roundToInt()
                                     .coerceIn(0, ScrcpyPresets.MaxSize.lastIndex)
                                 soBundle = soBundle.copy(
-                                    maxSize = ScrcpyPresets.MaxSize[idx]
+                                    maxSize = ScrcpyPresets.MaxSize[idx],
                                 )
                             },
                             valueRange = 0f..ScrcpyPresets.MaxSize.lastIndex.toFloat(),
@@ -1300,7 +1250,7 @@ internal fun ScrcpyAllOptionsPage(
                             inputValueRange = 0f..UInt.MAX_VALUE.toFloat(),
                             onInputConfirm = {
                                 soBundle = soBundle.copy(
-                                    maxSize = it.toIntOrNull() ?: run { 0 }
+                                    maxSize = it.toIntOrNull() ?: run { 0 },
                                 )
                             },
                         )
@@ -1314,7 +1264,7 @@ internal fun ScrcpyAllOptionsPage(
                                 soBundle = soBundle.copy(
                                     maxFps =
                                         if (idx == 0) ""
-                                        else ScrcpyPresets.MaxFPS[idx].toString()
+                                        else ScrcpyPresets.MaxFPS[idx].toString(),
                                 )
                             },
                             valueRange = 0f..ScrcpyPresets.MaxFPS.lastIndex.toFloat(),
@@ -1330,7 +1280,7 @@ internal fun ScrcpyAllOptionsPage(
                             inputValueRange = 0f..UShort.MAX_VALUE.toFloat(),
                             onInputConfirm = {
                                 soBundle = soBundle.copy(
-                                    maxFps = it
+                                    maxFps = it,
                                 )
                             },
                         )
@@ -1368,7 +1318,7 @@ internal fun ScrcpyAllOptionsPage(
                                 soBundle = soBundle.copy(
                                     cameraId =
                                         if (it == 0) ""
-                                        else cameras[it - 1].id
+                                        else cameras[it - 1].id,
                                 )
                             },
                         )
@@ -1381,7 +1331,7 @@ internal fun ScrcpyAllOptionsPage(
                                 soBundle = soBundle.copy(
                                     cameraFacing =
                                         if (it == 0) ""
-                                        else CameraFacing.entries[it].string
+                                        else CameraFacing.entries[it].string,
                                 )
                             },
                         )
@@ -1425,7 +1375,7 @@ internal fun ScrcpyAllOptionsPage(
                                     1 -> {
                                         // "自定义" - 进入自定义输入模式
                                         soBundle = soBundle.copy(
-                                            cameraSizeUseCustom = true
+                                            cameraSizeUseCustom = true,
                                         )
                                         cameraSizeCustomInput = ""
                                     }
@@ -1452,11 +1402,11 @@ internal fun ScrcpyAllOptionsPage(
                                         // 输入的值存在于列表中, 取消自定义输入
                                         soBundle.copy(
                                             cameraSize = cameraSizeCustomInput,
-                                            cameraSizeUseCustom = false
+                                            cameraSizeUseCustom = false,
                                         )
                                     } else {
                                         soBundle.copy(
-                                            cameraSizeCustom = cameraSizeCustomInput
+                                            cameraSizeCustom = cameraSizeCustomInput,
                                         )
                                     }
                                 },
@@ -1473,7 +1423,7 @@ internal fun ScrcpyAllOptionsPage(
                             onValueChange = { cameraArInput = it },
                             onFocusLost = {
                                 soBundle = soBundle.copy(
-                                    cameraAr = cameraArInput
+                                    cameraAr = cameraArInput,
                                 )
                             },
                             label = "--camera-ar",
@@ -1487,7 +1437,7 @@ internal fun ScrcpyAllOptionsPage(
                             onValueChange = { cameraZoomInput = it },
                             onFocusLost = {
                                 soBundle = soBundle.copy(
-                                    cameraZoom = cameraZoomInput
+                                    cameraZoom = cameraZoomInput,
                                 )
                             },
                             label = "--camera-zoom",
@@ -1504,7 +1454,7 @@ internal fun ScrcpyAllOptionsPage(
                                 val idx = value.roundToInt()
                                     .coerceIn(0, ScrcpyPresets.CameraFps.lastIndex)
                                 soBundle = soBundle.copy(
-                                    cameraFps = ScrcpyPresets.CameraFps[idx]
+                                    cameraFps = ScrcpyPresets.CameraFps[idx],
                                 )
                             },
                             valueRange = 0f..ScrcpyPresets.CameraFps.lastIndex.toFloat(),
@@ -1521,7 +1471,7 @@ internal fun ScrcpyAllOptionsPage(
                             inputValueRange = 0f..UShort.MAX_VALUE.toFloat(),
                             onInputConfirm = {
                                 soBundle = soBundle.copy(
-                                    cameraFps = it.toIntOrNull() ?: run { 0 }
+                                    cameraFps = it.toIntOrNull() ?: run { 0 },
                                 )
                             },
                         )
@@ -1531,7 +1481,7 @@ internal fun ScrcpyAllOptionsPage(
                             checked = soBundle.cameraHighSpeed,
                             onCheckedChange = {
                                 soBundle = soBundle.copy(
-                                    cameraHighSpeed = it
+                                    cameraHighSpeed = it,
                                 )
                             },
                         )
@@ -1541,7 +1491,7 @@ internal fun ScrcpyAllOptionsPage(
                             checked = soBundle.cameraTorch,
                             onCheckedChange = {
                                 soBundle = soBundle.copy(
-                                    cameraTorch = it
+                                    cameraTorch = it,
                                 )
                             },
                         )
@@ -1560,7 +1510,7 @@ internal fun ScrcpyAllOptionsPage(
                     selectedIndex = audioSourceIndex,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
-                            audioSource = AudioSource.entries[it].string
+                            audioSource = AudioSource.entries[it].string,
                         )
                     },
                 )
@@ -1570,7 +1520,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.audioDup,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            audioDup = it
+                            audioDup = it,
                         )
                     },
                 )
@@ -1580,7 +1530,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.requireAudio,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            requireAudio = it
+                            requireAudio = it,
                         )
                     },
                 )
@@ -1619,7 +1569,7 @@ internal fun ScrcpyAllOptionsPage(
                         soBundle = soBundle.copy(
                             videoEncoder =
                                 if (it == 0) ""
-                                else videoEncoders[it - 1].id
+                                else videoEncoders[it - 1].id,
                         )
                     },
                 )
@@ -1628,7 +1578,7 @@ internal fun ScrcpyAllOptionsPage(
                     onValueChange = { videoCodecOptionsInput = it },
                     onFocusLost = {
                         soBundle = soBundle.copy(
-                            videoCodecOptions = videoCodecOptionsInput
+                            videoCodecOptions = videoCodecOptionsInput,
                         )
                     },
                     label = "--video-codec-options",
@@ -1667,7 +1617,7 @@ internal fun ScrcpyAllOptionsPage(
                         soBundle = soBundle.copy(
                             audioEncoder =
                                 if (it == 0) ""
-                                else audioEncoders[it - 1].id
+                                else audioEncoders[it - 1].id,
                         )
                     },
                 )
@@ -1676,7 +1626,7 @@ internal fun ScrcpyAllOptionsPage(
                     onValueChange = { audioCodecOptionsInput = it },
                     onFocusLost = {
                         soBundle = soBundle.copy(
-                            audioCodecOptions = audioCodecOptionsInput
+                            audioCodecOptions = audioCodecOptionsInput,
                         )
                     },
                     label = "--audio-codec-options",
@@ -1699,7 +1649,7 @@ internal fun ScrcpyAllOptionsPage(
                         soBundle = soBundle.copy(
                             displayImePolicy =
                                 if (it == 0) ""
-                                else DisplayImePolicy.entries[it].string
+                                else DisplayImePolicy.entries[it].string,
                         )
                     },
                 )
@@ -1709,7 +1659,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.vdDestroyContent,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            vdDestroyContent = !it
+                            vdDestroyContent = !it,
                         )
                     },
                 )
@@ -1719,7 +1669,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.vdSystemDecorations,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            vdSystemDecorations = !it
+                            vdSystemDecorations = !it,
                         )
                     },
                 )
@@ -1729,10 +1679,10 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.downsizeOnError,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            downsizeOnError = !it
+                            downsizeOnError = !it,
                         )
                         if (it) AppRuntime.snackbar(
-                            R.string.scrcpyopt_no_downsize_on_error_desc
+                            R.string.scrcpyopt_no_downsize_on_error_desc,
                         )
                     },
                 )
@@ -1742,7 +1692,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.legacyPaste,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            legacyPaste = it
+                            legacyPaste = it,
                         )
                     },
                 )
@@ -1761,7 +1711,7 @@ internal fun ScrcpyAllOptionsPage(
                                 1 -> ClientOptions.KeyInjectMode.PREFER_TEXT.string
                                 2 -> ClientOptions.KeyInjectMode.RAW.string
                                 else -> ClientOptions.KeyInjectMode.MIXED.string
-                            }
+                            },
                         )
                     },
                 )
@@ -1771,7 +1721,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.forwardKeyRepeat,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            forwardKeyRepeat = !it
+                            forwardKeyRepeat = !it,
                         )
                     },
                     enabled = soBundle.keyInjectMode != ClientOptions.KeyInjectMode.PREFER_TEXT.string,
@@ -1782,7 +1732,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.clipboardAutosync,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            clipboardAutosync = !it
+                            clipboardAutosync = !it,
                         )
                     },
                 )
@@ -1792,7 +1742,7 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.mouseHover,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            mouseHover = !it
+                            mouseHover = !it,
                         )
                     },
                 )
@@ -1802,10 +1752,10 @@ internal fun ScrcpyAllOptionsPage(
                     checked = !soBundle.cleanup,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            cleanup = !it
+                            cleanup = !it,
                         )
                         if (it) AppRuntime.snackbar(
-                            R.string.scrcpyopt_no_cleanup_desc
+                            R.string.scrcpyopt_no_cleanup_desc,
                         )
                     },
                 )
@@ -1815,10 +1765,10 @@ internal fun ScrcpyAllOptionsPage(
                     checked = soBundle.flexDisplay,
                     onCheckedChange = {
                         soBundle = soBundle.copy(
-                            flexDisplay = it
+                            flexDisplay = it,
                         )
                         if (it) AppRuntime.snackbar(
-                            "untested"
+                            "untested",
                         )
                     },
                 )
@@ -1865,7 +1815,7 @@ internal fun ScrcpyAllOptionsPage(
 
                             1 -> {
                                 soBundle = soBundle.copy(
-                                    startAppUseCustom = true
+                                    startAppUseCustom = true,
                                 )
                                 startAppCustomInput = ""
                             }
@@ -1893,7 +1843,7 @@ internal fun ScrcpyAllOptionsPage(
                                 )
                             } else {
                                 soBundle.copy(
-                                    startAppCustom = startAppCustomInput
+                                    startAppCustom = startAppCustomInput,
                                 )
                             }
                         },
@@ -1935,8 +1885,8 @@ internal fun ScrcpyAllOptionsPage(
                                         newDisplay = NewDisplay.parseFrom(
                                             newDisplayWidthInput,
                                             newDisplayHeightInput,
-                                            newDisplayDpiInput
-                                        ).toString()
+                                            newDisplayDpiInput,
+                                        ).toString(),
                                     )
                                 },
                                 singleLine = true,
@@ -1958,8 +1908,8 @@ internal fun ScrcpyAllOptionsPage(
                                         newDisplay = NewDisplay.parseFrom(
                                             newDisplayWidthInput,
                                             newDisplayHeightInput,
-                                            newDisplayDpiInput
-                                        ).toString()
+                                            newDisplayDpiInput,
+                                        ).toString(),
                                     )
                                 },
                                 singleLine = true,
@@ -1981,8 +1931,8 @@ internal fun ScrcpyAllOptionsPage(
                                         newDisplay = NewDisplay.parseFrom(
                                             newDisplayWidthInput,
                                             newDisplayHeightInput,
-                                            newDisplayDpiInput
-                                        ).toString()
+                                            newDisplayDpiInput,
+                                        ).toString(),
                                     )
                                 },
                                 singleLine = true,
@@ -2023,7 +1973,7 @@ internal fun ScrcpyAllOptionsPage(
                             TextButton(
                                 text = stringResource(
                                     if (newDisplayWidthBlank || newDisplayHeightBlank) R.string.scrcpyopt_native
-                                    else R.string.button_swap
+                                    else R.string.button_swap,
                                 ),
                                 onClick = {
                                     if (newDisplayWidthBlank || newDisplayHeightBlank) {
@@ -2044,8 +1994,8 @@ internal fun ScrcpyAllOptionsPage(
                                         newDisplay = NewDisplay.parseFrom(
                                             newDisplayWidthInput,
                                             newDisplayHeightInput,
-                                            newDisplayDpiInput
-                                        ).toString()
+                                            newDisplayDpiInput,
+                                        ).toString(),
                                     )
                                 },
                                 modifier = Modifier.width(trailingButtonWidth),
@@ -2086,8 +2036,8 @@ internal fun ScrcpyAllOptionsPage(
                                                 cropWidthInput,
                                                 cropHeightInput,
                                                 cropXInput,
-                                                cropYInput
-                                            ).toString()
+                                                cropYInput,
+                                            ).toString(),
                                         )
                                     },
                                     singleLine = true,
@@ -2110,8 +2060,8 @@ internal fun ScrcpyAllOptionsPage(
                                                 cropWidthInput,
                                                 cropHeightInput,
                                                 cropXInput,
-                                                cropYInput
-                                            ).toString()
+                                                cropYInput,
+                                            ).toString(),
                                         )
                                     },
                                     singleLine = true,
@@ -2139,8 +2089,8 @@ internal fun ScrcpyAllOptionsPage(
                                                 cropWidthInput,
                                                 cropHeightInput,
                                                 cropXInput,
-                                                cropYInput
-                                            ).toString()
+                                                cropYInput,
+                                            ).toString(),
                                         )
                                     },
                                     singleLine = true,
@@ -2163,8 +2113,8 @@ internal fun ScrcpyAllOptionsPage(
                                                 cropWidthInput,
                                                 cropHeightInput,
                                                 cropXInput,
-                                                cropYInput
-                                            ).toString()
+                                                cropYInput,
+                                            ).toString(),
                                         )
                                     },
                                     singleLine = true,
@@ -2193,7 +2143,7 @@ internal fun ScrcpyAllOptionsPage(
                     selectedIndex = logLevelIndex,
                     onSelectedIndexChange = {
                         soBundle = soBundle.copy(
-                            logLevel = LogLevel.entries[it].string
+                            logLevel = LogLevel.entries[it].string,
                         )
                     },
                 )
@@ -2218,6 +2168,8 @@ private fun ProfileNameDialog(
     onConfirm: (String, String?) -> Unit,
 ) {
     if (mode == null) return
+
+    val haptic = LocalHapticFeedback.current
     val focusManager = LocalFocusManager.current
 
     val textDefault = stringResource(R.string.text_default)
@@ -2282,12 +2234,18 @@ private fun ProfileNameDialog(
             ) {
                 TextButton(
                     text = stringResource(R.string.button_cancel),
-                    onClick = onDismissRequest,
+                    onClick = {
+                        haptic.contextClick()
+                        onDismissRequest()
+                    },
                     modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = stringResource(R.string.button_confirm),
-                    onClick = { onConfirm(input, copySourceProfileId) },
+                    onClick = {
+                        haptic.confirm()
+                        onConfirm(input, copySourceProfileId)
+                    },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
@@ -2345,14 +2303,14 @@ private fun ManageProfilesSheet(
                                         icon = Icons.Rounded.Edit,
                                         contentDescription = textRename,
                                         onClick = { onRenameProfile(profile.id) },
-                                    )
+                                    ),
                                 )
                                 add(
                                     ReorderableList.EndAction.Icon(
                                         icon = Icons.Rounded.DeleteOutline,
                                         contentDescription = textDelete,
                                         onClick = { onDeleteProfile(profile.id) },
-                                    )
+                                    ),
                                 )
                             }
                         },
@@ -2372,9 +2330,10 @@ private fun DeleteProfileDialog(
     onDismissRequest: () -> Unit,
     onConfirm: () -> Unit,
 ) {
-    if (!show) return
+    val haptic = LocalHapticFeedback.current
+
     OverlayDialog(
-        show = true,
+        show = show,
         title = stringResource(R.string.scrcpyopt_delete_profile),
         summary = stringResource(R.string.scrcpyopt_delete_confirm, profileName),
         defaultWindowInsetsPadding = false,
@@ -2385,12 +2344,18 @@ private fun DeleteProfileDialog(
         ) {
             TextButton(
                 text = stringResource(R.string.button_cancel),
-                onClick = onDismissRequest,
+                onClick = {
+                    haptic.contextClick()
+                    onDismissRequest()
+                },
                 modifier = Modifier.weight(1f),
             )
             TextButton(
                 text = stringResource(R.string.button_delete),
-                onClick = onConfirm,
+                onClick = {
+                    haptic.confirm()
+                    onConfirm()
+                },
                 modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.textButtonColorsPrimary(),
             )
