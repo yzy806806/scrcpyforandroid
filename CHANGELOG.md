@@ -1,5 +1,11 @@
 # Change Log
 
+## 0.4.2
+
+- 改进: 单 IP 的设备连接时跳过探测
+- 改进: 简单配置卡上方增加配置切换
+- 改进: 启用“使预览卡显示在配置卡上方”时禁用 PreviewCard 的 bring into view
+
 ## 0.4.1
 
 - 依赖: 同步 submodule/miuix
