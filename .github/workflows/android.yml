@@ -211,3 +211,4 @@ jobs:
           name: ${{ github.ref_name }}
           body_path: dist/RELEASE_NOTES.md
           files: dist/*.apk
+          prerelease: ${{ contains(github.ref_name, '_pre') }}

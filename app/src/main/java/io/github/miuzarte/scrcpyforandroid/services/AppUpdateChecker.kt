@@ -17,7 +17,7 @@ import java.net.URL
 object AppUpdateChecker {
     private const val TAG = "AppUpdateChecker"
     const val RELEASES_API_URL =
-        "https://api.github.com/repos/Miuzarte/ScrcpyForAndroid/releases?per_page=1"
+        "https://api.github.com/repos/Miuzarte/ScrcpyForAndroid/releases?per_page=10"
     const val RELEASES_URL =
         "https://github.com/Miuzarte/ScrcpyForAndroid/releases"
     const val REPO_URL =
@@ -71,44 +71,67 @@ object AppUpdateChecker {
                 setRequestProperty("User-Agent", "ScrcpyForAndroid/$currentVersion")
             }
             try {
+                val responseCode = connection.responseCode
+                if (responseCode != HttpURLConnection.HTTP_OK) {
+                    error("HTTP $responseCode from GitHub releases API")
+                }
                 val body = connection.inputStream.bufferedReader().use { it.readText() }
-                val release = JSONArray(body).optJSONObject(0)
-                    ?: error("GitHub releases response is empty")
-                val latestVersion = release.optString("tag_name")
-                    .ifBlank { release.optString("name") }
+                val releases = JSONArray(body)
+                val currentIsPre = currentVersion.contains("_pre")
+
+                val targetRelease = (0 until releases.length()).asSequence()
+                    .mapNotNull { releases.optJSONObject(it) }
+                    .firstOrNull { release ->
+                        currentIsPre || !release.optBoolean("prerelease", false)
+                    } ?: error("No suitable release found")
+
+                val latestVersion = targetRelease.optString("tag_name")
+                    .ifBlank { targetRelease.optString("name") }
                     .ifBlank { error("GitHub release has no tag name") }
                 ReleaseInfo(
                     currentVersion = currentVersion,
                     latestVersion = latestVersion.removePrefix("v").removePrefix("V"),
                     hasUpdate = compareVersions(currentVersion, latestVersion) < 0,
-                    htmlUrl = release.optString("html_url").ifBlank { RELEASES_URL },
+                    htmlUrl = targetRelease.optString("html_url").ifBlank { RELEASES_URL },
                 )
             } finally {
                 connection.disconnect()
             }
         }
 
+    private data class Version(
+        val parts: List<Int>,
+        val isPre: Boolean,
+        val preNum: Int,
+    )
+
     private fun compareVersions(current: String, latest: String): Int {
-        val currentParts = normalizeVersion(current)
-        val latestParts = normalizeVersion(latest)
-        val maxSize = maxOf(currentParts.size, latestParts.size)
+        val cur = parseVersion(current)
+        val lte = parseVersion(latest)
+        val maxSize = maxOf(cur.parts.size, lte.parts.size)
         for (i in 0 until maxSize) {
-            val currentPart = currentParts.getOrElse(i) { 0 }
-            val latestPart = latestParts.getOrElse(i) { 0 }
-            if (currentPart != latestPart) {
-                return currentPart.compareTo(latestPart)
-            }
+            val cp = cur.parts.getOrElse(i) { 0 }
+            val lp = lte.parts.getOrElse(i) { 0 }
+            if (cp != lp) return cp.compareTo(lp)
         }
-        return 0
+        return when {
+            !cur.isPre && !lte.isPre -> 0
+            !cur.isPre -> 1
+            !lte.isPre -> -1
+            else -> cur.preNum.compareTo(lte.preNum)
+        }
     }
 
-    private fun normalizeVersion(value: String) =
-        value
-            .trim()
-            .removePrefix("v")
-            .removePrefix("V")
-            .split(Regex("[^0-9]+"))
+    private fun parseVersion(value: String): Version {
+        val cleaned = value.trim().removePrefix("v").removePrefix("V")
+        val preMatch = Regex("_(?:pre|rc|beta|alpha)(\\d*)$", RegexOption.IGNORE_CASE).find(cleaned)
+        val mainPart = preMatch?.range?.let { cleaned.substring(0, it.first) } ?: cleaned
+        val parts = mainPart.split(Regex("[^0-9]+"))
             .filter { it.isNotBlank() }
             .mapNotNull { it.toIntOrNull() }
             .ifEmpty { listOf(0) }
+        val isPre = preMatch != null
+        val preNum = preMatch?.groupValues?.getOrNull(1)?.toIntOrNull() ?: 0
+        return Version(parts, isPre, preNum)
+    }
 }
