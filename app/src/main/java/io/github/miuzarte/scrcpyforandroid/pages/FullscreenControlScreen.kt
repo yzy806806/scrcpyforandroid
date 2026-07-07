@@ -71,6 +71,10 @@ fun FullscreenControlScreen(
     val listingsRefreshBusy by scrcpy.listings.refreshBusyState.collectAsState()
     val listingsRefreshVersion by scrcpy.listings.refreshVersionState.collectAsState()
 
+    LaunchedEffect(currentSession) {
+        if (currentSession == null) onBack()
+    }
+
     val asBundleShared by appSettings.bundleState.collectAsState()
     val asBundleSharedLatest by rememberUpdatedState(asBundleShared)
     var asBundle by rememberSaveable(asBundleShared) { mutableStateOf(asBundleShared) }

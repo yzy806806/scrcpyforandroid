@@ -629,6 +629,7 @@ private fun PathJumpDialog(
                         onConfirm()
                     },
                     modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             }
         }

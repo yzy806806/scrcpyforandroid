@@ -239,6 +239,9 @@
     <string name="cd_export_adb_key">导出</string>
     <string name="pref_adb_key_reset_confirm_title">重置 ADB 密钥</string>
     <string name="pref_adb_key_reset_confirm_summary">重置后，所有已授权的设备都需要重新授权。\n是否继续？</string>
+    <string name="pref_title_adb_flow_control">ADB 流控窗口</string>
+    <string name="pref_summary_adb_flow_control">1 = 严格流控\n数值越大吞吐越高但可能触发 adbd 流控保护</string>
+    <string name="pref_adb_flow_control_disabled">禁用</string>
     <string name="pref_title_auto_discovery">配对时自动启用发现服务</string>
     <string name="pref_summary_auto_discovery">打开配对弹窗后自动搜索可用配对端口</string>
     <string name="pref_title_auto_reconnect">自动重连已配对设备</string>
@@ -570,6 +573,7 @@
     <string name="vm_legacy_paste_injected">已使用 legacy paste 注入本机剪贴板文本</string>
     <string name="vm_clipboard_synced_paste">已同步本机剪贴板到设备并触发粘贴</string>
     <string name="vm_clipboard_paste_failed">本机剪贴板粘贴失败</string>
+    <string name="vm_session_disconnected">Scrcpy 连接已断开</string>
     <string name="vm_ime_text_failed">输入法文本提交失败：%1$s</string>
     <string name="vm_adb_disconnected_device">ADB 已断开：%1$s</string>
     <string name="vm_mdns_updated">mDNS 发现新端口，已更新快速设备：%1$s:%2$s -> %1$s:%3$s</string>

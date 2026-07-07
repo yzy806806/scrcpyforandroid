@@ -1121,6 +1121,30 @@ fun SettingsPage(
                         )
                     },
                 )
+                ArrowSlider(
+                    title = stringResource(R.string.pref_title_adb_flow_control),
+                    summary = stringResource(R.string.pref_summary_adb_flow_control),
+                    value = asBundle.adbFlowControlWindow.toFloat(),
+                    onValueChange = {
+                        asBundle = asBundle.copy(
+                            adbFlowControlWindow = it.roundToInt(),
+                        )
+                    },
+                    valueRange = 0f..4f,
+                    steps = 4 - 0 - 1,
+                    zeroStateText = stringResource(R.string.pref_adb_flow_control_disabled),
+                    displayFormatter = { it.roundToInt().toString() },
+                    inputInitialValue = asBundle.adbFlowControlWindow.toString(),
+                    inputFilter = { input -> input.filter(Char::isDigit) },
+                    inputValueRange = 0f..4f,
+                    onInputConfirm = { input ->
+                        input.toIntOrNull()?.let {
+                            asBundle = asBundle.copy(
+                                adbFlowControlWindow = it.coerceIn(0, 4),
+                            )
+                        }
+                    },
+                )
             }
         }
 

@@ -261,6 +261,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             booleanPreferencesKey("adb_auto_load_app_list_on_connect"),
             false,
         )
+        val ADB_FLOW_CONTROL_WINDOW = Pair(
+            intPreferencesKey("adb_flow_control_window"),
+            0,
+        )
 
         // Terminal
         val TERMINAL_FONT_SIZE_SP = Pair(
@@ -349,6 +353,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val adbAutoReconnectPairedDevice: Boolean,
         val adbMdnsLanDiscovery: Boolean,
         val adbAutoLoadAppListOnConnect: Boolean,
+        val adbFlowControlWindow: Int,
 
         // Terminal
         val terminalFontSizeSp: Float,
@@ -413,6 +418,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(ADB_AUTO_RECONNECT_PAIRED_DEVICE) { it.adbAutoReconnectPairedDevice },
         bundleField(ADB_MDNS_LAN_DISCOVERY) { it.adbMdnsLanDiscovery },
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { it.adbAutoLoadAppListOnConnect },
+        bundleField(ADB_FLOW_CONTROL_WINDOW) { it.adbFlowControlWindow },
 
         // Terminal
         bundleField(TERMINAL_FONT_SIZE_SP) { it.terminalFontSizeSp },
@@ -482,6 +488,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         adbAutoReconnectPairedDevice = preferences.read(ADB_AUTO_RECONNECT_PAIRED_DEVICE),
         adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
+        adbFlowControlWindow = preferences.read(ADB_FLOW_CONTROL_WINDOW),
 
         // Terminal
         terminalFontSizeSp = preferences.read(TERMINAL_FONT_SIZE_SP),

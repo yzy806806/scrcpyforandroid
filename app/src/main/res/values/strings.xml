@@ -239,6 +239,9 @@
     <string name="cd_export_adb_key">Export</string>
     <string name="pref_adb_key_reset_confirm_title">Reset ADB key</string>
     <string name="pref_adb_key_reset_confirm_summary">After resetting, all previously authorized devices will need to be re-authorized.\nContinue?</string>
+    <string name="pref_title_adb_flow_control">ADB flow control window</string>
+    <string name="pref_summary_adb_flow_control">1 = strict flow control\nHigher values increase throughput but may trigger adbd flow control protection</string>
+    <string name="pref_adb_flow_control_disabled">Disabled</string>
     <string name="pref_title_auto_discovery">Auto enable discovery service when pairing</string>
     <string name="pref_summary_auto_discovery">Automatically search for available pairing ports after opening the pairing dialog</string>
     <string name="pref_title_auto_reconnect">Auto reconnect paired devices</string>
@@ -570,6 +573,7 @@
     <string name="vm_legacy_paste_injected">Used legacy paste to inject local clipboard text</string>
     <string name="vm_clipboard_synced_paste">Synced local clipboard to device and triggered paste</string>
     <string name="vm_clipboard_paste_failed">Local clipboard paste failed</string>
+    <string name="vm_session_disconnected">Scrcpy session disconnected</string>
     <string name="vm_ime_text_failed">IME text submission failed: %1$s</string>
     <string name="vm_adb_disconnected_device">ADB disconnected: %1$s</string>
     <string name="vm_mdns_updated">mDNS discovered new port, updated quick device: %1$s:%2$s -> %1$s:%3$s</string>

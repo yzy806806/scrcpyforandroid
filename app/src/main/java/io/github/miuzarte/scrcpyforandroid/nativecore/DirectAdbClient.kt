@@ -660,9 +660,10 @@ internal class DirectAdbConnection(
      */
     fun openStream(service: String): AdbSocketStream {
         val localId = nextLocalId.getAndIncrement()
-        val stream = AdbSocketStream(localId) { command, arg0, arg1, data ->
+        val flowControlWindow = Storage.appSettings.bundleState.value.adbFlowControlWindow
+        val stream = AdbSocketStream(localId, { command, arg0, arg1, data ->
             sendMsg(command, arg0, arg1, data)
-        }
+        }, flowControlWindow)
         streams[localId] = stream
         sendMsg(A_OPEN, localId, 0, (service + "\u0000").toByteArray(Charsets.UTF_8))
         try {
@@ -959,6 +960,7 @@ internal class DirectAdbConnection(
 class AdbSocketStream(
     val localId: Int,
     private val sender: (cmd: Int, arg0: Int, arg1: Int, `data`: ByteArray) -> Unit,
+    private val flowControlWindow: Int = 0,
 ): Closeable {
 
     companion object {
@@ -976,6 +978,10 @@ class AdbSocketStream(
     private val latchOk = AtomicBoolean(false)
     private val queue = LinkedBlockingQueue<Any>()
 
+    // need notifyAll() / wait()
+    private val writeLock = java.lang.Object()
+    @Volatile private var inflightWrites = 0
+
     private object EndOfStreamMarker
 
     val inputStream: InputStream = InStream()
@@ -987,6 +993,12 @@ class AdbSocketStream(
             latchOk.set(true)
             latch.countDown()
         }
+        if (flowControlWindow > 0) {
+            synchronized(writeLock) {
+                if (inflightWrites > 0) inflightWrites--
+                writeLock.notifyAll()
+            }
+        }
     }
 
     internal fun onData(data: ByteArray) {
@@ -997,6 +1009,9 @@ class AdbSocketStream(
         closed = true
         queue.offer(EndOfStreamMarker)
         latch.countDown()
+        if (flowControlWindow > 0) {
+            synchronized(writeLock) { writeLock.notifyAll() }
+        }
     }
 
     fun awaitOpen(timeoutMs: Long) {
@@ -1016,6 +1031,9 @@ class AdbSocketStream(
             sender(A_CLSE, localId, remoteId, ByteArray(0))
         }
         queue.offer(EndOfStreamMarker)
+        if (flowControlWindow > 0) {
+            synchronized(writeLock) { writeLock.notifyAll() }
+        }
     }
 
     private inner class InStream: InputStream() {
@@ -1054,6 +1072,15 @@ class AdbSocketStream(
         override fun write(b: ByteArray, off: Int, len: Int) {
             if (closed) throw IOException("ADB stream closed")
             if (len == 0) return
+            if (flowControlWindow > 0) {
+                synchronized(writeLock) {
+                    while (inflightWrites >= flowControlWindow && !closed) {
+                        writeLock.wait()
+                    }
+                    if (closed) throw IOException("ADB stream closed")
+                    inflightWrites++
+                }
+            }
             sender(A_WRTE, localId, remoteId, b.copyOfRange(off, off + len))
         }
 

@@ -5,7 +5,9 @@ import android.view.InputDevice
 import android.view.MotionEvent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -58,6 +60,7 @@ class TouchEventHandler(
     private val eventPositions = HashMap<Int, Offset>(10)
     private val eventPressures = HashMap<Int, Float>(10)
     private val justPressedPointerIds = HashSet<Int>(10)
+    private val pendingMoveJobs = HashMap<Int, Job>(10)
 
     fun handleMotionEvent(event: MotionEvent): Boolean {
         if (touchAreaSize.width == 0 || touchAreaSize.height == 0) {
@@ -263,6 +266,7 @@ class TouchEventHandler(
 
     private fun releasePointer(pointerId: Int, bounds: ContentBounds) {
         if (!activePointerIds.contains(pointerId)) return
+        pendingMoveJobs.remove(pointerId)?.cancel()
         val pos = activePointerPositions[pointerId] ?: Offset.Zero
         val (x, y) = mapToDevice(pos.x, pos.y, bounds)
         coroutineScope.launch {
@@ -370,10 +374,12 @@ class TouchEventHandler(
             activePointerPositions[pointerId] = raw
             val (x, y) = mapToDevice(raw.x, raw.y, bounds)
             activePointerDevicePositions[pointerId] = x to y
-            coroutineScope.launch {
+            pendingMoveJobs[pointerId]?.cancel()
+            pendingMoveJobs[pointerId] = coroutineScope.launch {
                 runCatching {
                     onInjectTouch(UiMotionActions.MOVE, pointerId.toLong(), x, y, pressure, 0, 0)
                 }.onFailure { e ->
+                    if (e is CancellationException) throw e
                     Log.w(
                         FULLSCREEN_TOUCH_LOG_TAG,
                         "handlePointerMove failed for pointerId=$pointerId",

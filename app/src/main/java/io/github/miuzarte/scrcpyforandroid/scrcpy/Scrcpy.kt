@@ -8,6 +8,7 @@ import android.view.KeyEvent
 import androidx.core.net.toUri
 import com.github.promeg.pinyinhelper.Pinyin
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
+import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.Defaults
 import io.github.miuzarte.scrcpyforandroid.nativecore.AdbSocketStream
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
@@ -58,11 +59,13 @@ class Scrcpy(
     private val lowLatency: Boolean = false,
 ) {
 
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val session = Session(
         ::handleRemoteClipboardText,
         ::updateCurrentSessionSize,
-    )
-    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    ) {
+        backgroundScope.launch { stop(StopReason.REMOTE_DISCONNECTED) }
+    }
     private val clipboardSyncLock = Any()
     private val clipboardManager by lazy {
         appContext.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
@@ -85,6 +88,12 @@ class Scrcpy(
 
     @Volatile
     private var isRunning: Boolean = false
+
+    enum class StopReason { USER, REMOTE_DISCONNECTED }
+
+    @Volatile
+    @JvmField
+    var lastStopReason: StopReason = StopReason.USER
 
     @Volatile
     @JvmField
@@ -310,13 +319,14 @@ class Scrcpy(
         }
     }
 
-    suspend fun stop(): Boolean = withContext(Dispatchers.IO) {
+    suspend fun stop(reason: StopReason = StopReason.USER): Boolean = withContext(Dispatchers.IO) {
         if (!isRunning) {
             Log.w(TAG, "stop(): No active session to stop")
             return@withContext false
         }
 
-        Log.i(TAG, "stop(): Stopping scrcpy session")
+        lastStopReason = reason
+        Log.i(TAG, "stop(): Stopping scrcpy session (reason=$reason)")
 
         return@withContext try {
             session.clearVideoConsumer()
@@ -335,6 +345,10 @@ class Scrcpy(
             flexDisplay = false
             _currentSessionState.value = null
             stopClipboardSync()
+            if (reason == StopReason.REMOTE_DISCONNECTED) {
+                logEvent(R.string.vm_session_disconnected, level = Log.WARN)
+                AppRuntime.snackbar(R.string.vm_session_disconnected)
+            }
             Log.i(TAG, "stop(): Session stopped successfully")
             true
         } catch (e: Exception) {
@@ -979,11 +993,15 @@ class Scrcpy(
     class Session(
         private val onRemoteClipboardText: (String) -> Unit,
         private val onVideoSessionSize: (Int, Int) -> Unit,
+        private val onSessionDied: () -> Unit,
     ) {
         private val mutex = Mutex()
 
         @Volatile
         private var activeSession: ActiveSession? = null
+
+        @Volatile
+        private var controlChannelAlive: Boolean = false
 
         private val videoConsumers = linkedSetOf<(VideoPacket) -> Unit>()
 
@@ -1138,6 +1156,7 @@ class Scrcpy(
                     controlWriter = controlWriter,
                 )
                 activeSession = newSession
+                controlChannelAlive = options.control
                 if (options.control && options.clipboardAutosync)
                     startControlReaderThread(newSession)
 
@@ -1220,6 +1239,7 @@ class Scrcpy(
                         }
                     }
                 } finally {
+                    if (activeSession === session) onSessionDied()
                 }
             }
         }
@@ -1265,6 +1285,7 @@ class Scrcpy(
                         }
                     }
                 } finally {
+                    if (activeSession === session) onSessionDied()
                 }
             }
         }
@@ -1272,19 +1293,11 @@ class Scrcpy(
         suspend fun clearAudioConsumer() = mutex.withLock { audioConsumers.clear() }
 
         suspend fun startApp(name: String) = mutex.withLock {
-            try {
-                requireControlWriter().startApp(name)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "startApp(): control channel not available", e)
-            }
+            withControlWriter("startApp") { startApp(name) }
         }
 
         suspend fun resizeDisplay(width: Int, height: Int) = mutex.withLock {
-            try {
-                requireControlWriter().resizeDisplay(width, height)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "resizeDisplay(): control channel not available", e)
-            }
+            withControlWriter("resizeDisplay") { resizeDisplay(width, height) }
         }
 
         suspend fun injectKeycode(
@@ -1293,27 +1306,15 @@ class Scrcpy(
             repeat: Int = 0,
             metaState: Int = 0,
         ) = mutex.withLock {
-            try {
-                requireControlWriter().injectKeycode(action, keycode, repeat, metaState)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "injectKeycode(): control channel not available", e)
-            }
+            withControlWriter("injectKeycode") { injectKeycode(action, keycode, repeat, metaState) }
         }
 
         suspend fun injectText(text: String) = mutex.withLock {
-            try {
-                requireControlWriter().injectText(text)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "injectText(): control channel not available", e)
-            }
+            withControlWriter("injectText") { injectText(text) }
         }
 
         suspend fun setClipboard(text: String, paste: Boolean) = mutex.withLock {
-            try {
-                requireControlWriter().setClipboard(text, paste)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "setClipboard(): control channel not available", e)
-            }
+            withControlWriter("setClipboard") { setClipboard(text, paste) }
         }
 
         suspend fun injectTouch(
@@ -1327,8 +1328,8 @@ class Scrcpy(
             actionButton: Int,
             buttons: Int,
         ) = mutex.withLock {
-            try {
-                requireControlWriter().injectTouch(
+            withControlWriter("injectTouch") {
+                injectTouch(
                     action,
                     pointerId,
                     x,
@@ -1339,8 +1340,6 @@ class Scrcpy(
                     actionButton,
                     buttons,
                 )
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "injectTouch(): control channel not available", e)
             }
         }
 
@@ -1353,8 +1352,8 @@ class Scrcpy(
             vScroll: Float,
             buttons: Int,
         ) = mutex.withLock {
-            try {
-                requireControlWriter().injectScroll(
+            withControlWriter("injectScroll") {
+                injectScroll(
                     x,
                     y,
                     screenWidth,
@@ -1363,25 +1362,15 @@ class Scrcpy(
                     vScroll,
                     buttons,
                 )
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "injectScroll(): control channel not available", e)
             }
         }
 
         suspend fun pressBackOrTurnScreenOn(action: Int = KeyEvent.ACTION_DOWN) = mutex.withLock {
-            try {
-                requireControlWriter().pressBackOrTurnScreenOn(action)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "pressBackOrScreenOn(): control channel not available", e)
-            }
+            withControlWriter("pressBackOrTurnScreenOn") { pressBackOrTurnScreenOn(action) }
         }
 
         suspend fun setDisplayPower(on: Boolean) = mutex.withLock {
-            try {
-                requireControlWriter().setDisplayPower(on)
-            } catch (e: IllegalStateException) {
-                Log.w(TAG, "setDisplayPower(): control channel not available", e)
-            }
+            withControlWriter("setDisplayPower") { setDisplayPower(on) }
         }
 
         suspend fun stop() = mutex.withLock {
@@ -1391,6 +1380,7 @@ class Scrcpy(
         private fun stopInternal() {
             val session = activeSession ?: return
             activeSession = null
+            controlChannelAlive = false
             videoConsumers.clear()
             audioConsumers.clear()
 
@@ -1429,6 +1419,23 @@ class Scrcpy(
                 ?: throw IllegalStateException("scrcpy control channel not available")
             return session.controlWriter
                 ?: throw IllegalStateException("scrcpy control channel not available")
+        }
+
+        private inline fun withControlWriter(tag: String, block: ControlWriter.() -> Unit) {
+            if (!controlChannelAlive) {
+                Log.w(TAG, "$tag(): control channel not alive")
+                return
+            }
+            try {
+                requireControlWriter().block()
+            } catch (e: IllegalStateException) {
+                controlChannelAlive = false
+                Log.w(TAG, "$tag(): control channel not available", e)
+            } catch (e: IOException) {
+                controlChannelAlive = false
+                Log.w(TAG, "$tag(): control channel I/O failed, marking dead", e)
+                onSessionDied()
+            }
         }
 
         private fun startControlReaderThread(session: ActiveSession) {
@@ -1478,6 +1485,7 @@ class Scrcpy(
                         }
                     }
                 } finally {
+                    if (activeSession === session) onSessionDied()
                 }
             }
         }
