@@ -612,8 +612,7 @@ private fun PathJumpDialog(
                 // useLabelAsPlaceholder = true,
             )
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(UiSpacing.PageItem),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
             ) {
                 TextButton(
                     text = stringResource(R.string.button_cancel),
@@ -621,6 +620,7 @@ private fun PathJumpDialog(
                         haptic.contextClick()
                         onDismissRequest()
                     },
+                    modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = stringResource(R.string.button_confirm),
@@ -628,6 +628,7 @@ private fun PathJumpDialog(
                         haptic.confirm()
                         onConfirm()
                     },
+                    modifier = Modifier.weight(1f),
                 )
             }
         }
