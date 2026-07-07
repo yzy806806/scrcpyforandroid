@@ -4,7 +4,7 @@
     "config:recommended"
   ],
   "dependencyDashboard": true,
-  "gitSubmodule": {
+  "git-submodules": {
     "enabled": false
   },
   "schedule": ["before 6am on Monday"]
