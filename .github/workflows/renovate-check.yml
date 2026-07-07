@@ -1,0 +1,70 @@
+name: Renovate PR Check
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  build:
+    if: ${{ github.actor == 'renovate[bot]' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: true
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: gradle
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            !~/.gradle/caches/build-cache-*
+          key: gradle-deps-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: gradle-deps-
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/build-cache-*
+          key: gradle-builds-${{ github.sha }}
+          restore-keys: gradle-builds-
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build debug APKs
+        run: ./gradlew clean assembleDebug
+
+      - name: Collect APKs
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          find app/build/outputs/apk -type f -name "*.apk" | sort > out/apk-list.txt
+          cat out/apk-list.txt
+          if [ ! -s out/apk-list.txt ]; then
+            echo "No APK files were generated"
+            exit 1
+          fi
+          while IFS= read -r apk; do
+            base_name="$(basename "$apk")"
+            cp "$apk" "out/${base_name}"
+          done < out/apk-list.txt
+          rm -f out/apk-list.txt
+          ls -la out
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: renovate-pr-apks-${{ github.run_number }}
+          path: out/*.apk
+          if-no-files-found: error
