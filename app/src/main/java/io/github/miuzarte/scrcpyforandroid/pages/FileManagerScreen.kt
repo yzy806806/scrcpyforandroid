@@ -59,7 +59,7 @@ fun FileManagerScreen(
     val listState = rememberLazyListState()
     val layoutDirection = LocalLayoutDirection.current
 
-    val pathStack by viewModel.pathStack.collectAsState()
+    val breadcrumbState by viewModel.breadcrumbState.collectAsState()
     val currentPath by viewModel.currentPath.collectAsState()
     val cachedEntries by viewModel.cachedEntries.collectAsState()
     val loading by viewModel.loading.collectAsState()
@@ -117,7 +117,7 @@ fun FileManagerScreen(
         if (pendingTreeDownload != null) treeLauncher.launch(null)
     }
 
-    DisposableEffect(pathStack.size) {
+    DisposableEffect(canNavigateUp) {
         onCanNavigateUpChange(canNavigateUp)
         onNavigateUpActionChange?.invoke(viewModel::navigateUp)
         onDispose {
@@ -144,7 +144,7 @@ fun FileManagerScreen(
                                 haptic.contextClick()
                                 viewModel.navigateUp()
                             },
-                            enabled = pathStack.size > 1,
+                            enabled = canNavigateUp,
                         ) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
@@ -153,30 +153,21 @@ fun FileManagerScreen(
                         }
                     },
                     bottomContent = {
-                        Text(
-                            text = currentPath,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .combinedClickable(
-                                    onClick = {
-                                        haptic.contextClick()
-                                        pathInput = currentPath
-                                        showPathDialog = true
-                                    },
-                                    onLongClick = {
-                                        // 自带 haptic
-                                        pathInput = currentPath
-                                        showPathDialog = true
-                                    },
+                        val breadcrumbItems = remember(breadcrumbState.stack) {
+                            breadcrumbState.stack.map { path ->
+                                BreadcrumbItem(
+                                    path = path,
+                                    text = path.substringAfterLast('/').ifEmpty { "/" },
                                 )
-                                .padding(
-                                    start = UiSpacing.PageHorizontal,
-                                    end = UiSpacing.PageHorizontal,
-                                    bottom = UiSpacing.Medium,
-                                ),
-                            softWrap = false,
-                            overflow = TextOverflow.Ellipsis,
-                            color = colorScheme.onSurfaceVariantSummary,
+                            }
+                        }
+                        BreadcrumbBar(
+                            items = breadcrumbItems,
+                            onItemClick = { index ->
+                                haptic.contextClick()
+                                viewModel.jumpToPath(breadcrumbState.stack[index])
+                            },
+                            highlightIndex = breadcrumbState.highlightIndex,
                         )
                     },
                     actions = {
@@ -241,6 +232,13 @@ fun FileManagerScreen(
                         OverlayIconDropdownMenu(
                             entry = DropdownEntry(
                                 items = listOf(
+                                    DropdownItem(
+                                        text = stringResource(R.string.fm_goto_path),
+                                        onClick = {
+                                            pathInput = currentPath
+                                            showPathDialog = true
+                                        },
+                                    ),
                                     DropdownItem(
                                         text = stringResource(R.string.fm_menu_create_folder),
                                         onClick = {

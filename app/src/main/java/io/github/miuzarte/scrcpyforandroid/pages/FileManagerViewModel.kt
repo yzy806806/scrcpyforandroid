@@ -36,17 +36,57 @@ internal class FileManagerViewModel: ViewModel() {
     )
     private val asBundle = asBundleSync.value
 
-    private val _pathStack = MutableStateFlow(buildPathStack(INITIAL_REMOTE_PATH))
-    val pathStack: StateFlow<List<String>> = _pathStack.asStateFlow()
-    val currentPath: StateFlow<String> = _pathStack
-        .map { it.lastOrNull() ?: INITIAL_REMOTE_PATH }
+    private val _currentPath = MutableStateFlow(INITIAL_REMOTE_PATH)
+    val currentPath: StateFlow<String> = _currentPath.asStateFlow()
+
+    private val pathHistory = ArrayDeque<String>().apply { addLast(INITIAL_REMOTE_PATH) }
+    private val historyCapacity = 20
+
+    private fun addToHistory(path: String) {
+        pathHistory.remove(path)
+        pathHistory.addLast(path)
+        while (pathHistory.size > historyCapacity) pathHistory.removeFirst()
+    }
+
+    private fun trimHistory(path: String) {
+        pathHistory.retainAll { it == path || it.startsWith("$path/") || path.startsWith("$it/") }
+    }
+
+    private fun longestHistoricalPrefix(current: String): String {
+        val prefixMatch: (String) -> Boolean =
+            if (current == ROOT_REMOTE_PATH) { { true } }
+            else { { hist -> hist == current || hist.startsWith("$current/") } }
+        var best = current
+        var bestLen = current.length
+        pathHistory.forEach { hist ->
+            if (hist.length > bestLen && prefixMatch(hist)) {
+                best = hist
+                bestLen = hist.length
+            }
+        }
+        return best
+    }
+
+    internal data class BreadcrumbState(
+        val stack: List<String>,
+        val highlightIndex: Int,
+    )
+
+    val breadcrumbState: StateFlow<BreadcrumbState> = _currentPath
+        .map { current ->
+            val longest = longestHistoricalPrefix(current)
+            val stack = buildPathStack(longest)
+            val highlight = buildPathStack(current).lastIndex
+            BreadcrumbState(stack = stack, highlightIndex = highlight)
+        }
         .stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
-            INITIAL_REMOTE_PATH,
+            BreadcrumbState(buildPathStack(INITIAL_REMOTE_PATH), buildPathStack(INITIAL_REMOTE_PATH).lastIndex),
         )
-    val canNavigateUp: StateFlow<Boolean> = _pathStack
-        .map { it.size > 1 }
+
+    val canNavigateUp: StateFlow<Boolean> = _currentPath
+        .map { it != ROOT_REMOTE_PATH }
         .stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
@@ -145,21 +185,31 @@ internal class FileManagerViewModel: ViewModel() {
     }
 
     fun navigateUp(): Boolean {
-        val stack = _pathStack.value
-        if (stack.size <= 1) return false
-        _pathStack.update { it.dropLast(1) }
+        val current = _currentPath.value
+        if (current == ROOT_REMOTE_PATH) return false
+        val parent = current.substringBeforeLast('/', ROOT_REMOTE_PATH)
+        _currentPath.value = parent
+        trimHistory(parent)
         return true
     }
 
     fun jumpToPath(rawPath: String) {
         val normalized = normalizePath(rawPath)
-        _pathStack.value = buildPathStack(normalized)
+        _currentPath.value = normalized
+        addToHistory(normalized)
+        trimHistory(normalized)
+    }
+
+    private fun pushPath(path: String) {
+        _currentPath.value = path
+        addToHistory(path)
+        trimHistory(path)
     }
 
     fun openEntry(entry: RemoteFileEntry) {
         when {
             entry.isDirectory -> {
-                _pathStack.update { it + normalizePath(entry.fullPath) }
+                pushPath(normalizePath(entry.fullPath))
             }
 
             entry.kind == RemoteFileKind.Link || entry.symlinkTarget != null -> {
