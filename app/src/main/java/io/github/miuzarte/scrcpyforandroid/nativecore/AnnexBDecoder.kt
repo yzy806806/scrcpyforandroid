@@ -54,8 +54,10 @@ class AnnexBDecoder(
 
     init {
         if (!outputSurface.isValid) {
-            throw DecoderException(mimeType, width, height,
-                IllegalStateException("Output surface is not valid"))
+            throw DecoderException(
+                mimeType, width, height,
+                IllegalStateException("Output surface is not valid"),
+            )
         }
         val format = MediaFormat.createVideoFormat(mimeType, width, height)
         if (sps != null) {

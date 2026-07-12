@@ -40,7 +40,7 @@ object DecoderCapabilities {
             val codecList = MediaCodecList(MediaCodecList.REGULAR_CODECS)
             codecList.codecInfos.any { info ->
                 info.isEncoder.not() &&
-                    isCodecCapable(info, mime, width, height)
+                        isCodecCapable(info, mime, width, height)
             }
         } catch (e: Exception) {
             Log.w(TAG, "isSizeSupported(): query failed for $mime ${width}x$height, assuming supported", e)

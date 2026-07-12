@@ -11,7 +11,7 @@ class DecoderException(
     val width: Int,
     val height: Int,
     cause: Throwable? = null,
-) : RuntimeException(
+): RuntimeException(
     "Decoder failed for mime=$mime size=${width}x${height}",
     cause,
 )
