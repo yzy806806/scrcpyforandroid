@@ -1,58 +1,48 @@
 package io.github.miuzarte.scrcpyforandroid
 
-import android.os.Handler
-import android.os.Looper
 import android.util.Log
 import android.view.Surface
-import io.github.miuzarte.scrcpyforandroid.nativecore.AnnexBDecoder
 import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
+import io.github.miuzarte.scrcpyforandroid.nativecore.VideoDecoderController
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
-import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import java.util.ArrayDeque
-import java.util.concurrent.CopyOnWriteArraySet
 
 /**
- * Facade that centralizes video rendering.
+ * Facade that centralizes video rendering and decoder management.
  *
- * Provides helpers for:
- * - Surface/Decoder management for video rendering
- * - Video size and FPS monitoring
+ * Acts as a thin front-end over [VideoDecoderController] (decoder lifecycle, bootstrap
+ * cache, error detection) and [PersistentVideoRenderer] (EGL / surface management).
+ *
+ * The facade owns the session lifecycle mutex and coordinates surface attach/detach
+ * with decoder creation. It also publishes video size / FPS to listeners.
  */
 object NativeCoreFacade {
     private val sessionLifecycleMutex = Mutex()
     private val lifecycleScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val renderer = PersistentVideoRenderer()
+    private val controller = VideoDecoderController(renderer)
+
+    @Volatile
     private var activeSurfaceId: Int? = null
-    private var decoder: AnnexBDecoder? = null
-    private val videoSizeListeners = CopyOnWriteArraySet<(Int, Int) -> Unit>()
-    private val videoFpsListeners = CopyOnWriteArraySet<(Float) -> Unit>()
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val bootstrapLock = Any()
-    private val bootstrapPackets = ArrayDeque<CachedPacket>()
 
     @Volatile
     private var recordingSurfaceAttached = false
-
-    @Volatile
-    private var latestConfigPacket: CachedPacket? = null
-    private var packetCount: Long = 0
-
-    @Volatile
-    private var currentSessionInfo: Scrcpy.Session.SessionInfo? = null
 
     // Reference to Scrcpy for reading currentSessionState (set by onScrcpySessionStarted)
     @Volatile
     private var scrcpyRef: Scrcpy? = null
 
+    @Volatile
+    private var packetCount: Long = 0
+
     suspend fun close() {
         sessionLifecycleMutex.withLock {
-            releaseAllDecoders()
+            controller.releaseAll()
             renderer.release()
         }
     }
@@ -71,30 +61,20 @@ object NativeCoreFacade {
                 return
             }
             val newId = System.identityHashCode(surface)
-            if (activeSurfaceId == newId && decoder != null) {
+            if (activeSurfaceId == newId && controller.isDecoderUsable()) {
                 return
             }
             Log.i(TAG, "attachVideoSurface(): surfaceId=$newId oldSurfaceId=$activeSurfaceId")
             activeSurfaceId = newId
-            renderer.attachDisplaySurface(surface)
-            val session = currentSessionInfo ?: return
-            val currentDecoder = decoder
-            if (currentDecoder != null) {
+            controller.attachDisplaySurface(surface)
+            val session = controller.getCurrentSessionInfo() ?: return
+            if (controller.isDecoderUsable()) {
                 Log.i(TAG, "attachVideoSurface(): try switch decoder output to persistent surface")
-                val switched = currentDecoder.switchOutputSurface(renderer.getDecoderSurface())
-                Log.i(TAG, "attachVideoSurface(): switchOutputSurface success=$switched")
-                if (switched) {
+                if (controller.trySwitchDecoderSurface()) {
                     return
                 }
             }
-            if (session.width <= 0 || session.height <= 0) {
-                Log.i(
-                    TAG,
-                    "attachVideoSurface(): defer decoder, session size not yet known (${session.width}x${session.height})",
-                )
-                return
-            }
-            createOrReplaceDecoder(session)
+            controller.ensureDecoder(session)
         }
     }
 
@@ -123,12 +103,7 @@ object NativeCoreFacade {
                 "detachVideoSurface(): surfaceId=$requestId releaseDecoder=$releaseDecoder",
             )
             activeSurfaceId = null
-            renderer.detachDisplaySurface(surface, releaseSurface = false)
-            if (releaseDecoder) {
-                Log.i(TAG, "detachVideoSurface(): releasing decoder with destroyed surface")
-                decoder?.release()
-                decoder = null
-            }
+            controller.detachDisplaySurface(surface, releaseDecoder)
         }
     }
 
@@ -140,10 +115,10 @@ object NativeCoreFacade {
     ) {
         sessionLifecycleMutex.withLock {
             recordingSurfaceAttached = true
-            renderer.attachRecordSurface(surface, width, height, onFrameRendered)
-            val session = currentSessionInfo
-            if (session != null && decoder == null) {
-                createOrReplaceDecoder(session)
+            controller.attachRecordSurface(surface, width, height, onFrameRendered)
+            val session = controller.getCurrentSessionInfo()
+            if (session != null && !controller.isDecoderUsable()) {
+                controller.ensureDecoder(session)
             }
         }
     }
@@ -154,18 +129,17 @@ object NativeCoreFacade {
     ) {
         sessionLifecycleMutex.withLock {
             recordingSurfaceAttached = false
-            renderer.detachRecordSurface(surface, releaseSurface)
+            controller.detachRecordSurface(surface, releaseSurface)
             if (activeSurfaceId == null) {
-                decoder?.release()
-                decoder = null
+                controller.releaseAll()
             }
         }
     }
 
-    fun addVideoSizeListener(listener: (Int, Int) -> Unit) = videoSizeListeners.add(listener)
-    fun removeVideoSizeListener(listener: (Int, Int) -> Unit) = videoSizeListeners.remove(listener)
-    fun addVideoFpsListener(listener: (Float) -> Unit) = videoFpsListeners.add(listener)
-    fun removeVideoFpsListener(listener: (Float) -> Unit) = videoFpsListeners.remove(listener)
+    fun addVideoSizeListener(listener: (Int, Int) -> Unit) = controller.addVideoSizeListener(listener)
+    fun removeVideoSizeListener(listener: (Int, Int) -> Unit) = controller.removeVideoSizeListener(listener)
+    fun addVideoFpsListener(listener: (Float) -> Unit) = controller.addVideoFpsListener(listener)
+    fun removeVideoFpsListener(listener: (Float) -> Unit) = controller.removeVideoFpsListener(listener)
 
     /**
      * Called by Scrcpy.kt when a session starts.
@@ -177,41 +151,20 @@ object NativeCoreFacade {
         scrcpy: Scrcpy,
     ) = sessionLifecycleMutex.withLock {
         scrcpyRef = scrcpy
-        currentSessionInfo = session
-        releaseAllDecoders()
-        synchronized(bootstrapLock) {
-            bootstrapPackets.clear()
-            latestConfigPacket = null
-        }
+        controller.releaseAll()
+        controller.resetBootstrap()
         if (activeSurfaceId != null || recordingSurfaceAttached) {
             // v4.0: width/height come from first video session packet, not from initial metadata
             if (session.width > 0 && session.height > 0) {
                 Log.i(TAG, "onScrcpySessionStarted(): bind decoder to persistent surface")
-                createOrReplaceDecoder(session)
+                controller.ensureDecoder(session)
             } else {
                 Log.i(TAG, "onScrcpySessionStarted(): defer decoder until first video session packet (v4.0)")
             }
         }
         packetCount = 0
         sessionMgr.attachVideoConsumer { packet ->
-            cacheBootstrapPacket(packet)
-            packetCount += 1
-            if (packetCount == 1L || packetCount % 120L == 0L) {
-                Log.i(
-                    TAG,
-                    "videoFeed(): packets=$packetCount key=${packet.isKeyFrame} cfg=${packet.isConfig} decoder=${decoder != null}",
-                )
-            }
-
-            val dec = decoder ?: return@attachVideoConsumer
-            runCatching {
-                dec.feedAnnexB(
-                    packet.data,
-                    packet.ptsUs,
-                    packet.isKeyFrame,
-                    packet.isConfig,
-                )
-            }
+            cacheAndFeed(packet)
         }
     }
 
@@ -225,23 +178,7 @@ object NativeCoreFacade {
                 val scrcpy = scrcpyRef ?: return@withLock
                 val info = scrcpy.currentSessionState.value ?: return@withLock
                 if (info.width <= 0 || info.height <= 0) return@withLock
-
-                if (decoder == null) {
-                    // Initial creation (v4.0: deferred until first session packet)
-                    Log.i(TAG, "onVideoSizeChanged(): create decoder ${info.width}x${info.height}")
-                    currentSessionInfo = info
-                    createOrReplaceDecoder(info)
-                } else if (currentSessionInfo != null &&
-                    (info.width != currentSessionInfo!!.width || info.height != currentSessionInfo!!.height)
-                ) {
-                    // Flex display: rebuild decoder on size change
-                    Log.i(
-                        TAG,
-                        "onVideoSizeChanged(): rebuild decoder ${currentSessionInfo!!.width}x${currentSessionInfo!!.height} → ${info.width}x${info.height}",
-                    )
-                    currentSessionInfo = info
-                    createOrReplaceDecoder(info)
-                }
+                controller.rebuildDecoderForSize(info)
             }
         }
     }
@@ -251,150 +188,24 @@ object NativeCoreFacade {
      * Cleans up decoders and resets state.
      */
     suspend fun onScrcpySessionStopped() = sessionLifecycleMutex.withLock {
-        releaseAllDecoders()
-        synchronized(bootstrapLock) {
-            bootstrapPackets.clear()
-            latestConfigPacket = null
-        }
+        controller.releaseAll()
         scrcpyRef = null
-        currentSessionInfo = null
         recordingSurfaceAttached = false
     }
 
+    private fun cacheAndFeed(packet: Scrcpy.Session.VideoPacket) {
+        packetCount += 1
+        if (packetCount == 1L || packetCount % 120L == 0L) {
+            Log.i(
+                TAG,
+                "videoFeed(): packets=$packetCount key=${packet.isKeyFrame} cfg=${packet.isConfig} usable=${controller.isDecoderUsable()}",
+            )
+        }
+        val usable = controller.feed(packet)
+        if (!usable) {
+            Log.e(TAG, "videoFeed(): decoder became unusable after feed, packets=$packetCount")
+        }
+    }
+
     private const val TAG = "NativeCoreFacade"
-    private const val MAX_BOOTSTRAP_PACKETS = 90
-
-    private data class CachedPacket(
-        val data: ByteArray,
-        val ptsUs: Long,
-        val isConfig: Boolean,
-        val isKeyFrame: Boolean,
-    ) {
-        override fun equals(other: Any?): Boolean {
-            if (this === other) return true
-            if (javaClass != other?.javaClass) return false
-
-            other as CachedPacket
-
-            if (ptsUs != other.ptsUs) return false
-            if (isConfig != other.isConfig) return false
-            if (isKeyFrame != other.isKeyFrame) return false
-            if (!data.contentEquals(other.data)) return false
-
-            return true
-        }
-
-        override fun hashCode(): Int {
-            var result = ptsUs.hashCode()
-            result = 31 * result + isConfig.hashCode()
-            result = 31 * result + isKeyFrame.hashCode()
-            result = 31 * result + data.contentHashCode()
-            return result
-        }
-    }
-
-    /**
-     * Create or replace the active decoder bound to [surface] for [session].
-     *
-     * - Chooses MIME type from `session.codec` and constructs an [AnnexBDecoder].
-     * - The decoder's `onOutputSizeChanged` callback publishes size changes to
-     *   registered listeners on the main thread.
-     * - Newly created decoders are fed with any cached bootstrap packets to allow
-     *   faster playback startup.
-     */
-    private fun createOrReplaceDecoder(session: Scrcpy.Session.SessionInfo) {
-        val surface = renderer.getDecoderSurface()
-        decoder?.release()
-        decoder = null
-        Log.i(
-            TAG,
-            "createOrReplaceDecoder(): " +
-                    "codec=${session.codec?.string ?: "null"}, " +
-                    "size=${session.width}x${session.height}, " +
-                    "persistent=true",
-        )
-        val newDecoder = AnnexBDecoder(
-            width = session.width,
-            height = session.height,
-            outputSurface = surface,
-            mimeType = when (session.codec) {
-                Codec.H264 -> "video/avc"
-                Codec.H265 -> "video/hevc"
-                Codec.AV1 -> "video/av01"
-                else -> "video/avc"
-            },
-            onOutputSizeChanged = { width, height ->
-                val current = currentSessionInfo
-                if (current == null || (current.width == width && current.height == height)) {
-                    return@AnnexBDecoder
-                }
-                Log.i(
-                    TAG,
-                    "videoSizeChanged(): ${current.width}x${current.height} -> ${width}x${height}",
-                )
-                currentSessionInfo = current.copy(width = width, height = height)
-                mainHandler.post {
-                    videoSizeListeners.forEach { listener ->
-                        runCatching { listener(width, height) }
-                    }
-                }
-            },
-            onFpsUpdated = { fps ->
-                mainHandler.post {
-                    videoFpsListeners.forEach { listener ->
-                        runCatching { listener(fps) }
-                    }
-                }
-            },
-        )
-        decoder = newDecoder
-        replayBootstrapPackets(newDecoder)
-    }
-
-    private fun replayBootstrapPackets(decoder: AnnexBDecoder) {
-        val snapshot = synchronized(bootstrapLock) { bootstrapPackets.toList() }
-        if (snapshot.isEmpty()) {
-            return
-        }
-        Log.i(TAG, "replayBootstrapPackets(): count=${snapshot.size}")
-        snapshot.forEach { packet ->
-            runCatching {
-                decoder.feedAnnexB(packet.data, packet.ptsUs, packet.isKeyFrame, packet.isConfig)
-            }
-        }
-    }
-
-    private fun cacheBootstrapPacket(packet: Scrcpy.Session.VideoPacket) {
-        val cached = CachedPacket(
-            data = packet.data.copyOf(),
-            ptsUs = packet.ptsUs,
-            isConfig = packet.isConfig,
-            isKeyFrame = packet.isKeyFrame,
-        )
-        synchronized(bootstrapLock) {
-            if (cached.isConfig) {
-                latestConfigPacket = cached
-                bootstrapPackets.clear()
-                bootstrapPackets.addLast(cached)
-                return
-            }
-
-            if (cached.isKeyFrame) {
-                bootstrapPackets.clear()
-                latestConfigPacket?.let { bootstrapPackets.addLast(it) }
-                bootstrapPackets.addLast(cached)
-                return
-            }
-
-            while (bootstrapPackets.size >= MAX_BOOTSTRAP_PACKETS) {
-                bootstrapPackets.removeFirst()
-            }
-            bootstrapPackets.addLast(cached)
-        }
-    }
-
-    private fun releaseAllDecoders() {
-        runCatching { decoder?.release() }
-        decoder = null
-    }
 }
