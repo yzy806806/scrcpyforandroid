@@ -202,7 +202,7 @@ class Scrcpy(
 
             // Setup video consumer (notify NativeCoreFacade to setup decoders)
             if (options.video) {
-                NativeCoreFacade.onScrcpySessionStarted(info, session, this@Scrcpy)
+                NativeCoreFacade.onScrcpySessionStarted(info, session, this@Scrcpy, options)
             }
 
             // Setup audio player
