@@ -106,6 +106,17 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            excludes += listOf(
+                "META-INF/LICENSE.md",
+                "META-INF/LICENSE",
+                "META-INF/NOTICE.md",
+                "META-INF/NOTICE",
+            )
+        }
+    }
+
     externalNativeBuild {
         cmake {
             path = file("src/main/jni/CMakeLists.txt")
