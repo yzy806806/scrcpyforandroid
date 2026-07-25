@@ -1,6 +1,5 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
-import android.os.Build
 import android.util.Base64
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.storage.AdbClientData
@@ -86,10 +85,6 @@ internal object DirectAdbTransport {
         require(targetHost.isNotBlank()) { "host is blank" }
         require(targetCode.isNotBlank()) { "pairing code is blank" }
 
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) {
-            throw UnsupportedOperationException("ADB pairing requires Android 11+")
-        }
-
         val pairingKey = AdbPairingKey(
             privateKey = privateKey,
             alias = keyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue },
@@ -103,15 +98,13 @@ internal object DirectAdbTransport {
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
     ): Pair<String, Int>? =
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) null
-        else AdbMdnsDiscoverer.discoverPairingService(timeoutMs, includeLanDevices)
+        AdbMdnsDiscoverer.discoverPairingService(timeoutMs, includeLanDevices)
 
     fun discoverConnectService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
     ): Pair<String, Int>? =
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.R) null
-        else AdbMdnsDiscoverer.discoverConnectService(timeoutMs, includeLanDevices)
+        AdbMdnsDiscoverer.discoverConnectService(timeoutMs, includeLanDevices)
 
     data class ImportedKeyInfo(
         val fingerprint: String,
