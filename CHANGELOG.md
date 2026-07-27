@@ -1,5 +1,10 @@
 # Change Log
 
+## 0.5.2
+
+- 修复: 特定设备上需要特地准备 Looper
+  - [issues#63](https://github.com/Miuzarte/ScrcpyForAndroid/issues/63)
+
 ## 0.5.1
 
 - 修复: 去除配对时的安卓 11 限制

@@ -171,6 +171,7 @@ jobs:
           proxy_base_url="https://github.miuzarte.top/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}"
 
           {
+            echo "[CHANGELOG.md](https://github.com/Miuzarte/ScrcpyForAndroid/blob/main/CHANGELOG.md)"
             echo "| 架构 | 文件 | 大小<br>SHA256 |"
             echo "| ---- | ---- | -------------- |"
 
