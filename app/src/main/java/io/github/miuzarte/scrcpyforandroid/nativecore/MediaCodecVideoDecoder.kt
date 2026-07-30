@@ -59,6 +59,7 @@ class MediaCodecVideoDecoder(
         // https://github.com/Miuzarte/ScrcpyForAndroid/issues/63
         // should not affect normal device
         if (Looper.myLooper() == null) {
+            Log.w(TAG, "issues#63: preparing Looper for MediaCodec (missing on this thread)")
             Looper.prepare()
         }
 

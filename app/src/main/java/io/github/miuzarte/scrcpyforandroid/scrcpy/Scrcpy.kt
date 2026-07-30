@@ -3,6 +3,7 @@ package io.github.miuzarte.scrcpyforandroid.scrcpy
 import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
+import android.os.Looper
 import android.util.Log
 import android.view.KeyEvent
 import androidx.core.net.toUri
@@ -1027,149 +1028,155 @@ class Scrcpy(
             scid: UInt,
             options: ClientOptions,
         ): SessionInfo = mutex.withLock {
+            // issues#63: OPPO Watch ColorOS creates internal Handler on Dispatchers.IO threads
+            if (Looper.myLooper() == null) {
+                Log.w(TAG, "issues#63: preparing Looper for session.start() (missing on Dispatchers.IO thread)")
+                Looper.prepare()
+            }
             stopInternal()
             serverLogBuffer.clear()
             val socketName = socketNameFor(scid.toInt())
 
-            try {
-                val serverStream = NativeAdbService.openShellStream(serverCommand)
-                val serverLogThread = startServerLogThread(serverStream, socketName)
-                Thread.sleep(SERVER_BOOT_DELAY_MS)
+            // issues#63: try-catch removed to let crash propagate full stack trace
+            val serverStream = NativeAdbService.openShellStream(serverCommand)
+            val serverLogThread = startServerLogThread(serverStream, socketName)
+            Thread.sleep(SERVER_BOOT_DELAY_MS)
 
-                val firstStream = openAbstractSocketWithRetry(socketName, expectDummyByte = true)
-                val firstInput = DataInputStream(BufferedInputStream(firstStream.inputStream))
+            val firstStream = openAbstractSocketWithRetry(socketName, expectDummyByte = true)
+            val firstInput = DataInputStream(BufferedInputStream(firstStream.inputStream))
 
-                var videoStream: AdbSocketStream? = null
-                var videoInput: DataInputStream? = null
-                var audioStream: AdbSocketStream? = null
-                var audioInput: DataInputStream? = null
-                var controlStream: AdbSocketStream? = null
+            var videoStream: AdbSocketStream? = null
+            var videoInput: DataInputStream? = null
+            var audioStream: AdbSocketStream? = null
+            var audioInput: DataInputStream? = null
+            var controlStream: AdbSocketStream? = null
 
-                when {
-                    options.video -> {
-                        videoStream = firstStream
-                        videoInput = firstInput
+            when {
+                options.video -> {
+                    videoStream = firstStream
+                    videoInput = firstInput
+                }
+
+                options.audio -> {
+                    audioStream = firstStream
+                    audioInput = firstInput
+                }
+
+                options.control -> {
+                    controlStream = firstStream
+                }
+
+                else -> {
+                    throw IllegalArgumentException("At least one of video/audio/control must be enabled")
+                }
+            }
+
+            if (options.video && videoStream == null) {
+                val vStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                videoStream = vStream
+                videoInput = DataInputStream(BufferedInputStream(vStream.inputStream))
+            }
+
+            if (options.audio && audioStream == null) {
+                val aStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+                audioStream = aStream
+                audioInput = DataInputStream(BufferedInputStream(aStream.inputStream))
+            }
+
+            if (options.control && controlStream == null) {
+                controlStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
+            }
+
+            val deviceName = readDeviceName(firstInput)
+            val audioCodecId = if (options.audio) {
+                val aInput = checkNotNull(audioInput)
+                when (val streamCodecId = aInput.readInt()) {
+                    AUDIO_DISABLED -> {
+                        Log.w(TAG, "audio disabled by server")
+                        if (options.requireAudio) {
+                            throw IllegalStateException(
+                                "Audio is required but was disabled by the server",
+                            )
+                        }
+                        0
                     }
 
-                    options.audio -> {
-                        audioStream = firstStream
-                        audioInput = firstInput
-                    }
-
-                    options.control -> {
-                        controlStream = firstStream
+                    AUDIO_ERROR -> {
+                        Log.e(TAG, "audio stream configuration error from server")
+                        if (options.requireAudio) {
+                            throw IllegalStateException(
+                                "Audio is required but the server failed to configure audio capture",
+                            )
+                        }
+                        0
                     }
 
                     else -> {
-                        throw IllegalArgumentException("At least one of video/audio/control must be enabled")
+                        Log.i(
+                            TAG,
+                            "audio stream codec=0x${streamCodecId.toUInt().toString(16)}",
+                        )
+                        streamCodecId
                     }
                 }
-
-                if (options.video && videoStream == null) {
-                    val vStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
-                    videoStream = vStream
-                    videoInput = DataInputStream(BufferedInputStream(vStream.inputStream))
-                }
-
-                if (options.audio && audioStream == null) {
-                    val aStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
-                    audioStream = aStream
-                    audioInput = DataInputStream(BufferedInputStream(aStream.inputStream))
-                }
-
-                if (options.control && controlStream == null) {
-                    controlStream = openAbstractSocketWithRetry(socketName, expectDummyByte = false)
-                }
-
-                val deviceName = readDeviceName(firstInput)
-                val audioCodecId = if (options.audio) {
-                    val aInput = checkNotNull(audioInput)
-                    when (val streamCodecId = aInput.readInt()) {
-                        AUDIO_DISABLED -> {
-                            Log.w(TAG, "audio disabled by server")
-                            if (options.requireAudio) {
-                                throw IllegalStateException(
-                                    "Audio is required but was disabled by the server",
-                                )
-                            }
-                            0
-                        }
-
-                        AUDIO_ERROR -> {
-                            Log.e(TAG, "audio stream configuration error from server")
-                            if (options.requireAudio) {
-                                throw IllegalStateException(
-                                    "Audio is required but the server failed to configure audio capture",
-                                )
-                            }
-                            0
-                        }
-
-                        else -> {
-                            Log.i(
-                                TAG,
-                                "audio stream codec=0x${streamCodecId.toUInt().toString(16)}",
-                            )
-                            streamCodecId
-                        }
-                    }
-                } else {
-                    0
-                }
-                val videoCodecId = if (options.video) {
-                    checkNotNull(videoInput).readInt()
-                } else {
-                    0
-                }
-
-                // Video dimensions now come from the first session packet in the stream,
-                // not from stream metadata (v4.0 protocol change).
-                val width = 0
-                val height = 0
-
-                val sessionInfo = SessionInfo(
-                    deviceName = deviceName,
-                    codecId = videoCodecId,
-                    codec = Codec.fromId(videoCodecId, Codec.Type.VIDEO),
-                    width = width,
-                    height = height,
-                    audioCodecId = audioCodecId,
-                    audioCodec = Codec.fromId(audioCodecId, Codec.Type.AUDIO),
-                    controlEnabled = controlStream != null,
-                )
-
-                val controlWriter = controlStream?.let { stream ->
-                    ControlWriter(DataOutputStream(stream.outputStream))
-                }
-                val controlInput = controlStream?.let { stream ->
-                    if (stream === firstStream) firstInput
-                    else DataInputStream(BufferedInputStream(stream.inputStream))
-                }
-
-                val newSession = ActiveSession(
-                    info = sessionInfo,
-                    socketName = socketName,
-                    serverStream = serverStream,
-                    serverLogThread = serverLogThread,
-                    videoStream = videoStream,
-                    videoInput = videoInput,
-                    audioStream = audioStream,
-                    audioInput = audioInput,
-                    controlStream = controlStream,
-                    controlInput = controlInput,
-                    controlWriter = controlWriter,
-                )
-                activeSession = newSession
-                controlChannelAlive = options.control
-                if (options.control && options.clipboardAutosync)
-                    startControlReaderThread(newSession)
-
-                return sessionInfo
-            } catch (t: Throwable) {
-                val tail = snapshotServerLogs()
-                val detail = if (tail.isBlank()) "" else " | server_log_tail=\n$tail"
-                throw IllegalStateException("scrcpy start failed: ${t.message}$detail", t)
+            } else {
+                0
             }
+            val videoCodecId = if (options.video) {
+                checkNotNull(videoInput).readInt()
+            } else {
+                0
+            }
+
+            // Video dimensions now come from the first session packet in the stream,
+            // not from stream metadata (v4.0 protocol change).
+            val width = 0
+            val height = 0
+
+            val sessionInfo = SessionInfo(
+                deviceName = deviceName,
+                codecId = videoCodecId,
+                codec = Codec.fromId(videoCodecId, Codec.Type.VIDEO),
+                width = width,
+                height = height,
+                audioCodecId = audioCodecId,
+                audioCodec = Codec.fromId(audioCodecId, Codec.Type.AUDIO),
+                controlEnabled = controlStream != null,
+            )
+
+            val controlWriter = controlStream?.let { stream ->
+                ControlWriter(DataOutputStream(stream.outputStream))
+            }
+            val controlInput = controlStream?.let { stream ->
+                if (stream === firstStream) firstInput
+                else DataInputStream(BufferedInputStream(stream.inputStream))
+            }
+
+            val newSession = ActiveSession(
+                info = sessionInfo,
+                socketName = socketName,
+                serverStream = serverStream,
+                serverLogThread = serverLogThread,
+                videoStream = videoStream,
+                videoInput = videoInput,
+                audioStream = audioStream,
+                audioInput = audioInput,
+                controlStream = controlStream,
+                controlInput = controlInput,
+                controlWriter = controlWriter,
+            )
+            activeSession = newSession
+            controlChannelAlive = options.control
+            if (options.control && options.clipboardAutosync)
+                startControlReaderThread(newSession)
+
+            return sessionInfo
+            // issues#63: removed catch block to let original exception propagate with stack trace
+            // } catch (t: Throwable) {
+            //     val tail = snapshotServerLogs()
+            //     val detail = if (tail.isBlank()) "" else " | server_log_tail=\n$tail"
+            //     throw IllegalStateException("scrcpy start failed: ${t.message}$detail", t)
+            // }
         }
 
         suspend fun attachVideoConsumer(consumer: (VideoPacket) -> Unit): Unit = mutex.withLock {
@@ -1502,7 +1509,12 @@ class Scrcpy(
             serverStream: AdbSocketStream,
             socketName: String,
         ): Thread {
+            // issues#63: OPPO Watch ColorOS - server log thread may need Looper for logEvent
             return thread(start = true, name = "scrcpy-server-log") {
+                if (Looper.myLooper() == null) {
+                    Log.w(TAG, "issues#63: preparing Looper for server log thread (missing on raw thread)")
+                    Looper.prepare()
+                }
                 try {
                     BufferedReader(
                         InputStreamReader(
