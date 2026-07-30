@@ -994,6 +994,7 @@ class AdbSocketStream(
 
     // need notifyAll() / wait()
     private val writeLock = Object()
+
     @Volatile
     private var inflightWrites = 0
 
