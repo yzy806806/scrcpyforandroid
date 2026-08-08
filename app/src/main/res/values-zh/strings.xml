@@ -252,6 +252,14 @@
     <string name="pref_summary_auto_load_apps">ADB 连接成功后立刻执行 --list-apps，用于补全最近任务列表应用名</string>
     <string name="pref_warning_list_apps">--list-apps 操作可能非常耗时（特别是在息屏状态下），启用后可能导致连接设备后阻塞过久！</string>
     <string name="pref_cannot_open_settings">无法打开设置</string>
+    <string name="pref_title_ssh_tunnel">SSH 隧道</string>
+    <string name="pref_summary_ssh_tunnel">通过 SSH 隧道连接 adb 而非直连。适用于公网设备（如一加 adbd 无 RSA 认证，直接暴露不安全）。</string>
+    <string name="pref_title_ssh_host">SSH 主机</string>
+    <string name="pref_hint_ssh_host">例如 203.0.113.10 或 myhost.com</string>
+    <string name="pref_title_ssh_port">SSH 端口</string>
+    <string name="pref_title_ssh_user">SSH 用户名</string>
+    <string name="pref_title_ssh_private_key">SSH 私钥（PEM）</string>
+    <string name="pref_hint_ssh_private_key">-----BEGIN OPENSSH PRIVATE KEY-----</string>
 
     <!-- Settings - Terminal -->
     <string name="section_terminal">终端</string>

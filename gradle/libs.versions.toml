@@ -23,6 +23,7 @@ runtime = "1.11.4"
 androidxCorePip = "1.0.0-alpha03"
 androidxBiometric = "1.4.0-alpha07"
 androidxSecurityCrypto = "1.1.0"
+jsch = "0.2.25"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -58,6 +59,7 @@ androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime
 androidx-core-pip = { group = "androidx.core", name = "core-pip", version.ref = "androidxCorePip" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "androidxSecurityCrypto" }
+jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 

@@ -248,6 +248,32 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             stringPreferencesKey("adb_key_name"),
             "scrcpy",
         )
+        // SSH tunnel (for remote adb access through an SSH server; the OnePlus adbd skips
+        // RSA auth, so we wrap adb in an SSH tunnel instead of exposing 5555 publicly)
+        val SSH_TUNNEL_ENABLED = Pair(
+            booleanPreferencesKey("ssh_tunnel_enabled"),
+            false,
+        )
+        val SSH_HOST = Pair(
+            stringPreferencesKey("ssh_host"),
+            "",
+        )
+        val SSH_PORT = Pair(
+            intPreferencesKey("ssh_port"),
+            22,
+        )
+        val SSH_USER = Pair(
+            stringPreferencesKey("ssh_user"),
+            "root",
+        )
+        val SSH_PRIVATE_KEY = Pair(
+            stringPreferencesKey("ssh_private_key"),
+            "",
+        )
+        val SSH_REMOTE_PORT = Pair(
+            intPreferencesKey("ssh_remote_port"),
+            5555,
+        )
         val ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN = Pair(
             booleanPreferencesKey("adb_pairing_auto_discover_on_dialog_open"),
             true,
@@ -360,6 +386,14 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val adbAutoLoadAppListOnConnect: Boolean,
         val adbFlowControlWindow: Int,
 
+        // SSH tunnel
+        val sshTunnelEnabled: Boolean,
+        val sshHost: String,
+        val sshPort: Int,
+        val sshUser: String,
+        val sshPrivateKey: String,
+        val sshRemotePort: Int,
+
         // Terminal
         val terminalFontSizeSp: Float,
         val terminalFontDisplayName: String,
@@ -425,6 +459,14 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(ADB_MDNS_LAN_DISCOVERY) { it.adbMdnsLanDiscovery },
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { it.adbAutoLoadAppListOnConnect },
         bundleField(ADB_FLOW_CONTROL_WINDOW) { it.adbFlowControlWindow },
+
+        // SSH tunnel
+        bundleField(SSH_TUNNEL_ENABLED) { it.sshTunnelEnabled },
+        bundleField(SSH_HOST) { it.sshHost },
+        bundleField(SSH_PORT) { it.sshPort },
+        bundleField(SSH_USER) { it.sshUser },
+        bundleField(SSH_PRIVATE_KEY) { it.sshPrivateKey },
+        bundleField(SSH_REMOTE_PORT) { it.sshRemotePort },
 
         // Terminal
         bundleField(TERMINAL_FONT_SIZE_SP) { it.terminalFontSizeSp },
@@ -496,6 +538,14 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         adbMdnsLanDiscovery = preferences.read(ADB_MDNS_LAN_DISCOVERY),
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         adbFlowControlWindow = preferences.read(ADB_FLOW_CONTROL_WINDOW),
+
+        // SSH tunnel
+        sshTunnelEnabled = preferences.read(SSH_TUNNEL_ENABLED),
+        sshHost = preferences.read(SSH_HOST),
+        sshPort = preferences.read(SSH_PORT),
+        sshUser = preferences.read(SSH_USER),
+        sshPrivateKey = preferences.read(SSH_PRIVATE_KEY),
+        sshRemotePort = preferences.read(SSH_REMOTE_PORT),
 
         // Terminal
         terminalFontSizeSp = preferences.read(TERMINAL_FONT_SIZE_SP),

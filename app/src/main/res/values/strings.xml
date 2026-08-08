@@ -253,6 +253,14 @@
     <string name="pref_summary_auto_load_apps">Execute --list-apps immediately after successful ADB connection to populate app names in recent tasks list</string>
     <string name="pref_warning_list_apps">--list-apps may be very time-consuming (especially when screen is off); enabling may cause excessive blocking after connecting to the device!</string>
     <string name="pref_cannot_open_settings">Cannot open settings</string>
+    <string name="pref_title_ssh_tunnel">SSH tunnel</string>
+    <string name="pref_summary_ssh_tunnel">Connect adb through an SSH tunnel instead of a direct connection. Use this for public-network devices whose adbd has no RSA auth (e.g. OnePlus).</string>
+    <string name="pref_title_ssh_host">SSH host</string>
+    <string name="pref_hint_ssh_host">e.g. 203.0.113.10 or myhost.com</string>
+    <string name="pref_title_ssh_port">SSH port</string>
+    <string name="pref_title_ssh_user">SSH username</string>
+    <string name="pref_title_ssh_private_key">SSH private key (PEM)</string>
+    <string name="pref_hint_ssh_private_key">-----BEGIN OPENSSH PRIVATE KEY-----</string>
 
     <!-- Settings - Terminal -->
     <string name="section_terminal">Terminal</string>

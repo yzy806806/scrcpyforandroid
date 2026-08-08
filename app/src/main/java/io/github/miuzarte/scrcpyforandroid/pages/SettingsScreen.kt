@@ -1155,6 +1155,65 @@ fun SettingsPage(
                         }
                     },
                 )
+                SwitchPreference(
+                    title = stringResource(R.string.pref_title_ssh_tunnel),
+                    summary = stringResource(R.string.pref_summary_ssh_tunnel),
+                    checked = asBundle.sshTunnelEnabled,
+                    onCheckedChange = {
+                        asBundle = asBundle.copy(
+                            sshTunnelEnabled = it,
+                        )
+                    },
+                )
+                if (asBundle.sshTunnelEnabled) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = UiSpacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.pref_title_ssh_host),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        SuperTextField(
+                            value = asBundle.sshHost,
+                            onValueChange = { asBundle = asBundle.copy(sshHost = it) },
+                            label = stringResource(R.string.pref_hint_ssh_host),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SuperTextField(
+                            value = asBundle.sshPort.toString(),
+                            onValueChange = { input ->
+                                input.toIntOrNull()?.let { asBundle = asBundle.copy(sshPort = it) }
+                            },
+                            label = stringResource(R.string.pref_title_ssh_port),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SuperTextField(
+                            value = asBundle.sshUser,
+                            onValueChange = { asBundle = asBundle.copy(sshUser = it) },
+                            label = stringResource(R.string.pref_title_ssh_user),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        Text(
+                            text = stringResource(R.string.pref_title_ssh_private_key),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        SuperTextField(
+                            value = asBundle.sshPrivateKey,
+                            onValueChange = { asBundle = asBundle.copy(sshPrivateKey = it) },
+                            label = stringResource(R.string.pref_hint_ssh_private_key),
+                            useLabelAsPlaceholder = true,
+                            singleLine = false,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
         }
 

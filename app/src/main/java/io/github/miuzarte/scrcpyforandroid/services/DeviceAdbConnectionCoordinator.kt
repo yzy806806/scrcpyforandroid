@@ -1,9 +1,13 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
 import android.os.Parcelable
+import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
+import io.github.miuzarte.scrcpyforandroid.nativecore.SSHTunnelManager
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -27,11 +31,31 @@ internal data class DeviceAdbSessionState(
 internal class DeviceAdbConnectionCoordinator(
     private val adbService: NativeAdbService = NativeAdbService,
 ) {
+    private companion object {
+        const val TAG = "AdbCoordinator"
+    }
+
+    /**
+     * If SSH tunnel mode is enabled, opens the SSH tunnel (using the stored SSH settings)
+     * and returns the local port to connect adb to. Otherwise returns the raw target.
+     * Returns Pair(connectHost, connectPort).
+     */
+    private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
+        val settings = Storage.appSettings.bundleState.value
+        if (SSHTunnelManager.isConfigured(settings)) {
+            val localPort = SSHTunnelManager.open(settings)
+            Log.i(TAG, "SSH tunnel active, adb -> 127.0.0.1:$localPort (requested $host:$port)")
+            return "127.0.0.1" to localPort
+        }
+        return host to port
+    }
+
     suspend fun connectWithTimeout(host: String, port: Int, timeoutMs: Long) {
         withContext(Dispatchers.IO) {
-            val resolved = resolveHost(host)
+            val (connectHost, connectPort) = resolveConnectTarget(host, port)
+            val resolved = resolveHost(connectHost)
             withTimeout(timeoutMs) {
-                adbService.connect(resolved, port)
+                adbService.connect(resolved, connectPort)
             }
         }
     }
@@ -46,9 +70,10 @@ internal class DeviceAdbConnectionCoordinator(
             if (addresses.size == 1) {
                 val target = ConnectionTarget.unmarshalFrom(addresses[0])
                     ?: throw IllegalStateException("Invalid address: ${addresses[0]}")
-                val resolved = resolveHost(target.host)
+                val (connectHost, connectPort) = resolveConnectTarget(target.host, target.port)
+                val resolved = resolveHost(connectHost)
                 withTimeout(timeoutMs) {
-                    adbService.connect(resolved, target.port)
+                    adbService.connect(resolved, connectPort)
                 }
                 return@withContext target
             }
@@ -84,7 +109,8 @@ internal class DeviceAdbConnectionCoordinator(
 
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
-            adbService.disconnect()
+            runCatching { adbService.disconnect() }
+            SSHTunnelManager.close()
         }
     }
 
