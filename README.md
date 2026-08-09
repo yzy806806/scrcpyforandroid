@@ -1,6 +1,43 @@
 <!-- markdownlint-disable MD033 -->
 
-# Scrcpy for Android
+# Scrcpy for Android (SSH Tunnel Fork)
+
+> [!IMPORTANT]
+> **Fork 说明**: 本仓库是 [Miuzarte/ScrcpyForAndroid](https://github.com/Miuzarte/ScrcpyForAndroid) 的个人 fork，在原版基础上增加 **SSH 隧道连接模式**。用于解决「被控端 adbd 无 RSA 认证时，公网直接暴露 5555 端口不安全」的问题（详见下文）。其余功能与原版一致，可直接跟随上游合并更新。
+
+## 本 Fork 的更改
+
+### 新增：SSH 隧道连接模式
+
+某些设备的 adbd 被 ROM 定制为**跳过 RSA 认证**（例如 OnePlus/OPPO 系），此时若直接通过公网连接 5555 端口，任何人都能免认证控制设备；且手机常带公网 IPv6，路由器无法过滤。本 fork 新增 SSH 隧道模式，把 adb 协议封装在 SSH 加密通道内，认证交给 SSH 密钥：
+
+```
+主控手机 ScrcpyForAndroid
+    │ 填 SSH 配置 (主机/端口/用户/私钥)
+    ▼
+SSH 连接 (密钥认证 + 加密)  ← 公网唯一入口
+    ▼
+被控端 127.0.0.1:5555 (adbd 只监听回环)
+```
+
+**使用方式**:
+1. 被控端 adbd 监听 `127.0.0.1:5555`（可用 iptables 只放行回环）
+2. 主控端 **设置 → SSH 隧道**：开启并填写 SSH 主机/端口/用户名/PEM 私钥
+3. 设备列表填写 SSH 服务器地址，连接后 App 自动建立隧道并连接 adb
+4. 局域网直连场景可关闭 SSH 隧道，行为与原版一致
+
+**改动文件**:
+- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/DeviceAdbConnectionCoordinator.kt` — 连接前判断 SSH 配置，先建隧道再连 adb
+- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/nativecore/SSHTunnelManager.kt` — 新增，JSch SSH 会话 + 本地端口转发管理
+- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/storage/AppSettings.kt` — 新增 SSH 配置字段
+- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/pages/SettingsScreen.kt` — 设置页新增 SSH 隧道配置区块
+- `gradle/libs.versions.toml` — 新增 JSch 依赖
+
+### 构建
+
+GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions artifacts。
+
+---
 
 <a href="https://github.com/Genymobile/scrcpy/blob/master/app/data/icon.svg" title="Modified from the original version">
   <img src="app/src/main/assets/icon/icon.svg" width="128" height="128" alt="scrcpy" align="right" />
