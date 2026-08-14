@@ -8,6 +8,12 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      RELEASE_STORE_FILE: /tmp/release.keystore
+      RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
+      RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,11 +27,17 @@ jobs:
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Build debug APK
-        run: ./gradlew :app:assembleDebug --no-daemon
+      - name: Decode signing keystore
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RELEASE_STORE_FILE"
+
+      - name: Build signed release APK
+        run: ./gradlew :app:assembleRelease --no-daemon
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: scrcpyforandroid-ssh-debug
-          path: app/build/outputs/apk/debug/*.apk
+          name: scrcpyforandroid-ssh-release
+          path: app/build/outputs/apk/release/*.apk
