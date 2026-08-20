@@ -263,6 +263,7 @@
     <string name="pref_hint_ssh_private_key">-----BEGIN OPENSSH PRIVATE KEY-----</string>
 
     <!-- Settings - Terminal -->
+    <string name="section_ssh_tunnel">SSH tunnel</string>
     <string name="section_terminal">Terminal</string>
     <string name="pref_title_terminal_font_size">Terminal font size</string>
     <string name="pref_summary_terminal_font_size">Can also be adjusted with pinch-to-zoom on the terminal</string>

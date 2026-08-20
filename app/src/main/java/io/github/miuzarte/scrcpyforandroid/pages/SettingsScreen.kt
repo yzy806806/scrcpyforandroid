@@ -3,6 +3,7 @@ package io.github.miuzarte.scrcpyforandroid.pages
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import androidx.activity.compose.LocalActivity
@@ -424,29 +425,36 @@ fun SettingsPage(
                         )
                     },
                 )
-                SwitchPreference(
-                    title = stringResource(R.string.pref_title_floating_bottom_bar),
-                    summary = stringResource(R.string.pref_summary_floating_bottom_bar),
-                    checked = asBundle.floatingBottomBar,
-                    onCheckedChange = {
-                        asBundle = asBundle.copy(
-                            floatingBottomBar = it,
-                        )
-                    },
-                )
-                AnimatedVisibility(asBundle.floatingBottomBar && asBundle.blur) {
-                    Column {
-                        SwitchPreference(
-                            title = stringResource(R.string.pref_title_liquid_glass),
-                            summary = stringResource(R.string.pref_summary_liquid_glass),
-                            checked = asBundle.floatingBottomBar && asBundle.blur
-                                    && asBundle.floatingBottomBarBlur,
-                            onCheckedChange = {
-                                asBundle = asBundle.copy(
-                                    floatingBottomBarBlur = it,
-                                )
-                            },
-                        )
+                // 悬浮底栏依赖 InteractiveHighlight，其内部构造 android.graphics.RuntimeShader（API 33+ 引入），
+                // 低版本开启会闪退，故仅 Android 13+ 显示该开关
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && asBundle.floatingBottomBar) {
+                    asBundle = asBundle.copy(floatingBottomBar = false, floatingBottomBarBlur = false)
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    SwitchPreference(
+                        title = stringResource(R.string.pref_title_floating_bottom_bar),
+                        summary = stringResource(R.string.pref_summary_floating_bottom_bar),
+                        checked = asBundle.floatingBottomBar,
+                        onCheckedChange = {
+                            asBundle = asBundle.copy(
+                                floatingBottomBar = it,
+                            )
+                        },
+                    )
+                    AnimatedVisibility(asBundle.floatingBottomBar && asBundle.blur) {
+                        Column {
+                            SwitchPreference(
+                                title = stringResource(R.string.pref_title_liquid_glass),
+                                summary = stringResource(R.string.pref_summary_liquid_glass),
+                                checked = asBundle.floatingBottomBar && asBundle.blur
+                                        && asBundle.floatingBottomBarBlur,
+                                onCheckedChange = {
+                                    asBundle = asBundle.copy(
+                                        floatingBottomBarBlur = it,
+                                    )
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -1155,6 +1163,13 @@ fun SettingsPage(
                         }
                     },
                 )
+            }
+        }
+
+        // SSH tunnel
+        item {
+            SectionSmallTitle(stringResource(R.string.section_ssh_tunnel))
+            Card {
                 SwitchPreference(
                     title = stringResource(R.string.pref_title_ssh_tunnel),
                     summary = stringResource(R.string.pref_summary_ssh_tunnel),
@@ -1170,22 +1185,18 @@ fun SettingsPage(
                         modifier = Modifier.padding(horizontal = UiSpacing.Large),
                         verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
                     ) {
-                        Text(
-                            text = stringResource(R.string.pref_title_ssh_host),
-                            fontWeight = FontWeight.Medium,
-                        )
                         SuperTextField(
                             value = asBundle.sshHost,
                             onValueChange = { asBundle = asBundle.copy(sshHost = it) },
-                            label = stringResource(R.string.pref_hint_ssh_host),
+                            label = stringResource(R.string.pref_title_ssh_host),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
                             value = asBundle.sshPort.toString(),
-                            onValueChange = { input ->
-                                input.toIntOrNull()?.let { asBundle = asBundle.copy(sshPort = it) }
+                            onValueChange = {
+                                asBundle = asBundle.copy(sshPort = it.toIntOrNull() ?: 22)
                             },
                             label = stringResource(R.string.pref_title_ssh_port),
                             useLabelAsPlaceholder = true,
@@ -1200,16 +1211,11 @@ fun SettingsPage(
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
-                        Text(
-                            text = stringResource(R.string.pref_title_ssh_private_key),
-                            fontWeight = FontWeight.Medium,
-                        )
                         SuperTextField(
                             value = asBundle.sshPrivateKey,
                             onValueChange = { asBundle = asBundle.copy(sshPrivateKey = it) },
-                            label = stringResource(R.string.pref_hint_ssh_private_key),
+                            label = stringResource(R.string.pref_title_ssh_private_key),
                             useLabelAsPlaceholder = true,
-                            singleLine = false,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }

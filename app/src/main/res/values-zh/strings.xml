@@ -262,6 +262,7 @@
     <string name="pref_hint_ssh_private_key">-----BEGIN OPENSSH PRIVATE KEY-----</string>
 
     <!-- Settings - Terminal -->
+    <string name="section_ssh_tunnel">SSH 隧道</string>
     <string name="section_terminal">终端</string>
     <string name="pref_title_terminal_font_size">终端字号</string>
     <string name="pref_summary_terminal_font_size">也可以在终端上双指缩放调整</string>
