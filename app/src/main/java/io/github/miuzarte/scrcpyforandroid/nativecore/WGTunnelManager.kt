@@ -74,7 +74,8 @@ object WGTunnelManager {
     fun open(settings: AppSettings.Bundle): String {
         close() // drop any stale tunnel first
 
-        // Check VPN permission first
+        // Check VPN permission BEFORE the try block — this exception must not be
+        // swallowed by the generic catch below
         val prepareIntent = GoBackend.VpnService.prepare(AppRuntime.context)
         if (prepareIntent != null) {
             throw VpnPermissionRequiredException(prepareIntent)
