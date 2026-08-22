@@ -1176,7 +1176,7 @@ fun SettingsPage(
                 if (result.resultCode == android.app.Activity.RESULT_OK) {
                     // Permission granted, start VpnService and enable tunnel
                     val serviceIntent = android.content.Intent(activity, com.wireguard.android.backend.GoBackend.VpnService::class.java)
-                    androidx.core.app.ContextCompat.startForegroundService(activity, serviceIntent)
+                    activity.startService(serviceIntent)
                     asBundle = asBundle.copy(wgTunnelEnabled = true)
                 } else {
                     // Permission denied — turn off the switch
@@ -1199,7 +1199,7 @@ fun SettingsPage(
                             } else {
                                 // Already granted, start VpnService directly
                                 val serviceIntent = android.content.Intent(activity, com.wireguard.android.backend.GoBackend.VpnService::class.java)
-                                androidx.core.app.ContextCompat.startForegroundService(activity, serviceIntent)
+                                activity.startService(serviceIntent)
                                 asBundle = asBundle.copy(wgTunnelEnabled = true)
                             }
                         } else {
