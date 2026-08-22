@@ -46,7 +46,6 @@ internal class DeviceAdbConnectionCoordinator(
             try {
                 // Reuse existing tunnel if already open, avoid close/reopen churn
                 if (!WGTunnelManager.isOpen()) {
-                    AppRuntime.snackbar("WG: opening tunnel...")
                     val peerIp = WGTunnelManager.open(settings)
                     AppRuntime.snackbar("WG: tunnel up, adb -> $peerIp:${settings.wgRemotePort}")
                 }
@@ -55,8 +54,6 @@ internal class DeviceAdbConnectionCoordinator(
                 Log.i(TAG, "WG tunnel active, adb -> $peerIp:$remotePort (requested $host:$port)")
                 return peerIp to remotePort
             } catch (e: VpnPermissionRequiredException) {
-                // VPN permission not granted yet — launch the system consent dialog
-                // The user needs to grant permission and retry the connection
                 val intent = e.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 AppRuntime.context.startActivity(intent)
                 throw IllegalStateException("WireGuard tunnel requires VPN permission. Please grant permission and retry.")
