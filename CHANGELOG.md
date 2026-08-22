@@ -1,6 +1,13 @@
 # Change Log
 
-## 0.5.4
+## 0.5.4-wg
+
+- 重构: 用 WireGuard 隧道替代 SSH 隧道 (JSch)
+  - 内核态加密 (ChaCha20-Poly1305), 替代 Java 用户态 SSH
+  - 无 TCP-in-TCP 开销, 无 Nagle 延迟
+  - VpnService 后端 (GoBackend), 首次需 VPN 授权 (仅一次)
+- 依赖: 移除 JSch, 新增 com.wireguard.android:tunnel:1.0.20260102
+- 依赖: 新增 desugar_jdk_libs (WG 库要求 Java 8 desugaring)
 
 - 修复: 在安卓 10 使用了不允许的认证方式组合
   - [pr#81](https://github.com/Miuzarte/ScrcpyForAndroid/pull/81)

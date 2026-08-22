@@ -4,8 +4,7 @@ import android.os.Parcelable
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
-import io.github.miuzarte.scrcpyforandroid.nativecore.SSHTunnelManager
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import io.github.miuzarte.scrcpyforandroid.nativecore.WGTunnelManager
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -36,16 +35,17 @@ internal class DeviceAdbConnectionCoordinator(
     }
 
     /**
-     * If SSH tunnel mode is enabled, opens the SSH tunnel (using the stored SSH settings)
-     * and returns the local port to connect adb to. Otherwise returns the raw target.
+     * If WireGuard tunnel mode is enabled, opens the WG tunnel and returns the
+     * peer IP + remote port to connect adb to. Otherwise returns the raw target.
      * Returns Pair(connectHost, connectPort).
      */
     private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
         val settings = Storage.appSettings.bundleState.value
-        if (SSHTunnelManager.isConfigured(settings)) {
-            val localPort = SSHTunnelManager.open(settings)
-            Log.i(TAG, "SSH tunnel active, adb -> 127.0.0.1:$localPort (requested $host:$port)")
-            return "127.0.0.1" to localPort
+        if (WGTunnelManager.isConfigured(settings)) {
+            val peerIp = WGTunnelManager.open(settings)
+            val remotePort = settings.wgRemotePort
+            Log.i(TAG, "WG tunnel active, adb -> $peerIp:$remotePort (requested $host:$port)")
+            return peerIp to remotePort
         }
         return host to port
     }
@@ -110,7 +110,7 @@ internal class DeviceAdbConnectionCoordinator(
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
             runCatching { adbService.disconnect() }
-            SSHTunnelManager.close()
+            WGTunnelManager.close()
         }
     }
 

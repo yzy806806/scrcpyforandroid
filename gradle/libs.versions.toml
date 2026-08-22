@@ -23,7 +23,9 @@ runtime = "1.11.4"
 androidxCorePip = "1.0.0-alpha03"
 androidxBiometric = "1.4.0-alpha07"
 androidxSecurityCrypto = "1.1.0"
-jsch = "0.2.25"
+jsch = "0.2.25"  # legacy, removed from build but kept for reference
+wireguardTunnel = "1.0.20260102"
+desugarJdkLibs = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -59,7 +61,9 @@ androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime
 androidx-core-pip = { group = "androidx.core", name = "core-pip", version.ref = "androidxCorePip" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "androidxSecurityCrypto" }
-jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }
+jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }  # legacy
+wireguard-tunnel = { group = "com.wireguard.android", name = "tunnel", version.ref = "wireguardTunnel" }
+desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 

@@ -248,30 +248,38 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             stringPreferencesKey("adb_key_name"),
             "scrcpy",
         )
-        // SSH tunnel (for remote adb access through an SSH server; the OnePlus adbd skips
-        // RSA auth, so we wrap adb in an SSH tunnel instead of exposing 5555 publicly)
-        val SSH_TUNNEL_ENABLED = Pair(
-            booleanPreferencesKey("ssh_tunnel_enabled"),
+        // WireGuard tunnel (replaces SSH tunnel — kernel-space WireGuard via VpnService,
+        // much lower latency than JSch's user-space TCP-in-TCP SSH forwarding)
+        val WG_TUNNEL_ENABLED = Pair(
+            booleanPreferencesKey("wg_tunnel_enabled"),
             false,
         )
-        val SSH_HOST = Pair(
-            stringPreferencesKey("ssh_host"),
+        val WG_ENDPOINT_HOST = Pair(
+            stringPreferencesKey("wg_endpoint_host"),
             "",
         )
-        val SSH_PORT = Pair(
-            intPreferencesKey("ssh_port"),
-            22,
+        val WG_ENDPOINT_PORT = Pair(
+            intPreferencesKey("wg_endpoint_port"),
+            51820,
         )
-        val SSH_USER = Pair(
-            stringPreferencesKey("ssh_user"),
-            "root",
-        )
-        val SSH_PRIVATE_KEY = Pair(
-            stringPreferencesKey("ssh_private_key"),
+        val WG_PRIVATE_KEY = Pair(
+            stringPreferencesKey("wg_private_key"),
             "",
         )
-        val SSH_REMOTE_PORT = Pair(
-            intPreferencesKey("ssh_remote_port"),
+        val WG_PEER_PUBLIC_KEY = Pair(
+            stringPreferencesKey("wg_peer_public_key"),
+            "",
+        )
+        val WG_PEER_IP = Pair(
+            stringPreferencesKey("wg_peer_ip"),
+            "10.0.0.2",
+        )
+        val WG_TUNNEL_IP = Pair(
+            stringPreferencesKey("wg_tunnel_ip"),
+            "10.0.0.1",
+        )
+        val WG_REMOTE_PORT = Pair(
+            intPreferencesKey("wg_remote_port"),
             5555,
         )
         val ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN = Pair(
@@ -386,13 +394,15 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val adbAutoLoadAppListOnConnect: Boolean,
         val adbFlowControlWindow: Int,
 
-        // SSH tunnel
-        val sshTunnelEnabled: Boolean,
-        val sshHost: String,
-        val sshPort: Int,
-        val sshUser: String,
-        val sshPrivateKey: String,
-        val sshRemotePort: Int,
+        // WireGuard tunnel
+        val wgTunnelEnabled: Boolean,
+        val wgEndpointHost: String,
+        val wgEndpointPort: Int,
+        val wgPrivateKey: String,
+        val wgPeerPublicKey: String,
+        val wgPeerIp: String,
+        val wgTunnelIp: String,
+        val wgRemotePort: Int,
 
         // Terminal
         val terminalFontSizeSp: Float,
@@ -460,13 +470,15 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { it.adbAutoLoadAppListOnConnect },
         bundleField(ADB_FLOW_CONTROL_WINDOW) { it.adbFlowControlWindow },
 
-        // SSH tunnel
-        bundleField(SSH_TUNNEL_ENABLED) { it.sshTunnelEnabled },
-        bundleField(SSH_HOST) { it.sshHost },
-        bundleField(SSH_PORT) { it.sshPort },
-        bundleField(SSH_USER) { it.sshUser },
-        bundleField(SSH_PRIVATE_KEY) { it.sshPrivateKey },
-        bundleField(SSH_REMOTE_PORT) { it.sshRemotePort },
+        // WireGuard tunnel
+        bundleField(WG_TUNNEL_ENABLED) { it.wgTunnelEnabled },
+        bundleField(WG_ENDPOINT_HOST) { it.wgEndpointHost },
+        bundleField(WG_ENDPOINT_PORT) { it.wgEndpointPort },
+        bundleField(WG_PRIVATE_KEY) { it.wgPrivateKey },
+        bundleField(WG_PEER_PUBLIC_KEY) { it.wgPeerPublicKey },
+        bundleField(WG_PEER_IP) { it.wgPeerIp },
+        bundleField(WG_TUNNEL_IP) { it.wgTunnelIp },
+        bundleField(WG_REMOTE_PORT) { it.wgRemotePort },
 
         // Terminal
         bundleField(TERMINAL_FONT_SIZE_SP) { it.terminalFontSizeSp },
@@ -539,13 +551,15 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         adbFlowControlWindow = preferences.read(ADB_FLOW_CONTROL_WINDOW),
 
-        // SSH tunnel
-        sshTunnelEnabled = preferences.read(SSH_TUNNEL_ENABLED),
-        sshHost = preferences.read(SSH_HOST),
-        sshPort = preferences.read(SSH_PORT),
-        sshUser = preferences.read(SSH_USER),
-        sshPrivateKey = preferences.read(SSH_PRIVATE_KEY),
-        sshRemotePort = preferences.read(SSH_REMOTE_PORT),
+        // WireGuard tunnel
+        wgTunnelEnabled = preferences.read(WG_TUNNEL_ENABLED),
+        wgEndpointHost = preferences.read(WG_ENDPOINT_HOST),
+        wgEndpointPort = preferences.read(WG_ENDPOINT_PORT),
+        wgPrivateKey = preferences.read(WG_PRIVATE_KEY),
+        wgPeerPublicKey = preferences.read(WG_PEER_PUBLIC_KEY),
+        wgPeerIp = preferences.read(WG_PEER_IP),
+        wgTunnelIp = preferences.read(WG_TUNNEL_IP),
+        wgRemotePort = preferences.read(WG_REMOTE_PORT),
 
         // Terminal
         terminalFontSizeSp = preferences.read(TERMINAL_FONT_SIZE_SP),

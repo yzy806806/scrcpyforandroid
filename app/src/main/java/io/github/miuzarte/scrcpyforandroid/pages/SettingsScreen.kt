@@ -1166,56 +1166,72 @@ fun SettingsPage(
             }
         }
 
-        // SSH tunnel
+        // WireGuard tunnel
         item {
-            SectionSmallTitle(stringResource(R.string.section_ssh_tunnel))
+            SectionSmallTitle(stringResource(R.string.section_wireguard))
             Card {
                 SwitchPreference(
-                    title = stringResource(R.string.pref_title_ssh_tunnel),
-                    summary = stringResource(R.string.pref_summary_ssh_tunnel),
-                    checked = asBundle.sshTunnelEnabled,
+                    title = stringResource(R.string.pref_title_wg_tunnel),
+                    summary = stringResource(R.string.pref_summary_wg_tunnel),
+                    checked = asBundle.wgTunnelEnabled,
                     onCheckedChange = {
                         asBundle = asBundle.copy(
-                            sshTunnelEnabled = it,
+                            wgTunnelEnabled = it,
                         )
                     },
                 )
-                if (asBundle.sshTunnelEnabled) {
+                if (asBundle.wgTunnelEnabled) {
                     Column(
                         modifier = Modifier.padding(horizontal = UiSpacing.Large),
                         verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
                     ) {
                         SuperTextField(
-                            value = asBundle.sshHost,
-                            onValueChange = { asBundle = asBundle.copy(sshHost = it) },
-                            label = stringResource(R.string.pref_title_ssh_host),
+                            value = asBundle.wgEndpointHost,
+                            onValueChange = { asBundle = asBundle.copy(wgEndpointHost = it) },
+                            label = stringResource(R.string.pref_title_wg_endpoint),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
-                            value = asBundle.sshPort.toString(),
+                            value = asBundle.wgEndpointPort.toString(),
                             onValueChange = {
-                                asBundle = asBundle.copy(sshPort = it.toIntOrNull() ?: 22)
+                                asBundle = asBundle.copy(wgEndpointPort = it.toIntOrNull() ?: 51820)
                             },
-                            label = stringResource(R.string.pref_title_ssh_port),
+                            label = stringResource(R.string.pref_title_wg_endpoint_port),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
-                            value = asBundle.sshUser,
-                            onValueChange = { asBundle = asBundle.copy(sshUser = it) },
-                            label = stringResource(R.string.pref_title_ssh_user),
+                            value = asBundle.wgPrivateKey,
+                            onValueChange = { asBundle = asBundle.copy(wgPrivateKey = it) },
+                            label = stringResource(R.string.pref_title_wg_private_key),
+                            useLabelAsPlaceholder = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SuperTextField(
+                            value = asBundle.wgPeerPublicKey,
+                            onValueChange = { asBundle = asBundle.copy(wgPeerPublicKey = it) },
+                            label = stringResource(R.string.pref_title_wg_peer_public_key),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
-                            value = asBundle.sshPrivateKey,
-                            onValueChange = { asBundle = asBundle.copy(sshPrivateKey = it) },
-                            label = stringResource(R.string.pref_title_ssh_private_key),
+                            value = asBundle.wgPeerIp,
+                            onValueChange = { asBundle = asBundle.copy(wgPeerIp = it) },
+                            label = stringResource(R.string.pref_title_wg_peer_ip),
                             useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                        SuperTextField(
+                            value = asBundle.wgTunnelIp,
+                            onValueChange = { asBundle = asBundle.copy(wgTunnelIp = it) },
+                            label = stringResource(R.string.pref_title_wg_tunnel_ip),
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
