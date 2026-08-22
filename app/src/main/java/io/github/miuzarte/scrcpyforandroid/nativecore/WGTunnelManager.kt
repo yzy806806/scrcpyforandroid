@@ -55,12 +55,30 @@ object WGTunnelManager {
     }
 
     /**
+     * Triggers the system VPN consent dialog. Must be called from an Activity context.
+     * Returns the Intent that should be launched via startActivityForResult, or null
+     * if permission is already granted.
+     */
+    fun prepareVpn(): android.content.Intent? {
+        return GoBackend.VpnService.prepare(AppRuntime.context)
+    }
+
+    /**
      * Opens the WireGuard tunnel. Returns the peer IP that adb should connect to,
      * or throws if the tunnel cannot be established.
+     *
+     * IMPORTANT: Call prepareVpn() first and handle the returned Intent. If VPN
+     * permission is not granted, this will throw VpnPermissionRequiredException.
      */
     @Synchronized
     fun open(settings: AppSettings.Bundle): String {
         close() // drop any stale tunnel first
+
+        // Check VPN permission first
+        val prepareIntent = GoBackend.VpnService.prepare(AppRuntime.context)
+        if (prepareIntent != null) {
+            throw VpnPermissionRequiredException(prepareIntent)
+        }
 
         val endpointHost = settings.wgEndpointHost.trim()
         val endpointPort = settings.wgEndpointPort
@@ -144,6 +162,13 @@ object WGTunnelManager {
         return b
     }
 }
+
+/**
+ * Thrown when VpnService permission has not been granted yet.
+ * The caller should launch the Intent via startActivityForResult and retry.
+ */
+class VpnPermissionRequiredException(val intent: android.content.Intent) :
+    Exception("VpnService permission required — launch the intent and retry")
 
 /**
  * Minimal Tunnel implementation for the WireGuard backend.

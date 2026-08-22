@@ -5,6 +5,7 @@ import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
 import io.github.miuzarte.scrcpyforandroid.nativecore.WGTunnelManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.VpnPermissionRequiredException
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -42,10 +43,18 @@ internal class DeviceAdbConnectionCoordinator(
     private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
         val settings = Storage.appSettings.bundleState.value
         if (WGTunnelManager.isConfigured(settings)) {
-            val peerIp = WGTunnelManager.open(settings)
-            val remotePort = settings.wgRemotePort
-            Log.i(TAG, "WG tunnel active, adb -> $peerIp:$remotePort (requested $host:$port)")
-            return peerIp to remotePort
+            try {
+                val peerIp = WGTunnelManager.open(settings)
+                val remotePort = settings.wgRemotePort
+                Log.i(TAG, "WG tunnel active, adb -> $peerIp:$remotePort (requested $host:$port)")
+                return peerIp to remotePort
+            } catch (e: VpnPermissionRequiredException) {
+                // VPN permission not granted yet — launch the system consent dialog
+                // The user needs to grant permission and retry the connection
+                val intent = e.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
+                AppRuntime.context.startActivity(intent)
+                throw IllegalStateException("WireGuard tunnel requires VPN permission. Please grant permission and retry.")
+            }
         }
         return host to port
     }
