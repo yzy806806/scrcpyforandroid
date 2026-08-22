@@ -132,7 +132,24 @@ object WGTunnelManager {
             tunnel = wgTunnel
             currentPeerIp = peerIp
 
+            // Diagnostic: check if TUN interface was created
+            val tunInterface = java.net.NetworkInterface.getNetworkInterfaces()
+                .toList()
+                .filter { it.isUp && !it.isLoopback }
+                .filter { it.interfaceAddresses.any { ia -> ia.address.hostAddress?.startsWith("10.0.0.") == true } }
             Log.i(TAG, "WG tunnel up: $tunnelIp -> $peerIp (endpoint $endpointHost:$endpointPort)")
+            Log.i(TAG, "TUN interfaces with 10.0.0.x: ${tunInterface.map { "${it.name}=${it.interfaceAddresses.map { ia -> ia.address.hostAddress }}" }}")
+            io.github.miuzarte.scrcpyforandroid.services.AppRuntime.snackbar("WG: TUN=${tunInterface.map { it.name }}")
+
+            // Try to ping peer through WG tunnel
+            val reachable = try {
+                java.net.InetAddress.getByName(peerIp).isReachable(3000)
+            } catch (e: Exception) {
+                false
+            }
+            Log.i(TAG, "Peer $peerIp reachable: $reachable")
+            io.github.miuzarte.scrcpyforandroid.services.AppRuntime.snackbar("WG: peer $peerIp reachable=$reachable")
+
             return peerIp
         } catch (e: Exception) {
             Log.e(TAG, "WG tunnel open failed: ${e.message}")
