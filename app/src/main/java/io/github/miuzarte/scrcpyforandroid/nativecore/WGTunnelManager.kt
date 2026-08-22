@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.Log
 import com.wireguard.android.backend.GoBackend
 import com.wireguard.android.backend.Tunnel
-import com.wireguard.android.backend.WgQuickBackend
 import com.wireguard.config.Config
 import com.wireguard.config.InetEndpoint
 import com.wireguard.config.InetNetwork
@@ -69,7 +68,6 @@ object WGTunnelManager {
         val peerPublicKeyStr = settings.wgPeerPublicKey.trim()
         val peerIp = settings.wgPeerIp.trim()
         val tunnelIp = settings.wgTunnelIp.trim()
-        val remotePort = settings.wgRemotePort
 
         require(endpointHost.isNotBlank()) { "WG endpoint host is empty" }
         require(privateKeyStr.isNotBlank()) { "WG private key is empty" }
@@ -80,14 +78,13 @@ object WGTunnelManager {
 
             // Parse keys
             val keyPair = KeyPair(Key.fromBase64(privateKeyStr))
-            val peerKey = Key.fromBase64(peerPublicKeyStr)
 
             // Build WG config
             val endpoint = InetEndpoint.parse("$endpointHost:$endpointPort")
             val peer = Peer.Builder()
-                .setPublicKey(peerKey)
+                .parsePublicKey(peerPublicKeyStr)
                 .setEndpoint(endpoint)
-                .setAllowedIps(InetNetwork.parse("$peerIp/32"))
+                .addAllowedIp(InetNetwork.parse("$peerIp/32"))
                 .setPersistentKeepalive(25) // keep NAT mapping alive
                 .build()
 
@@ -101,7 +98,7 @@ object WGTunnelManager {
                 .addPeer(peer)
                 .build()
 
-            // Choose backend: prefer kernel (WgQuickBackend) if root, else VpnService (GoBackend)
+            // Use GoBackend (VpnService userspace — works without root)
             val backend = getOrCreateBackend(context)
 
             val wgTunnel = WGTunnel(TUNNEL_NAME)
@@ -141,16 +138,8 @@ object WGTunnelManager {
 
     private fun getOrCreateBackend(context: Context): com.wireguard.android.backend.Backend {
         backend?.let { return it }
-
-        // Try WgQuickBackend first (kernel, requires root)
-        // Fall back to GoBackend (VpnService userspace)
-        val b = try {
-            Log.i(TAG, "Trying WgQuickBackend (kernel)...")
-            WgQuickBackend(context)
-        } catch (e: Exception) {
-            Log.i(TAG, "WgQuickBackend unavailable, using GoBackend (VpnService): ${e.message}")
-            GoBackend(context)
-        }
+        Log.i(TAG, "Initializing GoBackend (VpnService userspace)")
+        val b = GoBackend(context)
         backend = b
         return b
     }
