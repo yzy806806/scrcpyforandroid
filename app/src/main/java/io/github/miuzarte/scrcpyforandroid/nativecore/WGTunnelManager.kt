@@ -72,6 +72,12 @@ object WGTunnelManager {
      */
     @Synchronized
     fun open(settings: AppSettings.Bundle): String {
+        // If tunnel is already up, just return the peer IP (don't close/reopen)
+        if (isOpen()) {
+            Log.i(TAG, "WG tunnel already up, reusing")
+            return currentPeerIp ?: settings.wgPeerIp.trim()
+        }
+
         close() // drop any stale tunnel first
 
         // Check VPN permission BEFORE the try block — this exception must not be
