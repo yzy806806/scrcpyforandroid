@@ -258,9 +258,9 @@
     <string name="pref_title_wg_endpoint">Peer endpoint</string>
     <string name="pref_hint_wg_endpoint">e.g. 203.0.113.10 or myhost.com</string>
     <string name="pref_title_wg_endpoint_port">Peer port</string>
-    <string name="pref_title_wg_private_key">Private key (Base64)</string>
-    <string name="pref_hint_wg_private_key">e.g. aBcD...==</string>
-    <string name="pref_title_wg_peer_public_key">Peer public key (Base64)</string>
+    <string name="pref_title_wg_private_key">Private key (Hex)</string>
+    <string name="pref_hint_wg_private_key">64-char hex string</string>
+    <string name="pref_title_wg_peer_public_key">Peer public key (Hex)</string>
     <string name="pref_title_wg_peer_ip">Peer tunnel IP</string>
     <string name="pref_title_wg_tunnel_ip">Local tunnel IP</string>
 

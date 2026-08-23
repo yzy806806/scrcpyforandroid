@@ -257,9 +257,9 @@
     <string name="pref_title_wg_endpoint">对端地址</string>
     <string name="pref_hint_wg_endpoint">例如 203.0.113.10 或 myhost.com</string>
     <string name="pref_title_wg_endpoint_port">对端端口</string>
-    <string name="pref_title_wg_private_key">本端私钥（Base64）</string>
-    <string name="pref_hint_wg_private_key">例如 aBcD...==</string>
-    <string name="pref_title_wg_peer_public_key">对端公钥（Base64）</string>
+    <string name="pref_title_wg_private_key">本端私钥（Hex）</string>
+    <string name="pref_hint_wg_private_key">64位十六进制字符串</string>
+    <string name="pref_title_wg_peer_public_key">对端公钥（Hex）</string>
     <string name="pref_title_wg_peer_ip">对端隧道 IP</string>
     <string name="pref_title_wg_tunnel_ip">本端隧道 IP</string>
 

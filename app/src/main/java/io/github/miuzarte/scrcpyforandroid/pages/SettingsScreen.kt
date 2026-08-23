@@ -1212,6 +1212,7 @@ fun SettingsPage(
                             onValueChange = { asBundle = asBundle.copy(wgPrivateKey = it) },
                             label = stringResource(R.string.pref_title_wg_private_key),
                             useLabelAsPlaceholder = true,
+                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(

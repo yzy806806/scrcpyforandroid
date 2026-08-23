@@ -76,7 +76,7 @@ object WgProxyManager {
             )
 
             if (port <= 0) {
-                throw IllegalStateException("WG proxy failed to start (Go returned $port)")
+                throw IllegalStateException("WG proxy start failed (Go returned $port). Check if keys are hex-encoded and endpoint is reachable.")
             }
 
             localPort = port.toInt()
