@@ -4,8 +4,7 @@ import android.os.Parcelable
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
-import io.github.miuzarte.scrcpyforandroid.nativecore.WGTunnelManager
-import io.github.miuzarte.scrcpyforandroid.nativecore.VpnPermissionRequiredException
+import io.github.miuzarte.scrcpyforandroid.nativecore.WgProxyManager
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -42,23 +41,17 @@ internal class DeviceAdbConnectionCoordinator(
      */
     private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
         val settings = Storage.appSettings.bundleState.value
-        if (WGTunnelManager.isConfigured(settings)) {
+        if (WgProxyManager.isConfigured(settings)) {
             try {
-                // Reuse existing tunnel if already open, avoid close/reopen churn
-                if (!WGTunnelManager.isOpen()) {
-                    val peerIp = WGTunnelManager.open(settings)
-                    AppRuntime.snackbar("WG: tunnel up, adb -> $peerIp:${settings.wgRemotePort}")
+                if (!WgProxyManager.isOpen()) {
+                    val (proxyHost, proxyPort) = WgProxyManager.open(settings)
+                    AppRuntime.snackbar("WG: tunnel up, adb -> $proxyHost:$proxyPort")
                 }
-                val remotePort = settings.wgRemotePort
-                val peerIp = WGTunnelManager.currentPeerIp() ?: settings.wgPeerIp.trim()
-                Log.i(TAG, "WG tunnel active, adb -> $peerIp:$remotePort (requested $host:$port)")
-                return peerIp to remotePort
-            } catch (e: VpnPermissionRequiredException) {
-                val intent = e.intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
-                AppRuntime.context.startActivity(intent)
-                throw IllegalStateException("WireGuard tunnel requires VPN permission. Please grant permission and retry.")
+                val proxyPort = WgProxyManager.currentLocalPort()
+                Log.i(TAG, "WG proxy active, adb -> 127.0.0.1:$proxyPort (requested $host:$port)")
+                return "127.0.0.1" to proxyPort
             } catch (e: Exception) {
-                Log.e(TAG, "WG tunnel failed: ${e.message}")
+                Log.e(TAG, "WG proxy failed: ${e.message}")
                 AppRuntime.snackbar("WG: tunnel failed - ${e.message}")
                 throw e
             }
@@ -126,7 +119,7 @@ internal class DeviceAdbConnectionCoordinator(
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
             runCatching { adbService.disconnect() }
-            WGTunnelManager.close()
+            WgProxyManager.close()
         }
     }
 

@@ -282,6 +282,10 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             intPreferencesKey("wg_remote_port"),
             5555,
         )
+        val WG_LOCAL_PORT = Pair(
+            intPreferencesKey("wg_local_port"),
+            0,
+        )
         val ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN = Pair(
             booleanPreferencesKey("adb_pairing_auto_discover_on_dialog_open"),
             true,
@@ -403,6 +407,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val wgPeerIp: String,
         val wgTunnelIp: String,
         val wgRemotePort: Int,
+        val wgLocalPort: Int,
 
         // Terminal
         val terminalFontSizeSp: Float,
@@ -479,6 +484,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(WG_PEER_IP) { it.wgPeerIp },
         bundleField(WG_TUNNEL_IP) { it.wgTunnelIp },
         bundleField(WG_REMOTE_PORT) { it.wgRemotePort },
+        bundleField(WG_LOCAL_PORT) { it.wgLocalPort },
 
         // Terminal
         bundleField(TERMINAL_FONT_SIZE_SP) { it.terminalFontSizeSp },
@@ -560,6 +566,7 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         wgPeerIp = preferences.read(WG_PEER_IP),
         wgTunnelIp = preferences.read(WG_TUNNEL_IP),
         wgRemotePort = preferences.read(WG_REMOTE_PORT),
+        wgLocalPort = preferences.read(WG_LOCAL_PORT),
 
         // Terminal
         terminalFontSizeSp = preferences.read(TERMINAL_FONT_SIZE_SP),
