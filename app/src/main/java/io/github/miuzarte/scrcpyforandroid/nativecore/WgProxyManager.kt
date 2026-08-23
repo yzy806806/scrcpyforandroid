@@ -65,7 +65,7 @@ object WgProxyManager {
             val remoteAddr = "$peerIp:$remotePort"
 
             // Call into Go via JNI to start the WG proxy
-            val port = wgproxy.Wgproxy.startProxy(
+            val result = wgproxy.Wgproxy.startProxy(
                 privateKeyStr,
                 peerPublicKeyStr,
                 "$endpointHost:$endpointPort",
@@ -75,8 +75,15 @@ object WgProxyManager {
                 listenPort.toLong(),
             )
 
-            if (port <= 0) {
-                throw IllegalStateException("WG proxy start failed (Go returned $port). Check if keys are hex-encoded and endpoint is reachable.")
+            // result is either "12345" (port number) or "ERROR:something went wrong"
+            if (result.startsWith("ERROR:")) {
+                val errMsg = result.removePrefix("ERROR:")
+                throw IllegalStateException("WG: $errMsg")
+            }
+
+            val port = result.toIntOrNull()
+            if (port == null || port <= 0) {
+                throw IllegalStateException("WG: unexpected response from Go: $result")
             }
 
             localPort = port.toInt()
