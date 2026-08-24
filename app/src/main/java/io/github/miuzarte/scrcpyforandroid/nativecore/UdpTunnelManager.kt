@@ -47,7 +47,7 @@ object UdpTunnelManager {
     private const val FLAG_AUTH: Byte = 1
     private const val FLAG_AUTH_OK: Byte = 2
     private const val FLAG_FIN: Byte = 3
-    private const val FIN_SEQ = 0xFFFFFFFFL
+    private const val FIN_SEQ = 0xFFFFFFFF.toInt()
 
     @Volatile
     private var serverSocket: ServerSocket? = null
@@ -229,7 +229,7 @@ object UdpTunnelManager {
         sock: DatagramSocket,
         addr: InetAddress,
         port: Int,
-        seq: Long,
+        seq: Int,
         flag: Byte,
         data: ByteArray,
         done: AtomicBoolean,
@@ -255,7 +255,7 @@ object UdpTunnelManager {
         }
     }
 
-    private fun buildPacket(seq: Long, flag: Byte, data: ByteArray): ByteArray {
+    private fun buildPacket(seq: Int, flag: Byte, data: ByteArray): ByteArray {
         val pkt = ByteArray(5 + data.size)
         pkt[0] = ((seq shr 24) and 0xFF).toByte()
         pkt[1] = ((seq shr 16) and 0xFF).toByte()
@@ -266,13 +266,13 @@ object UdpTunnelManager {
         return pkt
     }
 
-    private fun parsePacket(p: DatagramPacket): Triple<Long, Byte, ByteArray> {
+    private fun parsePacket(p: DatagramPacket): Triple<Int, Byte, ByteArray> {
         val d = p.data
         val offset = p.offset
-        val seq = ((d[offset].toLong() and 0xFF) shl 24) or
-                  ((d[offset + 1].toLong() and 0xFF) shl 16) or
-                  ((d[offset + 2].toLong() and 0xFF) shl 8) or
-                  (d[offset + 3].toLong() and 0xFF)
+        val seq = ((d[offset].toInt() and 0xFF) shl 24) or
+                  ((d[offset + 1].toInt() and 0xFF) shl 16) or
+                  ((d[offset + 2].toInt() and 0xFF) shl 8) or
+                  (d[offset + 3].toInt() and 0xFF)
         val flag = d[offset + 4]
         val data = if (p.length > 5) d.copyOfRange(offset + 5, offset + p.length) else ByteArray(0)
         return Triple(seq, flag, data)
