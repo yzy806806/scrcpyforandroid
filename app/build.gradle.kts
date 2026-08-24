@@ -59,8 +59,8 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 37
-        versionCode = 45
-        versionName = "0.5.4-udp"
+        versionCode = 46
+        versionName = "0.5.4-quic"
 
         externalNativeBuild {
             cmake {
@@ -168,6 +168,7 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
+    implementation(files("libs/libquictunnel.aar"))
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation("com.github.promeg:tinypinyin:3.0.0")
 

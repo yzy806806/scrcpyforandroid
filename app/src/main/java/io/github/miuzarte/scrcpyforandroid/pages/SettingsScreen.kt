@@ -34,7 +34,7 @@ import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
-import io.github.miuzarte.scrcpyforandroid.nativecore.UdpTunnelManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.QuicTunnelManager
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
@@ -1179,7 +1179,7 @@ fun SettingsPage(
                     checked = asBundle.tunnelEnabled,
                     onCheckedChange = { enabled ->
                         if (!enabled) {
-                            UdpTunnelManager.close()
+                            QuicTunnelManager.close()
                         }
                         asBundle = asBundle.copy(tunnelEnabled = enabled)
                     },
