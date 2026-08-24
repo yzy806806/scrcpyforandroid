@@ -248,42 +248,25 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
             stringPreferencesKey("adb_key_name"),
             "scrcpy",
         )
-        // WireGuard tunnel (replaces SSH tunnel — kernel-space WireGuard via VpnService,
-        // much lower latency than JSch's user-space TCP-in-TCP SSH forwarding)
-        val WG_TUNNEL_ENABLED = Pair(
-            booleanPreferencesKey("wg_tunnel_enabled"),
+        // TCP tunnel (lightweight, no VpnService, no encryption — auth only)
+        val TUNNEL_ENABLED = Pair(
+            booleanPreferencesKey("tunnel_enabled"),
             false,
         )
-        val WG_ENDPOINT_HOST = Pair(
-            stringPreferencesKey("wg_endpoint_host"),
+        val TUNNEL_HOST = Pair(
+            stringPreferencesKey("tunnel_host"),
             "",
         )
-        val WG_ENDPOINT_PORT = Pair(
-            intPreferencesKey("wg_endpoint_port"),
-            51820,
+        val TUNNEL_PORT = Pair(
+            intPreferencesKey("tunnel_port"),
+            22289,
         )
-        val WG_PRIVATE_KEY = Pair(
-            stringPreferencesKey("wg_private_key"),
+        val TUNNEL_KEY = Pair(
+            stringPreferencesKey("tunnel_key"),
             "",
         )
-        val WG_PEER_PUBLIC_KEY = Pair(
-            stringPreferencesKey("wg_peer_public_key"),
-            "",
-        )
-        val WG_PEER_IP = Pair(
-            stringPreferencesKey("wg_peer_ip"),
-            "10.0.0.2",
-        )
-        val WG_TUNNEL_IP = Pair(
-            stringPreferencesKey("wg_tunnel_ip"),
-            "10.0.0.1",
-        )
-        val WG_REMOTE_PORT = Pair(
-            intPreferencesKey("wg_remote_port"),
-            5555,
-        )
-        val WG_LOCAL_PORT = Pair(
-            intPreferencesKey("wg_local_port"),
+        val TUNNEL_LOCAL_PORT = Pair(
+            intPreferencesKey("tunnel_local_port"),
             0,
         )
         val ADB_PAIRING_AUTO_DISCOVER_ON_DIALOG_OPEN = Pair(
@@ -398,16 +381,12 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         val adbAutoLoadAppListOnConnect: Boolean,
         val adbFlowControlWindow: Int,
 
-        // WireGuard tunnel
-        val wgTunnelEnabled: Boolean,
-        val wgEndpointHost: String,
-        val wgEndpointPort: Int,
-        val wgPrivateKey: String,
-        val wgPeerPublicKey: String,
-        val wgPeerIp: String,
-        val wgTunnelIp: String,
-        val wgRemotePort: Int,
-        val wgLocalPort: Int,
+        // TCP tunnel
+        val tunnelEnabled: Boolean,
+        val tunnelHost: String,
+        val tunnelPort: Int,
+        val tunnelKey: String,
+        val tunnelLocalPort: Int,
 
         // Terminal
         val terminalFontSizeSp: Float,
@@ -475,16 +454,12 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         bundleField(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT) { it.adbAutoLoadAppListOnConnect },
         bundleField(ADB_FLOW_CONTROL_WINDOW) { it.adbFlowControlWindow },
 
-        // WireGuard tunnel
-        bundleField(WG_TUNNEL_ENABLED) { it.wgTunnelEnabled },
-        bundleField(WG_ENDPOINT_HOST) { it.wgEndpointHost },
-        bundleField(WG_ENDPOINT_PORT) { it.wgEndpointPort },
-        bundleField(WG_PRIVATE_KEY) { it.wgPrivateKey },
-        bundleField(WG_PEER_PUBLIC_KEY) { it.wgPeerPublicKey },
-        bundleField(WG_PEER_IP) { it.wgPeerIp },
-        bundleField(WG_TUNNEL_IP) { it.wgTunnelIp },
-        bundleField(WG_REMOTE_PORT) { it.wgRemotePort },
-        bundleField(WG_LOCAL_PORT) { it.wgLocalPort },
+        // TCP tunnel
+        bundleField(TUNNEL_ENABLED) { it.tunnelEnabled },
+        bundleField(TUNNEL_HOST) { it.tunnelHost },
+        bundleField(TUNNEL_PORT) { it.tunnelPort },
+        bundleField(TUNNEL_KEY) { it.tunnelKey },
+        bundleField(TUNNEL_LOCAL_PORT) { it.tunnelLocalPort },
 
         // Terminal
         bundleField(TERMINAL_FONT_SIZE_SP) { it.terminalFontSizeSp },
@@ -557,16 +532,12 @@ class AppSettings(context: Context): Settings(context, "AppSettings") {
         adbAutoLoadAppListOnConnect = preferences.read(ADB_AUTO_LOAD_APP_LIST_ON_CONNECT),
         adbFlowControlWindow = preferences.read(ADB_FLOW_CONTROL_WINDOW),
 
-        // WireGuard tunnel
-        wgTunnelEnabled = preferences.read(WG_TUNNEL_ENABLED),
-        wgEndpointHost = preferences.read(WG_ENDPOINT_HOST),
-        wgEndpointPort = preferences.read(WG_ENDPOINT_PORT),
-        wgPrivateKey = preferences.read(WG_PRIVATE_KEY),
-        wgPeerPublicKey = preferences.read(WG_PEER_PUBLIC_KEY),
-        wgPeerIp = preferences.read(WG_PEER_IP),
-        wgTunnelIp = preferences.read(WG_TUNNEL_IP),
-        wgRemotePort = preferences.read(WG_REMOTE_PORT),
-        wgLocalPort = preferences.read(WG_LOCAL_PORT),
+        // TCP tunnel
+        tunnelEnabled = preferences.read(TUNNEL_ENABLED),
+        tunnelHost = preferences.read(TUNNEL_HOST),
+        tunnelPort = preferences.read(TUNNEL_PORT),
+        tunnelKey = preferences.read(TUNNEL_KEY),
+        tunnelLocalPort = preferences.read(TUNNEL_LOCAL_PORT),
 
         // Terminal
         terminalFontSizeSp = preferences.read(TERMINAL_FONT_SIZE_SP),

@@ -34,7 +34,7 @@ import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
-import io.github.miuzarte.scrcpyforandroid.nativecore.WgProxyManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.TcpTunnelManager
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
@@ -1169,72 +1169,48 @@ fun SettingsPage(
             }
         }
 
-        // WireGuard tunnel (local proxy mode, no VpnService)
+        // TCP tunnel (lightweight, no VpnService)
         item {
-            SectionSmallTitle(stringResource(R.string.section_wireguard))
+            SectionSmallTitle(stringResource(R.string.section_tunnel))
             Card {
                 SwitchPreference(
-                    title = stringResource(R.string.pref_title_wg_tunnel),
-                    summary = stringResource(R.string.pref_summary_wg_tunnel),
-                    checked = asBundle.wgTunnelEnabled,
+                    title = stringResource(R.string.pref_title_tunnel),
+                    summary = stringResource(R.string.pref_summary_tunnel),
+                    checked = asBundle.tunnelEnabled,
                     onCheckedChange = { enabled ->
                         if (!enabled) {
-                            WgProxyManager.close()
+                            TcpTunnelManager.close()
                         }
-                        asBundle = asBundle.copy(wgTunnelEnabled = enabled)
+                        asBundle = asBundle.copy(tunnelEnabled = enabled)
                     },
                 )
-                if (asBundle.wgTunnelEnabled) {
+                if (asBundle.tunnelEnabled) {
                     Column(
                         modifier = Modifier.padding(horizontal = UiSpacing.Large),
                         verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
                     ) {
                         SuperTextField(
-                            value = asBundle.wgEndpointHost,
-                            onValueChange = { asBundle = asBundle.copy(wgEndpointHost = it) },
-                            label = stringResource(R.string.pref_title_wg_endpoint),
+                            value = asBundle.tunnelHost,
+                            onValueChange = { asBundle = asBundle.copy(tunnelHost = it) },
+                            label = stringResource(R.string.pref_title_tunnel_host),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
-                            value = asBundle.wgEndpointPort.toString(),
+                            value = asBundle.tunnelPort.toString(),
                             onValueChange = {
-                                asBundle = asBundle.copy(wgEndpointPort = it.toIntOrNull() ?: 51820)
+                                asBundle = asBundle.copy(tunnelPort = it.toIntOrNull() ?: 22289)
                             },
-                            label = stringResource(R.string.pref_title_wg_endpoint_port),
+                            label = stringResource(R.string.pref_title_tunnel_port),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                         SuperTextField(
-                            value = asBundle.wgPrivateKey,
-                            onValueChange = { asBundle = asBundle.copy(wgPrivateKey = it) },
-                            label = stringResource(R.string.pref_title_wg_private_key),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SuperTextField(
-                            value = asBundle.wgPeerPublicKey,
-                            onValueChange = { asBundle = asBundle.copy(wgPeerPublicKey = it) },
-                            label = stringResource(R.string.pref_title_wg_peer_public_key),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SuperTextField(
-                            value = asBundle.wgPeerIp,
-                            onValueChange = { asBundle = asBundle.copy(wgPeerIp = it) },
-                            label = stringResource(R.string.pref_title_wg_peer_ip),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SuperTextField(
-                            value = asBundle.wgTunnelIp,
-                            onValueChange = { asBundle = asBundle.copy(wgTunnelIp = it) },
-                            label = stringResource(R.string.pref_title_wg_tunnel_ip),
+                            value = asBundle.tunnelKey,
+                            onValueChange = { asBundle = asBundle.copy(tunnelKey = it) },
+                            label = stringResource(R.string.pref_title_tunnel_key),
                             useLabelAsPlaceholder = true,
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth(),

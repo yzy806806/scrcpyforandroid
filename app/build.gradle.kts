@@ -59,8 +59,8 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 37
-        versionCode = 43
-        versionName = "0.5.4-wg2"
+        versionCode = 44
+        versionName = "0.5.4-tunnel"
 
         externalNativeBuild {
             cmake {
@@ -168,8 +168,6 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
-    implementation(libs.wireguard.tunnel)
-    implementation(files("libs/libwgproxy.aar"))
     coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation("com.github.promeg:tinypinyin:3.0.0")
 

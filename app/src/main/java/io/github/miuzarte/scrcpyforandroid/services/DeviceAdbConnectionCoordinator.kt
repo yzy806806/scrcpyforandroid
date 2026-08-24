@@ -4,7 +4,7 @@ import android.os.Parcelable
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
-import io.github.miuzarte.scrcpyforandroid.nativecore.WgProxyManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.TcpTunnelManager
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -35,24 +35,24 @@ internal class DeviceAdbConnectionCoordinator(
     }
 
     /**
-     * If WireGuard tunnel mode is enabled, opens the WG tunnel and returns the
-     * peer IP + remote port to connect adb to. Otherwise returns the raw target.
+     * If TCP tunnel mode is enabled, opens the tunnel and returns the
+     * local proxy address. Otherwise returns the raw target.
      * Returns Pair(connectHost, connectPort).
      */
     private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
         val settings = Storage.appSettings.bundleState.value
-        if (WgProxyManager.isConfigured(settings)) {
+        if (TcpTunnelManager.isConfigured(settings)) {
             try {
-                if (!WgProxyManager.isOpen()) {
-                    val (proxyHost, proxyPort) = WgProxyManager.open(settings)
-                    AppRuntime.snackbar("WG: tunnel up, adb -> $proxyHost:$proxyPort")
+                if (!TcpTunnelManager.isOpen()) {
+                    val (proxyHost, proxyPort) = TcpTunnelManager.open(settings)
+                    AppRuntime.snackbar("Tunnel: up, adb -> $proxyHost:$proxyPort")
                 }
-                val proxyPort = WgProxyManager.currentLocalPort()
-                Log.i(TAG, "WG proxy active, adb -> 127.0.0.1:$proxyPort (requested $host:$port)")
+                val proxyPort = TcpTunnelManager.currentLocalPort()
+                Log.i(TAG, "Tunnel active, adb -> 127.0.0.1:$proxyPort (requested $host:$port)")
                 return "127.0.0.1" to proxyPort
             } catch (e: Exception) {
-                Log.e(TAG, "WG proxy failed: ${e.message}")
-                AppRuntime.snackbar("WG: tunnel failed - ${e.message}")
+                Log.e(TAG, "Tunnel failed: ${e.message}")
+                AppRuntime.snackbar("Tunnel: failed - ${e.message}")
                 throw e
             }
         }
@@ -119,7 +119,7 @@ internal class DeviceAdbConnectionCoordinator(
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
             runCatching { adbService.disconnect() }
-            WgProxyManager.close()
+            TcpTunnelManager.close()
         }
     }
 
