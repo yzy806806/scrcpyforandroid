@@ -93,11 +93,25 @@ object WgProxyManager {
                 throw IllegalStateException("WG: unexpected response from Go: $result")
             }
 
-            localPort = port.toInt()
+            localPort = port
             running = true
 
             Log.i(TAG, "WG proxy up: 127.0.0.1:$localPort -> $remoteAddr via $endpointHost:$endpointPort")
             AppRuntime.snackbar("WG: proxy up on port $localPort")
+
+            // Test TCP connectivity through the proxy
+            try {
+                val testConn = java.net.Socket()
+                testConn.connect(java.net.InetSocketAddress("127.0.0.1", localPort), 5000)
+                val reachable = testConn.isConnected
+                testConn.close()
+                Log.i(TAG, "WG: proxy TCP test: 127.0.0.1:$localPort reachable=$reachable")
+                AppRuntime.snackbar("WG: proxy port reachable=$reachable")
+            } catch (e: Exception) {
+                Log.e(TAG, "WG: proxy TCP test failed: ${e.message}")
+                AppRuntime.snackbar("WG: proxy port unreachable - ${e.message}")
+            }
+
             return "127.0.0.1" to localPort
         } catch (e: Exception) {
             Log.e(TAG, "WG proxy open failed: ${e.message}")
