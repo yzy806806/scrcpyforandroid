@@ -64,11 +64,18 @@ object WgProxyManager {
             // Build the remote address that adb traffic will be forwarded to
             val remoteAddr = "$peerIp:$remotePort"
 
+            // Resolve endpoint host to IP address (wireguard-go's bind may not resolve DNS)
+            val resolvedEndpoint = try {
+                java.net.InetAddress.getByName(endpointHost).hostAddress
+            } catch (e: Exception) {
+                endpointHost // fallback to raw hostname
+            }
+
             // Call into Go via JNI to start the WG proxy
             val result = wgproxy.Wgproxy.startProxy(
                 privateKeyStr,
                 peerPublicKeyStr,
-                "$endpointHost:$endpointPort",
+                "$resolvedEndpoint:$endpointPort",
                 tunnelIp,
                 peerIp,
                 remoteAddr,
