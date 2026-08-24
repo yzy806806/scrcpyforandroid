@@ -82,10 +82,22 @@ object WgProxyManager {
                 listenPort.toLong(),
             )
 
-            // result is either "12345" (port number) or "ERROR:something went wrong"
+            // result is: "12345" (port), "12345|DIAL_FAIL:reason" (port but dial failed), or "ERROR:reason"
             if (result.startsWith("ERROR:")) {
                 val errMsg = result.removePrefix("ERROR:")
                 throw IllegalStateException("WG: $errMsg")
+            }
+
+            // Check for dial failure (port was assigned but WG tunnel can't reach peer)
+            val dialFailMatch = Regex("(\\d+)\\|DIAL_FAIL:(.*)").matchEntire(result)
+            if (dialFailMatch != null) {
+                val portNum = dialFailMatch.groupValues[1].toInt()
+                localPort = portNum
+                running = true
+                val dialErr = dialFailMatch.groupValues[2]
+                Log.e(TAG, "WG: proxy up on port $portNum but dial failed: $dialErr")
+                AppRuntime.snackbar("WG: proxy up port=$portNum but tunnel dial failed: $dialErr")
+                return "127.0.0.1" to localPort
             }
 
             val port = result.toIntOrNull()
