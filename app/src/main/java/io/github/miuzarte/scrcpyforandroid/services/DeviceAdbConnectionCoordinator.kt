@@ -4,7 +4,7 @@ import android.os.Parcelable
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
-import io.github.miuzarte.scrcpyforandroid.nativecore.TcpTunnelManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.UdpTunnelManager
 import io.github.miuzarte.scrcpyforandroid.storage.ScrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import kotlinx.coroutines.Dispatchers
@@ -41,13 +41,13 @@ internal class DeviceAdbConnectionCoordinator(
      */
     private suspend fun resolveConnectTarget(host: String, port: Int): Pair<String, Int> {
         val settings = Storage.appSettings.bundleState.value
-        if (TcpTunnelManager.isConfigured(settings)) {
+        if (UdpTunnelManager.isConfigured(settings)) {
             try {
-                if (!TcpTunnelManager.isOpen()) {
-                    val (proxyHost, proxyPort) = TcpTunnelManager.open(settings)
+                if (!UdpTunnelManager.isOpen()) {
+                    val (proxyHost, proxyPort) = UdpTunnelManager.open(settings)
                     AppRuntime.snackbar("Tunnel: up, adb -> $proxyHost:$proxyPort")
                 }
-                val proxyPort = TcpTunnelManager.currentLocalPort()
+                val proxyPort = UdpTunnelManager.currentLocalPort()
                 Log.i(TAG, "Tunnel active, adb -> 127.0.0.1:$proxyPort (requested $host:$port)")
                 return "127.0.0.1" to proxyPort
             } catch (e: Exception) {
@@ -119,7 +119,7 @@ internal class DeviceAdbConnectionCoordinator(
     suspend fun disconnect() {
         withContext(Dispatchers.IO) {
             runCatching { adbService.disconnect() }
-            TcpTunnelManager.close()
+            UdpTunnelManager.close()
         }
     }
 
