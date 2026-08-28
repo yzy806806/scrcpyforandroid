@@ -46,9 +46,12 @@ object QuicTunnelManager {
         require(key.isNotBlank()) { "Tunnel key is empty" }
 
         try {
-            // Resolve DNS (QUIC needs IP, not hostname)
+            // Resolve DNS — prefer IPv6 (OnePlus only has AAAA record)
             val resolvedHost = try {
-                InetAddress.getByName(host).hostAddress
+                // Force IPv6 resolution first
+                val allAddrs = InetAddress.getAllByName(host)
+                val ipv6 = allAddrs.firstOrNull { it is java.net.Inet6Address }
+                (ipv6 ?: allAddrs.firstOrNull())?.hostAddress ?: host
             } catch (e: Exception) {
                 host
             }

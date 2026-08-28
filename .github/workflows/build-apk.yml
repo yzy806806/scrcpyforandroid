@@ -19,6 +19,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Fork guard (verify QUIC tunnel code intact)
+        shell: bash
+        run: bash .github/workflows/fork-guard.sh
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
