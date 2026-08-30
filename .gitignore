@@ -1,0 +1,9 @@
+# Build artifacts (rebuild with `go build ./cmd` / `gomobile bind`)
+*.aar
+*.jar
+tunnel-server-quic
+tunnel-server
+*.exe
+
+# Binary compiled for devices
+*.so
