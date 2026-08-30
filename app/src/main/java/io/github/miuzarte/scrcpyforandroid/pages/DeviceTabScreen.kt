@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import androidx.activity.compose.LocalActivity
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
@@ -46,7 +47,9 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
+import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 
 private const val PREVIEW_CARD_ITEM_KEY = "preview_card"
 private const val PREVIEW_CARD_ITEM_INDEX = 3
@@ -194,6 +197,9 @@ internal fun DeviceTabPage(
     val pendingScrollToPreview by viewModel.pendingScrollToPreview.collectAsState()
     val savedShortcuts by viewModel.savedShortcuts.collectAsState()
     val quickConnectInputTemp by viewModel.quickConnectInput.collectAsState()
+    val tunnelDevicesList by viewModel.tunnelDevicesList.collectAsState()
+    val showTunnelDeviceSheet by viewModel.showTunnelDeviceSheet.collectAsState()
+    val tunnelDeviceSelectedId by viewModel.tunnelDeviceSelectedId.collectAsState()
 
     val adbConnected by viewModel.adbConnected.collectAsState()
     val statusLine by viewModel.statusLine.collectAsState()
@@ -313,6 +319,50 @@ internal fun DeviceTabPage(
             busyLabel = null,
             connectedDeviceLabel = connectedDeviceLabel,
         )
+    }
+
+    @Composable
+    fun TunnelDeviceSection() {
+        val selectedDevice = tunnelDevicesList.firstOrNull {
+            it.id == tunnelDeviceSelectedId
+        } ?: tunnelDevicesList.firstOrNull()
+        val label = selectedDevice?.name?.ifBlank { selectedDevice.host }
+            ?: stringResource(R.string.pref_title_tunnel_device)
+
+        SectionSmallTitle(stringResource(R.string.pref_title_tunnel_device))
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { viewModel.showTunnelDeviceSheet() },
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(
+                        horizontal = UiSpacing.Large,
+                        vertical = UiSpacing.Medium,
+                    ),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.pref_title_tunnel_device),
+                        color = colorScheme.onSurfaceVariantSummary,
+                        fontSize = textStyles.body2.fontSize,
+                    )
+                    Text(
+                        text = label,
+                        color = colorScheme.onSurface,
+                        fontSize = textStyles.body1.fontSize,
+                    )
+                }
+                Icon(
+                    imageVector = Icons.Rounded.SwapHoriz,
+                    contentDescription = stringResource(R.string.pref_title_tunnel_device),
+                    tint = colorScheme.onSurfaceVariantSummary,
+                )
+            }
+        }
     }
 
     @Composable
@@ -641,6 +691,9 @@ internal fun DeviceTabPage(
             bottomInnerPadding = bottomInnerPadding,
         ) {
             item { StatusSection() }
+            if (asBundle.tunnelEnabled) {
+                item { TunnelDeviceSection() }
+            }
             item { DeviceListSection() }
 
             if (!adbConnected) {
@@ -831,4 +884,78 @@ internal fun DeviceTabPage(
         onDismissRequest = { viewModel.hideAllApps() },
         onRefresh = { scope.launch(Dispatchers.IO) { viewModel.refreshApps() } },
     )
+
+    TunnelDeviceSheet(
+        show = showTunnelDeviceSheet,
+        devices = tunnelDevicesList,
+        selectedId = tunnelDeviceSelectedId,
+        onSelect = { device ->
+            haptic.contextClick()
+            viewModel.selectTunnelDevice(device)
+            viewModel.hideTunnelDeviceSheet()
+        },
+        onDismissRequest = { viewModel.hideTunnelDeviceSheet() },
+    )
+}
+
+@Composable
+private fun TunnelDeviceSheet(
+    show: Boolean,
+    devices: io.github.miuzarte.scrcpyforandroid.models.TunnelDevices,
+    selectedId: String,
+    onSelect: (io.github.miuzarte.scrcpyforandroid.models.TunnelDevice) -> Unit,
+    onDismissRequest: () -> Unit,
+) {
+    OverlayBottomSheet(
+        show = show,
+        title = stringResource(R.string.pref_title_tunnel_device),
+        defaultWindowInsetsPadding = false,
+        onDismissRequest = onDismissRequest,
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = UiSpacing.Large),
+        ) {
+            if (devices.isEmpty()) {
+                Text(
+                    text = stringResource(R.string.tunnel_device_no_devices),
+                    color = colorScheme.onSurfaceVariantSummary,
+                    modifier = Modifier.padding(vertical = UiSpacing.Large),
+                )
+            } else {
+                devices.forEach { device ->
+                    val isSelected = device.id == selectedId
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onSelect(device) }
+                            .padding(vertical = UiSpacing.Medium),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = device.name.ifBlank { device.host },
+                                color = colorScheme.onSurface,
+                                fontSize = textStyles.body1.fontSize,
+                            )
+                            Text(
+                                text = "${device.host}:${device.port}",
+                                color = colorScheme.onSurfaceVariantSummary,
+                                fontSize = textStyles.body2.fontSize,
+                            )
+                        }
+                        if (isSelected) {
+                            Text(
+                                text = stringResource(R.string.tunnel_device_in_use),
+                                color = colorScheme.primary,
+                                fontSize = textStyles.body2.fontSize,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.height(UiSpacing.SheetBottom))
+    }
 }

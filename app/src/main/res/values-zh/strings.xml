@@ -258,6 +258,18 @@
     <string name="pref_hint_tunnel_host">例如 203.0.113.10 或 myhost.com</string>
     <string name="pref_title_tunnel_port">对端端口</string>
     <string name="pref_title_tunnel_key">预共享密钥</string>
+    <string name="pref_title_tunnel_device">隧道设备</string>
+    <string name="pref_summary_tunnel_device">切换隧道目标设备</string>
+    <string name="pref_title_tunnel_device_name">设备名称</string>
+    <string name="pref_hint_tunnel_device_name">例如 OnePlus</string>
+    <string name="tunnel_device_add">添加设备</string>
+    <string name="tunnel_device_add_title">新建隧道设备</string>
+    <string name="tunnel_device_edit_title">编辑隧道设备</string>
+    <string name="tunnel_device_delete">删除</string>
+    <string name="tunnel_device_edit">编辑</string>
+    <string name="tunnel_device_no_devices">还没有设备，点“添加设备”创建。</string>
+    <string name="tunnel_device_switched">已切换到设备 %1$s</string>
+    <string name="tunnel_device_in_use">当前</string>
 
     <!-- Settings - Terminal -->
     <string name="section_tunnel">TCP 隧道</string>

@@ -308,3 +308,28 @@ data class ConnectionTarget(
         }
     }
 }
+
+@Parcelize
+@Serializable
+data class TunnelDevice(
+    val id: String = "",
+    val name: String = "",
+    val host: String = "",
+    val port: Int = 22289,
+    val key: String = "",
+): Parcelable
+
+class TunnelDevices(val devices: List<TunnelDevice>): List<TunnelDevice> by devices {
+    fun marshalToString(): String = json.encodeToString(devices)
+
+    companion object {
+        val json = Json { ignoreUnknownKeys = true }
+
+        fun unmarshalFrom(s: String): TunnelDevices {
+            if (s.isBlank()) return TunnelDevices(emptyList())
+            return runCatching {
+                TunnelDevices(json.decodeFromString<List<TunnelDevice>>(s.trim()))
+            }.getOrDefault(TunnelDevices(emptyList()))
+        }
+    }
+}

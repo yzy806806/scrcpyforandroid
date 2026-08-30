@@ -10,6 +10,7 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.material.icons.Icons
@@ -18,6 +19,7 @@ import androidx.compose.material.icons.rounded.FileOpen
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -33,6 +35,8 @@ import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
 import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.models.TunnelDevice
+import io.github.miuzarte.scrcpyforandroid.models.TunnelDevices
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
 import io.github.miuzarte.scrcpyforandroid.nativecore.QuicTunnelManager
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
@@ -48,6 +52,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.AppSettings.FullscreenVirtual
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.adbClientData
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.tunnelDevices
 import io.github.miuzarte.scrcpyforandroid.ui.*
 import kotlinx.coroutines.*
 import top.yukonga.miuix.kmp.basic.*
@@ -60,6 +65,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
+import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 import top.yukonga.miuix.kmp.theme.ThemeColorSpec
 import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 import java.io.File
@@ -177,6 +183,57 @@ fun SettingsPage(
                 appSettings.saveBundle(asBundleLatest)
             }
         }
+    }
+
+    val tdBundleShared by tunnelDevices.bundleState.collectAsState()
+    val tdBundleSharedLatest by rememberUpdatedState(tdBundleShared)
+    var tdBundle by rememberSaveable(tdBundleShared) { mutableStateOf(tdBundleShared) }
+    val tdBundleLatest by rememberUpdatedState(tdBundle)
+    LaunchedEffect(tdBundleShared) {
+        if (tdBundle != tdBundleShared)
+            tdBundle = tdBundleShared
+    }
+    LaunchedEffect(tdBundle) {
+        delay(Settings.BUNDLE_SAVE_DELAY)
+        if (tdBundle != tdBundleSharedLatest)
+            tunnelDevices.saveBundle(tdBundle)
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            taskScope.launch {
+                tunnelDevices.saveBundle(tdBundleLatest)
+            }
+        }
+    }
+
+    var tunnelDeviceList by remember {
+        mutableStateOf(TunnelDevices.unmarshalFrom(tdBundle.tunnelDevicesList))
+    }
+    LaunchedEffect(tdBundle.tunnelDevicesList) {
+        tunnelDeviceList = TunnelDevices.unmarshalFrom(tdBundle.tunnelDevicesList)
+    }
+    LaunchedEffect(tunnelDeviceList) {
+        val serialized = tunnelDeviceList.marshalToString()
+        if (serialized != tdBundle.tunnelDevicesList) {
+            tdBundle = tdBundle.copy(tunnelDevicesList = serialized)
+        }
+    }
+
+    var editingTunnelDeviceId by rememberSaveable { mutableStateOf<String?>(null) }
+    var showTunnelDeviceEditor by rememberSaveable { mutableStateOf(false) }
+
+    fun selectTunnelDevice(device: TunnelDevice) {
+        QuicTunnelManager.close()
+        tdBundle = tdBundle.copy(tunnelDeviceSelectedId = device.id)
+        asBundle = asBundle.copy(
+            tunnelHost = device.host,
+            tunnelPort = device.port,
+            tunnelKey = device.key,
+        )
+        AppRuntime.snackbar(
+            R.string.tunnel_device_switched,
+            device.name.ifBlank { device.host },
+        )
     }
 
     val themeItems = AppSettings.ThemeModes.baseOptions.map { stringResource(it.labelResId) }
@@ -1169,7 +1226,7 @@ fun SettingsPage(
             }
         }
 
-        // TCP tunnel (lightweight, no VpnService)
+        // TCP tunnel (QUIC, no VpnService)
         item {
             SectionSmallTitle(stringResource(R.string.section_tunnel))
             Card {
@@ -1187,32 +1244,63 @@ fun SettingsPage(
                 if (asBundle.tunnelEnabled) {
                     Column(
                         modifier = Modifier.padding(horizontal = UiSpacing.Large),
-                        verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                        verticalArrangement = Arrangement.spacedBy(UiSpacing.Small),
                     ) {
-                        SuperTextField(
-                            value = asBundle.tunnelHost,
-                            onValueChange = { asBundle = asBundle.copy(tunnelHost = it) },
-                            label = stringResource(R.string.pref_title_tunnel_host),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SuperTextField(
-                            value = asBundle.tunnelPort.toString(),
-                            onValueChange = {
-                                asBundle = asBundle.copy(tunnelPort = it.toIntOrNull() ?: 22289)
+                        if (tunnelDeviceList.isEmpty()) {
+                            Text(
+                                text = stringResource(R.string.tunnel_device_no_devices),
+                                color = colorScheme.onSurfaceVariantSummary,
+                                modifier = Modifier.padding(vertical = UiSpacing.Medium),
+                            )
+                        }
+                        tunnelDeviceList.forEach { device ->
+                            val isSelected = device.id == tdBundle.tunnelDeviceSelectedId
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        haptic.contextClick()
+                                        selectTunnelDevice(device)
+                                    }
+                                    .padding(vertical = UiSpacing.Medium),
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = device.name.ifBlank { device.host },
+                                        color = if (isSelected) colorScheme.primary
+                                        else colorScheme.onSurface,
+                                    )
+                                    Text(
+                                        text = "${device.host}:${device.port}",
+                                        color = colorScheme.onSurfaceVariantSummary,
+                                        fontSize = textStyles.body2.fontSize,
+                                    )
+                                }
+                                if (isSelected) {
+                                    Text(
+                                        text = stringResource(R.string.tunnel_device_in_use),
+                                        color = colorScheme.primary,
+                                        fontSize = textStyles.body2.fontSize,
+                                    )
+                                }
+                                TextButton(
+                                    text = stringResource(R.string.tunnel_device_edit),
+                                    onClick = {
+                                        haptic.contextClick()
+                                        editingTunnelDeviceId = device.id
+                                        showTunnelDeviceEditor = true
+                                    },
+                                )
+                            }
+                        }
+                        TextButton(
+                            text = stringResource(R.string.tunnel_device_add),
+                            onClick = {
+                                haptic.contextClick()
+                                editingTunnelDeviceId = null
+                                showTunnelDeviceEditor = true
                             },
-                            label = stringResource(R.string.pref_title_tunnel_port),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                        SuperTextField(
-                            value = asBundle.tunnelKey,
-                            onValueChange = { asBundle = asBundle.copy(tunnelKey = it) },
-                            label = stringResource(R.string.pref_title_tunnel_key),
-                            useLabelAsPlaceholder = true,
-                            singleLine = true,
                             modifier = Modifier.fillMaxWidth(),
                         )
                     }
@@ -1437,6 +1525,46 @@ fun SettingsPage(
             )
         }
     }
+
+    TunnelDeviceEditorDialog(
+        show = showTunnelDeviceEditor,
+        initial = tunnelDeviceList.firstOrNull { it.id == editingTunnelDeviceId },
+        onDismissRequest = { showTunnelDeviceEditor = false },
+        onSave = { device ->
+            haptic.confirm()
+            if (tunnelDeviceList.any { it.id == device.id }) {
+                tunnelDeviceList = TunnelDevices(
+                    tunnelDeviceList.map { if (it.id == device.id) device else it },
+                )
+                if (tdBundle.tunnelDeviceSelectedId == device.id) {
+                    asBundle = asBundle.copy(
+                        tunnelHost = device.host,
+                        tunnelPort = device.port,
+                        tunnelKey = device.key,
+                    )
+                }
+            } else {
+                tunnelDeviceList = TunnelDevices(tunnelDeviceList.toMutableList() + device)
+                tdBundle = tdBundle.copy(tunnelDeviceSelectedId = device.id)
+                asBundle = asBundle.copy(
+                    tunnelHost = device.host,
+                    tunnelPort = device.port,
+                    tunnelKey = device.key,
+                )
+            }
+            showTunnelDeviceEditor = false
+        },
+        onDelete = { device ->
+            haptic.contextClick()
+            tunnelDeviceList = TunnelDevices(tunnelDeviceList.filterNot { it.id == device.id })
+            if (tdBundle.tunnelDeviceSelectedId == device.id) {
+                tdBundle = tdBundle.copy(
+                    tunnelDeviceSelectedId = tunnelDeviceList.firstOrNull()?.id.orEmpty(),
+                )
+            }
+            showTunnelDeviceEditor = false
+        },
+    )
 }
 
 @Composable
@@ -1482,6 +1610,120 @@ private fun ExportAdbKeyDialog(
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
+        }
+    }
+}
+
+@Composable
+private fun TunnelDeviceEditorDialog(
+    show: Boolean,
+    initial: TunnelDevice?,
+    onDismissRequest: () -> Unit,
+    onSave: (TunnelDevice) -> Unit,
+    onDelete: (TunnelDevice) -> Unit,
+) {
+    val haptic = LocalHapticFeedback.current
+
+    var name by rememberSaveable(show, initial) { mutableStateOf(initial?.name.orEmpty()) }
+    var host by rememberSaveable(show, initial) { mutableStateOf(initial?.host.orEmpty()) }
+    var port by rememberSaveable(show, initial) {
+        mutableStateOf((initial?.port ?: 22289).toString())
+    }
+    var key by rememberSaveable(show, initial) { mutableStateOf(initial?.key.orEmpty()) }
+
+    val isValid = name.isNotBlank() && host.isNotBlank() && key.isNotBlank()
+
+    OverlayDialog(
+        show = show,
+        title = stringResource(
+            if (initial == null) R.string.tunnel_device_add_title
+            else R.string.tunnel_device_edit_title,
+        ),
+        defaultWindowInsetsPadding = false,
+        onDismissRequest = onDismissRequest,
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+        ) {
+            SuperTextField(
+                value = name,
+                onValueChange = { name = it },
+                label = stringResource(R.string.pref_title_tunnel_device_name),
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SuperTextField(
+                value = host,
+                onValueChange = { host = it },
+                label = stringResource(R.string.pref_title_tunnel_host),
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SuperTextField(
+                value = port,
+                onValueChange = { port = it },
+                label = stringResource(R.string.pref_title_tunnel_port),
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SuperTextField(
+                value = key,
+                onValueChange = { key = it },
+                label = stringResource(R.string.pref_title_tunnel_key),
+                useLabelAsPlaceholder = true,
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+
+            if (initial != null) {
+                TextButton(
+                    text = stringResource(R.string.tunnel_device_delete),
+                    onClick = {
+                        haptic.contextClick()
+                        onDelete(initial)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(
+                        textColor = colorScheme.error,
+                    ),
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.ContentHorizontal),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                TextButton(
+                    text = stringResource(R.string.button_cancel),
+                    onClick = {
+                        haptic.contextClick()
+                        onDismissRequest()
+                    },
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    text = stringResource(R.string.button_confirm),
+                    onClick = {
+                        if (!isValid) return@TextButton
+                        haptic.confirm()
+                        onSave(
+                            TunnelDevice(
+                                id = initial?.id ?: java.util.UUID.randomUUID().toString(),
+                                name = name.trim(),
+                                host = host.trim(),
+                                port = port.toIntOrNull() ?: 22289,
+                                key = key.trim(),
+                            ),
+                        )
+                    },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
+                    enabled = isValid,
+                )
+            }
         }
     }
 }

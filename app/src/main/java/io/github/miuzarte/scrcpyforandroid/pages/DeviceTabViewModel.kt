@@ -10,6 +10,9 @@ import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
+import io.github.miuzarte.scrcpyforandroid.models.TunnelDevice
+import io.github.miuzarte.scrcpyforandroid.models.TunnelDevices
+import io.github.miuzarte.scrcpyforandroid.nativecore.QuicTunnelManager
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.services.EventLogger.logEvent
@@ -20,6 +23,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.quickDevices
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyOptions
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
+import io.github.miuzarte.scrcpyforandroid.storage.Storage.tunnelDevices
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
 import kotlinx.coroutines.*
@@ -89,6 +93,23 @@ internal class DeviceTabViewModel(
         DeviceShortcuts.unmarshalFrom(_qdBundle.value.quickDevicesList),
     )
     val savedShortcuts: StateFlow<DeviceShortcuts> = _savedShortcuts.asStateFlow()
+
+    private val _tdBundle = MutableStateFlow(tunnelDevices.bundleState.value)
+    private val _tunnelDevicesList = MutableStateFlow(
+        TunnelDevices.unmarshalFrom(_tdBundle.value.tunnelDevicesList),
+    )
+    val tunnelDevicesList: StateFlow<TunnelDevices> = _tunnelDevicesList.asStateFlow()
+
+    private val _showTunnelDeviceSheet = MutableStateFlow(false)
+    val showTunnelDeviceSheet: StateFlow<Boolean> = _showTunnelDeviceSheet.asStateFlow()
+
+    val tunnelDeviceSelectedId: StateFlow<String> = _tdBundle
+        .map { it.tunnelDeviceSelectedId }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.Eagerly,
+            _tdBundle.value.tunnelDeviceSelectedId,
+        )
 
     private val _isAppInForeground = MutableStateFlow(true)
     val isAppInForeground: StateFlow<Boolean> = _isAppInForeground.asStateFlow()
@@ -271,12 +292,80 @@ internal class DeviceTabViewModel(
                 }
             }
         }
+
+        // Sync tunnel devices bundle from storage -> local
+        viewModelScope.launch {
+            tunnelDevices.bundleState.collectLatest { shared ->
+                if (_tdBundle.value != shared) {
+                    _tdBundle.value = shared
+                }
+            }
+        }
+
+        // Debounced save tunnel devices bundle local -> storage
+        viewModelScope.launch {
+            _tdBundle.debounce(Settings.BUNDLE_SAVE_DELAY).collectLatest { bundle ->
+                if (bundle != tunnelDevices.bundleState.value) {
+                    tunnelDevices.saveBundle(bundle)
+                }
+            }
+        }
+
+        // Sync parsed tunnel device list from bundle
+        viewModelScope.launch {
+            _tdBundle.collectLatest { bundle ->
+                val parsed = TunnelDevices.unmarshalFrom(bundle.tunnelDevicesList)
+                if (parsed.marshalToString() != _tunnelDevicesList.value.marshalToString()) {
+                    _tunnelDevicesList.value = parsed
+                }
+            }
+        }
+
+        // Persist tunnel device list -> tdBundle (debounced)
+        viewModelScope.launch {
+            _tunnelDevicesList.debounce(Settings.BUNDLE_SAVE_DELAY).collectLatest { list ->
+                val serialized = list.marshalToString()
+                if (serialized != _tdBundle.value.tunnelDevicesList) {
+                    _tdBundle.update { it.copy(tunnelDevicesList = serialized) }
+                }
+            }
+        }
+
+        // One-time migration: seed device list from legacy single config
+        viewModelScope.launch {
+            migrateLegacyTunnelConfig()
+        }
+    }
+
+    /**
+     * Migrate the old single-device tunnel config (tunnelHost/tunnelPort/tunnelKey)
+     * into the tunnel devices list on first launch after upgrade.
+     */
+    private suspend fun migrateLegacyTunnelConfig() {
+        if (_tunnelDevicesList.value.isNotEmpty()) return
+        val settings = appSettings.bundleState.value
+        if (settings.tunnelHost.isBlank() && settings.tunnelKey.isBlank()) return
+        val device = TunnelDevice(
+            id = "legacy",
+            name = "Device 1",
+            host = settings.tunnelHost,
+            port = settings.tunnelPort,
+            key = settings.tunnelKey,
+        )
+        _tunnelDevicesList.value = TunnelDevices(listOf(device))
+        _tdBundle.update {
+            it.copy(
+                tunnelDevicesList = _tunnelDevicesList.value.marshalToString(),
+                tunnelDeviceSelectedId = device.id,
+            )
+        }
     }
 
     override fun onCleared() {
         runBlocking(Dispatchers.IO) {
             appSettings.saveBundle(_asBundle.value)
             quickDevices.saveBundle(_qdBundle.value)
+            tunnelDevices.saveBundle(_tdBundle.value)
         }
     }
 
@@ -326,6 +415,68 @@ internal class DeviceTabViewModel(
 
     fun updateAsBundle(transform: (AppSettings.Bundle) -> AppSettings.Bundle) {
         _asBundle.update(transform)
+    }
+
+    fun showTunnelDeviceSheet() {
+        _showTunnelDeviceSheet.value = true
+    }
+
+    fun hideTunnelDeviceSheet() {
+        _showTunnelDeviceSheet.value = false
+    }
+
+    /**
+     * Switch the active tunnel device: write its host/port/key into the live
+     * AppSettings tunnel fields, record the selected id, and close any running
+     * tunnel so the next connect opens with the new config.
+     */
+    fun selectTunnelDevice(device: TunnelDevice) {
+        QuicTunnelManager.close()
+        _tdBundle.update { it.copy(tunnelDeviceSelectedId = device.id) }
+        _asBundle.update {
+            it.copy(
+                tunnelHost = device.host,
+                tunnelPort = device.port,
+                tunnelKey = device.key,
+            )
+        }
+        AppRuntime.snackbar(
+            R.string.tunnel_device_switched,
+            device.name.ifBlank { device.host },
+        )
+    }
+
+    fun addTunnelDevice(device: TunnelDevice) {
+        val updated = _tunnelDevicesList.value.toMutableList()
+        updated.add(device)
+        _tunnelDevicesList.value = TunnelDevices(updated)
+        _tdBundle.update { it.copy(tunnelDeviceSelectedId = device.id) }
+    }
+
+    fun updateTunnelDevice(device: TunnelDevice) {
+        _tunnelDevicesList.value = TunnelDevices(
+            _tunnelDevicesList.value.map { if (it.id == device.id) device else it },
+        )
+        // Keep live config in sync when editing the selected device
+        if (_tdBundle.value.tunnelDeviceSelectedId == device.id) {
+            _asBundle.update {
+                it.copy(
+                    tunnelHost = device.host,
+                    tunnelPort = device.port,
+                    tunnelKey = device.key,
+                )
+            }
+        }
+    }
+
+    fun removeTunnelDevice(id: String) {
+        val remaining = _tunnelDevicesList.value.filterNot { it.id == id }
+        _tunnelDevicesList.value = TunnelDevices(remaining)
+        if (_tdBundle.value.tunnelDeviceSelectedId == id) {
+            _tdBundle.update {
+                it.copy(tunnelDeviceSelectedId = remaining.firstOrNull()?.id.orEmpty())
+            }
+        }
     }
 
     fun updateShortcut(

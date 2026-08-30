@@ -13,10 +13,14 @@ fork 相对上游新增/改动的文件：
 | 文件 | 类型 | 说明 |
 |------|------|------|
 | `app/src/main/java/.../nativecore/QuicTunnelManager.kt` | 新增 | QUIC 隧道管理（本地 TCP listener → QUIC stream → 对端） |
+| `app/src/main/java/.../storage/TunnelDevicesStore.kt` | 新增 | 多设备隧道配置存储（设备列表 JSON + 选中 id） |
 | `app/libs/libquictunnel.aar` | 新增 | gomobile 编译的 quic-go 库（2.6MB，含 libgojni.so） |
 | `app/src/main/java/.../services/DeviceAdbConnectionCoordinator.kt` | 修改 | 连接前判断隧道配置，走 QuicTunnelManager |
 | `app/src/main/java/.../storage/AppSettings.kt` | 修改 | 新增 tunnelEnabled/tunnelHost/tunnelPort/tunnelKey/tunnelLocalPort 字段 |
-| `app/src/main/java/.../pages/SettingsScreen.kt` | 修改 | 设置页新增 TCP 隧道配置区块 |
+| `app/src/main/java/.../models/DeviceModels.kt` | 修改 | 新增 TunnelDevice / TunnelDevices 模型 |
+| `app/src/main/java/.../pages/SettingsScreen.kt` | 修改 | 设置页 TCP 隧道区块 → 设备列表管理（增删改选） |
+| `app/src/main/java/.../pages/DeviceTabScreen.kt` | 修改 | 首页隧道设备快速切换入口 + 底部抽屉 |
+| `app/src/main/java/.../pages/DeviceTabViewModel.kt` | 修改 | 隧道设备列表状态同步 + 切换/增删改 + 旧配置迁移 |
 | `app/src/main/res/values/strings.xml` | 修改 | 隧道相关字符串（中英） |
 | `app/src/main/res/values-zh/strings.xml` | 修改 | 同上 |
 | `gradle/libs.versions.toml` | 修改 | 移除 wireguard/jsch，保留 desugar |

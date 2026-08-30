@@ -6,6 +6,7 @@ import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 object Storage {
     val appSettings: AppSettings by lazy { AppSettings(AppRuntime.context) }
     val quickDevices: QuickDevices by lazy { QuickDevices(AppRuntime.context) }
+    val tunnelDevices: TunnelDevicesStore by lazy { TunnelDevicesStore(AppRuntime.context) }
     val scrcpyOptions: ScrcpyOptions by lazy { ScrcpyOptions(AppRuntime.context) }
     val scrcpyProfiles: ScrcpyProfiles by lazy { ScrcpyProfiles(AppRuntime.context) }
     val adbClientData: AdbClientData by lazy { AdbClientData(AppRuntime.context) }
