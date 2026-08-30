@@ -62,7 +62,7 @@ OnePlus 上需要配套的 tunnel-server，不在本仓库内（是 Go 二进制
 - 防火墙：`lo→5555 ACCEPT`，`5555 DROP`（不暴露公网）
 - Magisk 模块：`tunnel_server`（开机自启 + iptables 加固）
 
-Go 源码在 `/root/quic-tunnel/`（开发机），不在本仓库提交。
+Go 源码在独立私有仓库 [yzy806806/quic-tunnel](https://github.com/yzy806806/quic-tunnel)（含 client AAR + server 二进制的构建说明），不在本仓库提交。
 
 ## 同步上游步骤（重要）
 
