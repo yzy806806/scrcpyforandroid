@@ -117,6 +117,10 @@ class Scrcpy(
     companion object {
         private const val TAG = "Scrcpy"
 
+        // 并发 stop() 时避免重复弹出同一条断开通知
+        @Volatile
+        private var lastRemoteDisconnectSnackbarAt = 0L
+
         const val DEFAULT_SERVER_ASSET = "bin/scrcpy-server-v4.1"
         const val DEFAULT_SERVER_ASSET_NAME = "scrcpy-server-v4.1"
         const val DEFAULT_SERVER_VERSION = "4.1"
@@ -196,6 +200,7 @@ class Scrcpy(
                 audioPlayback = options.audioPlayback,
                 keyInjectMode = options.keyInjectMode,
                 forwardKeyRepeat = options.forwardKeyRepeat,
+                gamepadEnabled = options.gamepad,
             )
             isRunning = true
             flexDisplay = options.flexDisplay
@@ -320,41 +325,50 @@ class Scrcpy(
         }
     }
 
+    // video/audio/control 三个 reader 可能并发触发停止, 互斥保证只生效一次, 只记一条日志
+    private val stopMutex = Mutex()
+
     suspend fun stop(reason: StopReason = StopReason.USER): Boolean = withContext(Dispatchers.IO) {
-        if (!isRunning) {
-            Log.w(TAG, "stop(): No active session to stop")
-            return@withContext false
-        }
-
-        lastStopReason = reason
-        Log.i(TAG, "stop(): Stopping scrcpy session (reason=$reason)")
-
-        return@withContext try {
-            session.clearVideoConsumer()
-            session.clearAudioConsumer()
-            mp4Recorder?.release()
-            mp4Recorder = null
-            wavRecorder?.release()
-            wavRecorder = null
-            aacRecorder?.release()
-            aacRecorder = null
-            NativeCoreFacade.onScrcpySessionStopped()
-            session.stop()
-            audioPlayer?.release()
-            audioPlayer = null
-            isRunning = false
-            flexDisplay = false
-            _currentSessionState.value = null
-            stopClipboardSync()
-            if (reason == StopReason.REMOTE_DISCONNECTED) {
-                logEvent(R.string.vm_session_disconnected, level = Log.WARN)
-                AppRuntime.snackbar(R.string.vm_session_disconnected)
+        stopMutex.withLock {
+            if (!isRunning) {
+                Log.w(TAG, "stop(): No active session to stop")
+                return@withLock false
             }
-            Log.i(TAG, "stop(): Session stopped successfully")
-            true
-        } catch (e: Exception) {
-            Log.e(TAG, "stop(): Failed to stop session", e)
-            false
+
+            lastStopReason = reason
+            Log.i(TAG, "stop(): Stopping scrcpy session (reason=$reason)")
+
+            return@withLock try {
+                session.clearVideoConsumer()
+                session.clearAudioConsumer()
+                mp4Recorder?.release()
+                mp4Recorder = null
+                wavRecorder?.release()
+                wavRecorder = null
+                aacRecorder?.release()
+                aacRecorder = null
+                NativeCoreFacade.onScrcpySessionStopped()
+                session.stop()
+                audioPlayer?.release()
+                audioPlayer = null
+                isRunning = false
+                flexDisplay = false
+                _currentSessionState.value = null
+                stopClipboardSync()
+                if (reason == StopReason.REMOTE_DISCONNECTED) {
+                    logEvent(R.string.vm_session_disconnected, level = Log.WARN)
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    if (now - lastRemoteDisconnectSnackbarAt > 500L) {
+                        lastRemoteDisconnectSnackbarAt = now
+                        AppRuntime.snackbar(R.string.vm_session_disconnected)
+                    }
+                }
+                Log.i(TAG, "stop(): Session stopped successfully")
+                true
+            } catch (e: Exception) {
+                Log.e(TAG, "stop(): Failed to stop session", e)
+                false
+            }
         }
     }
 
@@ -441,6 +455,26 @@ class Scrcpy(
     suspend fun pressBackOrTurnScreenOn(action: Int = KeyEvent.ACTION_DOWN) =
         withContext(Dispatchers.IO) {
             session.pressBackOrTurnScreenOn(action)
+        }
+
+    suspend fun uhidCreate(
+        id: Int,
+        vendorId: Int,
+        productId: Int,
+        name: String,
+        reportDesc: ByteArray,
+    ) = withContext(Dispatchers.IO) {
+        session.uhidCreate(id, vendorId, productId, name, reportDesc)
+    }
+
+    suspend fun uhidInput(id: Int, data: ByteArray) =
+        withContext(Dispatchers.IO) {
+            session.uhidInput(id, data)
+        }
+
+    suspend fun uhidDestroy(id: Int) =
+        withContext(Dispatchers.IO) {
+            session.uhidDestroy(id)
         }
 
     fun updateCurrentSessionSize(width: Int, height: Int) {
@@ -1383,6 +1417,26 @@ class Scrcpy(
             withControlWriter("pressBackOrTurnScreenOn") { pressBackOrTurnScreenOn(action) }
         }
 
+        suspend fun uhidCreate(
+            id: Int,
+            vendorId: Int,
+            productId: Int,
+            name: String,
+            reportDesc: ByteArray,
+        ) = mutex.withLock {
+            withControlWriter("uhidCreate") {
+                uhidCreate(id, vendorId, productId, name, reportDesc)
+            }
+        }
+
+        suspend fun uhidInput(id: Int, data: ByteArray) = mutex.withLock {
+            withControlWriter("uhidInput") { uhidInput(id, data) }
+        }
+
+        suspend fun uhidDestroy(id: Int) = mutex.withLock {
+            withControlWriter("uhidDestroy") { uhidDestroy(id) }
+        }
+
         suspend fun setDisplayPower(on: Boolean) = mutex.withLock {
             withControlWriter("setDisplayPower") { setDisplayPower(on) }
         }
@@ -1600,6 +1654,7 @@ class Scrcpy(
             val audioPlayback: Boolean = true,
             val keyInjectMode: ClientOptions.KeyInjectMode = ClientOptions.KeyInjectMode.MIXED,
             val forwardKeyRepeat: Boolean = true,
+            val gamepadEnabled: Boolean = true,
             val host: String = "",
             val port: Int = Defaults.ADB_PORT,
         )
@@ -1801,6 +1856,48 @@ class Scrcpy(
                 output.writeByte(TYPE_SCAN_FILE)
                 output.writeInt(bytes.size)
                 output.write(bytes)
+                output.flush()
+            }
+
+            @Synchronized
+            fun uhidCreate(
+                id: Int,
+                vendorId: Int,
+                productId: Int,
+                name: String,
+                reportDesc: ByteArray,
+            ) {
+                require(id in 0..0xFFFF) { "uhid id must be in 0..65535" }
+                val nameBytes = name.toByteArray(Charsets.UTF_8)
+                require(nameBytes.size <= 0xFF) { "uhid name is too long (max 255 bytes)" }
+                require(reportDesc.size <= 0xFFFF) { "uhid report desc is too long" }
+                output.writeByte(TYPE_UHID_CREATE)
+                output.writeShort(id)
+                output.writeShort(vendorId)
+                output.writeShort(productId)
+                output.writeByte(nameBytes.size)
+                output.write(nameBytes)
+                output.writeShort(reportDesc.size)
+                output.write(reportDesc)
+                output.flush()
+            }
+
+            @Synchronized
+            fun uhidInput(id: Int, data: ByteArray) {
+                require(id in 0..0xFFFF) { "uhid id must be in 0..65535" }
+                require(data.size <= 0xFFFF) { "uhid input data is too big" }
+                output.writeByte(TYPE_UHID_INPUT)
+                output.writeShort(id)
+                output.writeShort(data.size)
+                output.write(data)
+                output.flush()
+            }
+
+            @Synchronized
+            fun uhidDestroy(id: Int) {
+                require(id in 0..0xFFFF) { "uhid id must be in 0..65535" }
+                output.writeByte(TYPE_UHID_DESTROY)
+                output.writeShort(id)
                 output.flush()
             }
 

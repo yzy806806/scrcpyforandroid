@@ -2,6 +2,7 @@ package io.github.miuzarte.scrcpyforandroid.nativecore
 
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
+import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import java.net.InetAddress
 
@@ -70,11 +71,10 @@ object QuicTunnelManager {
             running = true
 
             Log.i(TAG, "QUIC tunnel up: 127.0.0.1:$localPort -> $serverAddr")
-            AppRuntime.snackbar("Tunnel: QUIC up on port $localPort")
             return "127.0.0.1" to localPort
         } catch (e: Exception) {
             Log.e(TAG, "QUIC tunnel open failed: ${e.message}")
-            AppRuntime.snackbar("Tunnel: failed - ${e.message}")
+            AppRuntime.snackbar("Tunnel: failed - ${e.message}", duration = SnackbarDuration.Custom(2_500))
             close()
             throw IllegalStateException("QUIC tunnel failed: ${e.message}", e)
         }

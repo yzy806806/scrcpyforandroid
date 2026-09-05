@@ -29,6 +29,8 @@ fork 相对上游新增/改动的文件：
 | `.github/workflows/android.yml` | 删除 | 上游的 CI（需上游的签名 secrets，fork 没有） |
 | `.github/workflows/pr-check.yml` → `renovate-check.yml` | 重命名 | 上游 rename 跟随 |
 | `CHANGELOG.md` / `README.md` | 修改 | fork 说明 + QUIC 隧道文档 |
+| `nativecore/UsbAdb*.kt`、`res/xml/usb_device_filter.xml` | 上游新增 | USB 有线 ADB（v0.6.0 同步引入） |
+| `scrcpy/GamepadInput.kt` | 上游新增 | 手柄支持（v0.5.6 同步引入） |
 
 ## QUIC 隧道方案（核心差异）
 
@@ -93,6 +95,6 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 
 ## 版本约定
 
-- `versionName` 带后缀标识 fork 特性：`0.5.4-quic`（当前）
-- `versionCode` 单调递增：当前 46
-- 发布走 GitHub Release + tag（如 `v0.5.4-quic`）
+- `versionName` 带后缀标识 fork 特性：`0.6.0-quic`（当前，同步上游 v0.6.0）
+- `versionCode` 单调递增：当前 47
+- 发布走 GitHub Release + tag（如 `v0.6.0-quic`）

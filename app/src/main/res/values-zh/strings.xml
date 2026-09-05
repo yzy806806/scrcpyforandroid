@@ -47,6 +47,7 @@
     <string name="button_done">完成</string>
     <string name="button_connect">连接</string>
     <string name="button_disconnect">断开</string>
+    <string name="button_authorize">授权</string>
     <string name="button_start">启动</string>
     <string name="button_stop">停止</string>
     <string name="button_fullscreen">全屏</string>
@@ -252,27 +253,8 @@
     <string name="pref_summary_auto_load_apps">ADB 连接成功后立刻执行 --list-apps，用于补全最近任务列表应用名</string>
     <string name="pref_warning_list_apps">--list-apps 操作可能非常耗时（特别是在息屏状态下），启用后可能导致连接设备后阻塞过久！</string>
     <string name="pref_cannot_open_settings">无法打开设置</string>
-    <string name="pref_title_tunnel">TCP 隧道</string>
-    <string name="pref_summary_tunnel">通过轻量 TCP 隧道转发 adb，预共享密钥认证。不占用 VPN，可与 V2Ray 等共存。</string>
-    <string name="pref_title_tunnel_host">对端地址</string>
-    <string name="pref_hint_tunnel_host">例如 203.0.113.10 或 myhost.com</string>
-    <string name="pref_title_tunnel_port">对端端口</string>
-    <string name="pref_title_tunnel_key">预共享密钥</string>
-    <string name="pref_title_tunnel_device">隧道设备</string>
-    <string name="pref_summary_tunnel_device">切换隧道目标设备</string>
-    <string name="pref_title_tunnel_device_name">设备名称</string>
-    <string name="pref_hint_tunnel_device_name">例如 OnePlus</string>
-    <string name="tunnel_device_add">添加设备</string>
-    <string name="tunnel_device_add_title">新建隧道设备</string>
-    <string name="tunnel_device_edit_title">编辑隧道设备</string>
-    <string name="tunnel_device_delete">删除</string>
-    <string name="tunnel_device_edit">编辑</string>
-    <string name="tunnel_device_no_devices">还没有设备，点“添加设备”创建。</string>
-    <string name="tunnel_device_switched">已切换到设备 %1$s</string>
-    <string name="tunnel_device_in_use">当前</string>
 
     <!-- Settings - Terminal -->
-    <string name="section_tunnel">TCP 隧道</string>
     <string name="section_terminal">终端</string>
     <string name="pref_title_terminal_font_size">终端字号</string>
     <string name="pref_summary_terminal_font_size">也可以在终端上双指缩放调整</string>
@@ -552,6 +534,7 @@
     <string name="scrcpyopt_no_key_repeat">禁用按键重复转发</string>
     <string name="scrcpyopt_no_clipboard_autosync">禁用剪贴板双向同步</string>
     <string name="scrcpyopt_no_mouse_hover">禁用鼠标悬停转发</string>
+    <string name="scrcpyopt_gamepad">通过 UHID 虚拟手柄转发手柄输入</string>
     <string name="scrcpyopt_no_cleanup">禁用结束后清理</string>
     <string name="scrcpyopt_no_cleanup_desc">默认情况下，scrcpy 会从设备中移除服务器二进制文件，并在退出时恢复设备状态（显示触摸、保持唤醒和电源模式）\n此选项将禁用此清理操作</string>
     <string name="scrcpyopt_flex_display">自动调整尺寸以匹配界面</string>
@@ -572,6 +555,8 @@
     <string name="vm_pairing_failed">配对失败</string>
     <string name="vm_auto_reconnect_succeeded">ADB 自动重连成功</string>
     <string name="vm_auto_reconnect_failed">ADB 自动重连失败</string>
+    <string name="vm_auto_reconnect_restart_scrcpy">ADB 已重连，正在重启投屏</string>
+    <string name="vm_auto_reconnect_restart_scrcpy_failed">ADB 已重连，但重启投屏失败</string>
     <string name="vm_start_scrcpy">启动 scrcpy</string>
     <string name="vm_stop_scrcpy">停止 scrcpy</string>
     <string name="vm_launch_app">启动应用</string>
@@ -580,6 +565,7 @@
     <string name="vm_execute_pairing">执行配对</string>
     <string name="vm_send_action">发送 %1$s</string>
     <string name="vm_label_timeout">%1$s 超时</string>
+    <string name="vm_label_cancelled">%1$s 已取消</string>
     <string name="vm_label_param_error">%1$s 参数错误：%2$s</string>
     <string name="vm_label_failed">%1$s 失败：%2$s</string>
     <string name="vm_app_started_on_display">已在当前显示启动应用：%1$s</string>
@@ -605,8 +591,33 @@
     <string name="vm_quick_probe_success">ADB 快速探测连接成功：%1$s:%2$s</string>
     <string name="vm_device_switched_profile">当前连接设备已切换为配置：%1$s</string>
 
+    <string name="usb_connection">USB 连接</string>
+    <string name="usb_device_detected">检测到 USB 设备</string>
+    <string name="usb_device_disconnected">USB 设备已断开</string>
+    <string name="usb_permission_request_hint">请在设备上授权USB调试权限</string>
+    <string name="usb_connection_no_response">设备无响应，请检查 USB 连接并确认设备上的 USB 调试授权</string>
+
     <string name="language_follow_system">跟随系统</string>
     <string name="language_english">英语</string>
     <string name="language_chinese">中文</string>
 
+    <string name="pref_title_tunnel">TCP 隧道</string>
+    <string name="pref_summary_tunnel">通过轻量 TCP 隧道转发 adb，预共享密钥认证。不占用 VPN，可与 V2Ray 等共存。</string>
+    <string name="pref_title_tunnel_host">对端地址</string>
+    <string name="pref_hint_tunnel_host">例如 203.0.113.10 或 myhost.com</string>
+    <string name="pref_title_tunnel_port">对端端口</string>
+    <string name="pref_title_tunnel_key">预共享密钥</string>
+    <string name="pref_title_tunnel_device">隧道设备</string>
+    <string name="pref_summary_tunnel_device">切换隧道目标设备</string>
+    <string name="pref_title_tunnel_device_name">设备名称</string>
+    <string name="pref_hint_tunnel_device_name">例如 OnePlus</string>
+    <string name="tunnel_device_add">添加设备</string>
+    <string name="tunnel_device_add_title">新建隧道设备</string>
+    <string name="tunnel_device_edit_title">编辑隧道设备</string>
+    <string name="tunnel_device_delete">删除</string>
+    <string name="tunnel_device_edit">编辑</string>
+    <string name="tunnel_device_no_devices">还没有设备，点“添加设备”创建。</string>
+    <string name="tunnel_device_switched">已切换到设备 %1$s</string>
+    <string name="tunnel_device_in_use">当前</string>
+    <string name="section_tunnel">TCP 隧道</string>
 </resources>

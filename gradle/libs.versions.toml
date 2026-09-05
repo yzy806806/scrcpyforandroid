@@ -1,8 +1,8 @@
 [versions]
-agp = "9.3.1"
+agp = "9.3.2"
 bcpkixJdk18on = "1.85"
 boringssl = "20251124"
-conscryptAndroid = "2.6.1"
+conscryptAndroid = "2.6.3"
 datastorePreferences = "1.2.1"
 kotlin = "2.4.10"
 kotlinx-serialization = "1.11.0"
@@ -11,21 +11,18 @@ libcxx = "29.0.14206865"
 lifecycleRuntimeKtx = "2.11.0"
 activityCompose = "1.13.0"
 composeBom = "2026.06.01"
-androidxNavigation3 = "1.1.4"
+androidxNavigation3 = "1.1.7"
 junit = "4.13.2"
 androidxJunit = "1.3.0"
 espressoCore = "3.7.0"
 miuix = "0.9.3"
-backdrop = "2.0.0"
+backdrop = "2.0.1"
 material = "1.14.0"
 reorderable = "3.1.0"
 runtime = "1.11.4"
-androidxCorePip = "1.0.0-alpha03"
+androidxCorePip = "1.0.0-alpha04"
 androidxBiometric = "1.4.0-alpha07"
 androidxSecurityCrypto = "1.1.0"
-jsch = "0.2.25"  # legacy, removed from build but kept for reference
-wireguardTunnel = "1.0.20260102"
-desugarJdkLibs = "2.1.5"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -61,9 +58,6 @@ androidx-compose-runtime = { group = "androidx.compose.runtime", name = "runtime
 androidx-core-pip = { group = "androidx.core", name = "core-pip", version.ref = "androidxCorePip" }
 androidx-biometric = { group = "androidx.biometric", name = "biometric", version.ref = "androidxBiometric" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto-ktx", version.ref = "androidxSecurityCrypto" }
-jsch = { group = "com.github.mwiede", name = "jsch", version.ref = "jsch" }  # legacy
-wireguard-tunnel = { group = "com.wireguard.android", name = "tunnel", version.ref = "wireguardTunnel" }
-desugar-jdk-libs = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugarJdkLibs" }
 reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
 kotlinx-serialization-json = { module = "org.jetbrains.kotlinx:kotlinx-serialization-json", version.ref = "kotlinx-serialization" }
 

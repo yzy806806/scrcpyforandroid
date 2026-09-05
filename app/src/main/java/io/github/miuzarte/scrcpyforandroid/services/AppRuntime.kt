@@ -1,13 +1,17 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
 import android.content.Context
+import android.content.res.Configuration
 import androidx.annotation.StringRes
+import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.AdbMdnsDiscoverer
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import top.yukonga.miuix.kmp.basic.SnackbarHostState
@@ -28,6 +32,9 @@ object AppRuntime {
     var scrcpy: Scrcpy? = null
     var currentConnectionTarget: ConnectionTarget? = null
     var currentConnectedDevice: ConnectedDeviceInfo? = null
+
+    // 当前设备使用的 profile ID (session 级, 脱离快捷设备独立运作)
+    val currentConnectionProfileId = MutableStateFlow("global")
 
     private val snackbarHostStateLock = Any()
     private val snackbarHostStateStack = mutableListOf<SnackbarHostState>()
@@ -110,6 +117,18 @@ object AppRuntime {
         dismissNewest = dismissNewest,
     )
 
-    fun stringResource(@StringRes resId: Int) = appContext.getString(resId)
-    fun stringResource(@StringRes resId: Int, vararg args: Any) = appContext.getString(resId, *args)
+    // 应用内语言设置只包裹了 Activity 的 base context,
+    // 这里用同样的方式包装 application context, 使 snackbar 等全局文案跟随应用内语言
+    private fun localizedContext(): Context {
+        val languageTag = MainActivity.getAppLanguageTag(appContext)
+        return if (languageTag.isEmpty()) appContext
+        else appContext.createConfigurationContext(
+            Configuration(appContext.resources.configuration).apply {
+                setLocale(Locale.forLanguageTag(languageTag))
+            },
+        )
+    }
+
+    fun stringResource(@StringRes resId: Int) = localizedContext().getString(resId)
+    fun stringResource(@StringRes resId: Int, vararg args: Any) = localizedContext().getString(resId, *args)
 }

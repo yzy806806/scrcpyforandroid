@@ -47,6 +47,7 @@
     <string name="button_done">Done</string>
     <string name="button_connect">Connect</string>
     <string name="button_disconnect">Disconnect</string>
+    <string name="button_authorize">Authorize</string>
     <string name="button_start">Start</string>
     <string name="button_stop">Stop</string>
     <string name="button_fullscreen">Fullscreen</string>
@@ -253,27 +254,8 @@
     <string name="pref_summary_auto_load_apps">Execute --list-apps immediately after successful ADB connection to populate app names in recent tasks list</string>
     <string name="pref_warning_list_apps">--list-apps may be very time-consuming (especially when screen is off); enabling may cause excessive blocking after connecting to the device!</string>
     <string name="pref_cannot_open_settings">Cannot open settings</string>
-    <string name="pref_title_tunnel">TCP tunnel</string>
-    <string name="pref_summary_tunnel">Forward adb through a lightweight TCP tunnel with pre-shared key auth. No VpnService, coexists with VPN apps.</string>
-    <string name="pref_title_tunnel_host">Remote host</string>
-    <string name="pref_hint_tunnel_host">e.g. 203.0.113.10 or myhost.com</string>
-    <string name="pref_title_tunnel_port">Remote port</string>
-    <string name="pref_title_tunnel_key">Pre-shared key</string>
-    <string name="pref_title_tunnel_device">Tunnel device</string>
-    <string name="pref_summary_tunnel_device">Switch the target device for the tunnel</string>
-    <string name="pref_title_tunnel_device_name">Device name</string>
-    <string name="pref_hint_tunnel_device_name">e.g. OnePlus</string>
-    <string name="tunnel_device_add">Add device</string>
-    <string name="tunnel_device_add_title">New tunnel device</string>
-    <string name="tunnel_device_edit_title">Edit tunnel device</string>
-    <string name="tunnel_device_delete">Delete</string>
-    <string name="tunnel_device_edit">Edit</string>
-    <string name="tunnel_device_no_devices">No devices yet. Tap “Add device”.</string>
-    <string name="tunnel_device_switched">Tunnel device switched to %1$s</string>
-    <string name="tunnel_device_in_use">Current</string>
 
     <!-- Settings - Terminal -->
-    <string name="section_tunnel">TCP Tunnel</string>
     <string name="section_terminal">Terminal</string>
     <string name="pref_title_terminal_font_size">Terminal font size</string>
     <string name="pref_summary_terminal_font_size">Can also be adjusted with pinch-to-zoom on the terminal</string>
@@ -553,6 +535,7 @@
     <string name="scrcpyopt_no_key_repeat">Do not forward repeated key events when a key is held down</string>
     <string name="scrcpyopt_no_clipboard_autosync">Disable automatic clipboard synchronization</string>
     <string name="scrcpyopt_no_mouse_hover">Do not forward mouse hover events</string>
+    <string name="scrcpyopt_gamepad">Forward gamepad via UHID virtual controller</string>
     <string name="scrcpyopt_no_cleanup">Disable cleanup on exit</string>
     <string name="scrcpyopt_no_cleanup_desc">By default, scrcpy removes the server binary from the device and restores device state on exit (show touches, stay awake, and power mode).\nThis option disables this cleanup operation</string>
     <string name="scrcpyopt_flex_display">Automatically resize to match the screen</string>
@@ -573,6 +556,8 @@
     <string name="vm_pairing_failed">Pairing failed</string>
     <string name="vm_auto_reconnect_succeeded">ADB auto-reconnect succeeded</string>
     <string name="vm_auto_reconnect_failed">ADB auto-reconnect failed</string>
+    <string name="vm_auto_reconnect_restart_scrcpy">ADB reconnected, restarting scrcpy</string>
+    <string name="vm_auto_reconnect_restart_scrcpy_failed">ADB reconnected but failed to restart scrcpy</string>
     <string name="vm_start_scrcpy">Start scrcpy</string>
     <string name="vm_stop_scrcpy">Stop scrcpy</string>
     <string name="vm_launch_app">Launch app</string>
@@ -581,6 +566,7 @@
     <string name="vm_execute_pairing">Execute pairing</string>
     <string name="vm_send_action">Send %1$s</string>
     <string name="vm_label_timeout">%1$s timed out</string>
+    <string name="vm_label_cancelled">%1$s cancelled</string>
     <string name="vm_label_param_error">%1$s parameter error: %2$s</string>
     <string name="vm_label_failed">%1$s failed: %2$s</string>
     <string name="vm_app_started_on_display">App started on current display: %1$s</string>
@@ -606,8 +592,33 @@
     <string name="vm_quick_probe_success">ADB quick probe connection succeeded: %1$s:%2$s</string>
     <string name="vm_device_switched_profile">Current connected device switched to profile: %1$s</string>
 
+    <string name="usb_connection">USB Connection</string>
+    <string name="usb_device_detected">USB device detected</string>
+    <string name="usb_device_disconnected">USB device disconnected</string>
+    <string name="usb_permission_request_hint">Please authorize USB debugging on the device</string>
+    <string name="usb_connection_no_response">Device not responding. Check the USB connection and confirm USB debugging authorization on the device</string>
+
     <string name="language_follow_system">Follow system</string>
     <string name="language_english">English</string>
     <string name="language_chinese">Chinese</string>
 
+    <string name="pref_title_tunnel">TCP tunnel</string>
+    <string name="pref_summary_tunnel">Forward adb through a lightweight TCP tunnel with pre-shared key auth. No VpnService, coexists with VPN apps.</string>
+    <string name="pref_title_tunnel_host">Remote host</string>
+    <string name="pref_hint_tunnel_host">e.g. 203.0.113.10 or myhost.com</string>
+    <string name="pref_title_tunnel_port">Remote port</string>
+    <string name="pref_title_tunnel_key">Pre-shared key</string>
+    <string name="pref_title_tunnel_device">Tunnel device</string>
+    <string name="pref_summary_tunnel_device">Switch the target device for the tunnel</string>
+    <string name="pref_title_tunnel_device_name">Device name</string>
+    <string name="pref_hint_tunnel_device_name">e.g. OnePlus</string>
+    <string name="tunnel_device_add">Add device</string>
+    <string name="tunnel_device_add_title">New tunnel device</string>
+    <string name="tunnel_device_edit_title">Edit tunnel device</string>
+    <string name="tunnel_device_delete">Delete</string>
+    <string name="tunnel_device_edit">Edit</string>
+    <string name="tunnel_device_no_devices">No devices yet. Tap “Add device”.</string>
+    <string name="tunnel_device_switched">Tunnel device switched to %1$s</string>
+    <string name="tunnel_device_in_use">Current</string>
+    <string name="section_tunnel">TCP Tunnel</string>
 </resources>

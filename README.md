@@ -78,6 +78,9 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
   <img src="https://github.com/user-attachments/assets/558bd1b1-15d2-47f8-bdc5-aac9cca689f5" height="180" alt="PiP" />
   <img src="https://github.com/user-attachments/assets/1b52a662-108d-49cb-a86e-eccc8ac12d64" height="180" alt="Gaming" />
 </p>
+<p align="center">
+  <img src="https://github.com/user-attachments/assets/59116f01-8163-417b-8f2b-45c5c624a37a" height="180" alt="Gamepad" />
+</p>
 
 ## Features
 
@@ -90,7 +93,7 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 - 多配置切换，设备绑定配置，连接后直接进入全屏
 - 可替换 scrcpy-server
 - 利用 mDNS 服务实现自动连接启用无线调试的设备、自动发现等待配对设备的IP与端口
-- 自动横竖屏切换（算吗
+- 自动横竖屏切换
 - 横屏布局
   - 仅屏幕比例小于 16:9 的设备
 - 全屏下映射返回键到远程
@@ -127,8 +130,6 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 - ADB 安装应用 / adb install
   - 需要大改 JNI 的实现因此不做
   - 可以推送文件之后使用终端安装或手动控制安装
-- 有线控制 / fastboot
-  - 左转甲壳虫
 
 ## Change Log
 

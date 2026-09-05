@@ -59,8 +59,8 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 37
-        versionCode = 46
-        versionName = "0.5.4-quic"
+        versionCode = 47
+        versionName = "0.6.0-quic"
 
         externalNativeBuild {
             cmake {
@@ -99,7 +99,6 @@ android {
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-        isCoreLibraryDesugaringEnabled = true
     }
     buildFeatures {
         compose = true
@@ -168,9 +167,8 @@ dependencies {
     implementation(libs.androidx.compose.runtime)
     implementation(libs.androidx.biometric)
     implementation(libs.androidx.security.crypto)
-    implementation(files("libs/libquictunnel.aar"))
-    coreLibraryDesugaring(libs.desugar.jdk.libs)
     implementation("com.github.promeg:tinypinyin:3.0.0")
+    implementation(files("libs/libquictunnel.aar"))
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

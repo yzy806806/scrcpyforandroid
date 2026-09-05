@@ -1,13 +1,29 @@
 # Change Log
 
-## 0.5.4-wg
+## 0.6.0-quic (fork)
 
-- 重构: 用 WireGuard 隧道替代 SSH 隧道 (JSch)
-  - 内核态加密 (ChaCha20-Poly1305), 替代 Java 用户态 SSH
-  - 无 TCP-in-TCP 开销, 无 Nagle 延迟
-  - VpnService 后端 (GoBackend), 首次需 VPN 授权 (仅一次)
-- 依赖: 移除 JSch, 新增 com.wireguard.android:tunnel:1.0.20260102
-- 依赖: 新增 desugar_jdk_libs (WG 库要求 Java 8 desugaring)
+- 同步上游 0.5.5 / 0.5.6 / 0.6.0（USB 有线 ADB、手柄支持、Android 17 局域网权限）
+- 隧道调试弹窗精简：连接成功不再弹窗，仅失败时提示（2.5s 自动关闭）
+- 保留 QUIC 隧道全部分叉功能
+
+## 0.6.0
+
+- 新增: 有线 ADB
+  - [pr#85](https://github.com/Miuzarte/ScrcpyForAndroid/pull/85)
+
+## 0.5.6
+
+- 新增: 手柄支持
+  - 震动回传的复杂度过高, 不做
+
+## 0.5.5
+
+- 修复: 在安卓 17 下请求 `ACCESS_LOCAL_NETWORK` 权限以连接局域网设备
+  - [pr#99](https://github.com/Miuzarte/ScrcpyForAndroid/pull/99)
+- 改进: `AppRuntime` 包装多语言 `Context`
+  - [pr#86](https://github.com/Miuzarte/ScrcpyForAndroid/pull/86)
+
+## 0.5.4
 
 - 修复: 在安卓 10 使用了不允许的认证方式组合
   - [pr#81](https://github.com/Miuzarte/ScrcpyForAndroid/pull/81)
@@ -22,6 +38,15 @@
   - [pr#79](https://github.com/Miuzarte/ScrcpyForAndroid/pull/79)
 - 修复: 文件管理跳转路径/创建文件夹输入框光标错乱
   - [pr#80](https://github.com/Miuzarte/ScrcpyForAndroid/pull/80)
+
+## 0.5.2
+
+- 修复: 特定设备上需要特地准备 Looper
+  - [issues#63](https://github.com/Miuzarte/ScrcpyForAndroid/issues/63)
+- 修复: 本机输入法无法向被控端输入纯空格字符串
+
+## 0.5.1
+
 - 修复: 去除配对时的安卓 11 限制
   - 4个月前为什么会写出这种代码💩
 
