@@ -220,6 +220,61 @@ class DeviceShortcuts(val devices: List<DeviceShortcut>): List<DeviceShortcut> b
         return DeviceShortcuts(newList)
     }
 
+    /**
+     * 记录一次连接/配对得到的 LAN 地址: 同一 host 的条目只更新端口 (端口是临时的,
+     * 且保留该条目的其它地址与用户配置), 没有该 host 的条目时新增一条
+     */
+    fun upsertByHost(host: String, port: Int): DeviceShortcuts {
+        if (host.isBlank()) return this
+        val idx = devices.indexOfFirst { it.matchesHost(host) }
+        if (idx < 0) {
+            val address = ConnectionTarget(host = host, port = port).toString()
+            return upsert(DeviceShortcut(addresses = listOf(address)))
+        }
+
+        val old = devices[idx]
+        val updatedAddresses = old.addresses.map { addr ->
+            val parsed = ConnectionTarget.unmarshalFrom(addr)
+            if (parsed != null &&
+                parsed.host == host &&
+                parsed.connectionType == DeviceConnectionType.LAN
+            ) {
+                ConnectionTarget(host = host, port = port).toString()
+            } else {
+                addr
+            }
+        }
+        if (updatedAddresses == old.addresses) return this
+
+        val newList = devices.toMutableList().apply {
+            this[idx] = old.copy(addresses = updatedAddresses)
+        }
+        return DeviceShortcuts(newList)
+    }
+
+    /**
+     * 按 host 定位条目并写回设备名: 端口是临时的, 用 (host, port) 定位时一旦端口不一致
+     * 就会静默找不到条目 (`update` 直接返回原值), 名字写不进去
+     */
+    fun updateNameByHost(
+        host: String,
+        name: String,
+        updateNameOnlyWhenEmpty: Boolean = false,
+    ): DeviceShortcuts {
+        if (host.isBlank()) return this
+        val idx = devices.indexOfFirst { it.matchesHost(host) }
+        if (idx < 0) return this
+
+        val old = devices[idx]
+        if (old.name == name) return this
+        if (updateNameOnlyWhenEmpty && old.name.isNotBlank()) return this
+
+        val newList = devices.toMutableList().apply {
+            this[idx] = old.copy(name = name)
+        }
+        return DeviceShortcuts(newList)
+    }
+
     private fun normalizeId(shortcut: DeviceShortcut): DeviceShortcut {
         if (shortcut.id.toIntOrNull() != null) return shortcut
         return shortcut.copy(id = nextId())

@@ -1,10 +1,49 @@
 # Change Log
 
-## 0.6.0-quic (fork)
+## 0.6.6-quic (fork)
 
-- 同步上游 0.5.5 / 0.5.6 / 0.6.0（USB 有线 ADB、手柄支持、Android 17 局域网权限）
-- 隧道调试弹窗精简：连接成功不再弹窗，仅失败时提示（2.5s 自动关闭）
-- 保留 QUIC 隧道全部分叉功能
+- 同步上游 0.6.1 ~ 0.6.6（外观重构、二维码配对、虚拟按键重构、多语言收拢、会话保活）
+- 保留 QUIC 隧道全部分叉功能（多设备切换、PSK 认证、不占 VpnService）
+
+## 0.6.6
+
+- 修复: 切换低延迟音频 / 自定义 server 等设置后无法进入全屏 (#117)
+  - `Scrcpy` 与连接服务上移到 `AppRuntime` 进程级复用, 配置变化只回写 `Scrcpy.sessionConfig`, 不再重建实例
+
+## 0.6.5
+
+- 修复: 应用内语言在全屏页 (虚拟按键 / 悬浮球菜单 / 密码列表) 未生效
+- 重构: 多语言逻辑收拢到 `AppLocale` + `LocalizedActivity`, 所有 Activity 继承 `LocalizedActivity`
+  - Android 13+ 接入系统 `按应用设定语言`, 低于 13 仍由 base context 包装生效
+  - 新增 `preBuild` 校验: Activity 未继承 `LocalizedActivity` 时构建失败
+  - `MainActivity` 声明 `locale|layoutDirection` 的 `configChanges`, 切语言就地生效不重建 Activity (避免丢掉正在投屏的 Scrcpy 会话)
+
+## 0.6.4
+
+- 新增: 虚拟按键增加 `退出全屏`
+  - 重构了虚拟按键的实现架构
+- 新增: 虚拟按键的 `填充锁屏密码` 改为级联菜单, 展开后直接选择要填充的密码
+
+## 0.6.3
+
+- 修复: 自动重连已配对设备时未正确更新端口
+
+## 0.6.2
+
+- 新增: 二维码连接设备
+
+## 0.6.1
+
+- 重构: 外观与导航
+  - 导航从 `androidx navigation3` 迁移到 `miuix-nav`, 新增 `CrossActivityTransition` 提供 AOSP 过渡效果
+  - 新增主题设置页 `ThemeSettingsScreen`, 收拢 Monet/模糊/悬浮底栏/液态玻璃, 新增导航区 (过渡风格 + 横滑返回) 与圆角矩形开关
+  - 悬浮底栏从 `com.kyant.backdrop` 迁移到 `miuix-blur`, 液态玻璃实现照搬 miuix example
+- 改进: 模糊从布尔开关改为三态 (无/高斯/渐进)
+- 改进: 状态栏图标色跟随应用生效主题 (`ApplySystemBarsAppearance`)
+- 修复: 关于页/锁屏密码页顶栏模糊
+- 修复: 带 `bottomContent` 的页面禁用渐进模糊, 回退高斯或无模糊
+- 依赖: 移除 `androidx.navigation3-runtime` / `miuix-navigation3-ui`, 新增 `miuix-nav` / `miuix-squircle`
+- 依赖: Kotlin `2.4.10` -> `2.4.20`, JVM target `17` -> `21`
 
 ## 0.6.0
 

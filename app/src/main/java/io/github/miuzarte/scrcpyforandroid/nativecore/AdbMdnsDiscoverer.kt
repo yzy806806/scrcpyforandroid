@@ -7,6 +7,7 @@ import android.net.nsd.NsdServiceInfo
 import android.os.Build
 import android.util.Log
 import java.io.IOException
+import java.net.Inet4Address
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
@@ -15,6 +16,8 @@ import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.locks.ReentrantLock
+import kotlin.concurrent.withLock
 
 /**
  * Performs mDNS discovery for ADB TLS pairing/connect services on the local network.
@@ -26,6 +29,14 @@ internal object AdbMdnsDiscoverer {
 
     private lateinit var nsdManager: NsdManager
 
+    /**
+     * Serializes discovery calls: NsdManager rejects a second concurrent discovery of the
+     * same service type with `FAILURE_ALREADY_ACTIVE`. This is deliberately independent
+     * from the ADB connection lock, so a long discovery window cannot stall connect or
+     * keep-alive work on an already connected device.
+     */
+    private val discoveryLock = ReentrantLock()
+
     fun init(context: Context) {
         if (::nsdManager.isInitialized) return
         nsdManager = context.applicationContext.getSystemService(NsdManager::class.java)
@@ -34,21 +45,59 @@ internal object AdbMdnsDiscoverer {
     /**
      * Discover a device that advertises the ADB connect service via mDNS.
      */
-    fun discoverConnectService(timeoutMs: Long, includeLanDevices: Boolean): Pair<String, Int>? {
-        return discoverService(TLS_CONNECT, timeoutMs, includeLanDevices)
+    fun discoverConnectService(
+        timeoutMs: Long,
+        includeLanDevices: Boolean,
+        matchInstanceName: String? = null,
+        matchHostAddress: String? = null,
+    ): Pair<String, Int>? {
+        return discoverService(
+            TLS_CONNECT,
+            timeoutMs,
+            includeLanDevices,
+            matchInstanceName,
+            matchHostAddress,
+        )
     }
 
     /**
      * Discover a device that advertises the ADB pairing service via mDNS.
+     *
+     * When [matchInstanceName] is set, only the service announced under exactly that
+     * instance name is resolved. The QR pairing flow generates the name itself and the
+     * device re-announces it verbatim, so an exact match identifies our own pairing
+     * session instead of an unrelated device that happens to be pairing nearby.
      */
-    fun discoverPairingService(timeoutMs: Long, includeLanDevices: Boolean): Pair<String, Int>? {
-        return discoverService(TLS_PAIRING, timeoutMs, includeLanDevices)
+    fun discoverPairingService(
+        timeoutMs: Long,
+        includeLanDevices: Boolean,
+        matchInstanceName: String? = null,
+    ): Pair<String, Int>? {
+        return discoverService(TLS_PAIRING, timeoutMs, includeLanDevices, matchInstanceName, null)
     }
 
     private fun discoverService(
         serviceType: String,
         timeoutMs: Long,
         includeLanDevices: Boolean,
+        matchInstanceName: String?,
+        matchHostAddress: String?,
+    ): Pair<String, Int>? = discoveryLock.withLock {
+        discoverServiceLocked(
+            serviceType,
+            timeoutMs,
+            includeLanDevices,
+            matchInstanceName,
+            matchHostAddress,
+        )
+    }
+
+    private fun discoverServiceLocked(
+        serviceType: String,
+        timeoutMs: Long,
+        includeLanDevices: Boolean,
+        matchInstanceName: String?,
+        matchHostAddress: String?,
     ): Pair<String, Int>? {
         check(::nsdManager.isInitialized) { "AdbMdnsDiscoverer is not initialized" }
         val resultPort = AtomicInteger(-1)
@@ -78,6 +127,11 @@ internal object AdbMdnsDiscoverer {
             @SuppressLint("NewApi")
             override fun onServiceFound(serviceInfo: NsdServiceInfo) {
                 if (discoveryFinished.get()) return
+                // Filtering by instance name before resolving keeps discovery cheap and
+                // avoids resolving (and later using) an unrelated device's service.
+                if (matchInstanceName != null && serviceInfo.serviceName != matchInstanceName) {
+                    return
+                }
                 Log.v(TAG, "service found: ${serviceInfo.serviceName}")
                 val resolveListener = object: NsdManager.ResolveListener {
                     override fun onResolveFailed(serviceInfo: NsdServiceInfo, errorCode: Int) {
@@ -88,6 +142,7 @@ internal object AdbMdnsDiscoverer {
                         if (discoveryFinished.get()) return
                         val hostAddress = resolvedHostAddress(serviceInfo) ?: return
                         if (hostAddress.isBlank()) return
+                        if (matchHostAddress != null && hostAddress != matchHostAddress) return
 
                         if (!includeLanDevices) {
                             val isLocalHost = runCatching {
@@ -131,11 +186,17 @@ internal object AdbMdnsDiscoverer {
 
     @Suppress("DEPRECATION")
     @SuppressLint("NewApi")
-    private fun resolvedHostAddress(serviceInfo: NsdServiceInfo): String? =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-            serviceInfo.hostAddresses.firstOrNull()?.hostAddress
-        else
-            serviceInfo.host?.hostAddress
+    private fun resolvedHostAddress(serviceInfo: NsdServiceInfo): String? {
+        val addresses =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+                serviceInfo.hostAddresses.filterNotNull()
+            else
+                listOfNotNull(serviceInfo.host)
+        // IPv4 first: converting a link-local IPv6 address to a string drops its scope
+        // id (so connecting fails), and the ADB tooling pairs over IPv4 only.
+        return (addresses.firstOrNull { it is Inet4Address } ?: addresses.firstOrNull())
+            ?.hostAddress
+    }
 
     private fun isPortOpened(port: Int): Boolean = try {
         ServerSocket().use {

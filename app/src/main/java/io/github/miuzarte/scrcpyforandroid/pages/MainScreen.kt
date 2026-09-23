@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.SystemClock
 import android.provider.OpenableColumns
 import android.widget.Toast
@@ -35,22 +36,17 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.navigation3.runtime.NavKey
-import androidx.navigation3.runtime.entryProvider
-import androidx.navigation3.runtime.rememberDecoratedNavEntries
-import androidx.navigation3.ui.NavDisplay
-import com.kyant.backdrop.backdrops.layerBackdrop
-import com.kyant.backdrop.backdrops.rememberLayerBackdrop
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiMotion
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
-import io.github.miuzarte.scrcpyforandroid.nativecore.UsbAdbSession
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.*
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
@@ -61,7 +57,20 @@ import io.github.miuzarte.scrcpyforandroid.ui.*
 import io.github.miuzarte.scrcpyforandroid.ui.component.FloatingBottomBar
 import io.github.miuzarte.scrcpyforandroid.ui.component.FloatingBottomBarItem
 import kotlinx.coroutines.*
+import kotlinx.serialization.Serializable
 import top.yukonga.miuix.kmp.basic.*
+import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
+import top.yukonga.miuix.kmp.nav.core.NavCornerClipMode
+import top.yukonga.miuix.kmp.nav.core.NavDisplay
+import top.yukonga.miuix.kmp.nav.core.NavDisplayEffects
+import top.yukonga.miuix.kmp.nav.core.NavEntryBuilder
+import top.yukonga.miuix.kmp.nav.core.NavKey
+import top.yukonga.miuix.kmp.nav.core.rememberNavBackStack
+import top.yukonga.miuix.kmp.nav.core.rememberNavSystemCornerRadius
+import top.yukonga.miuix.kmp.nav.transition.NavSwipeDirection
+import top.yukonga.miuix.kmp.nav.transition.NavTransition
+import top.yukonga.miuix.kmp.nav.transition.NavTransitions
+import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import java.io.File
@@ -107,12 +116,21 @@ private enum class MainBottomTabDestination(
     Settings(labelResId = R.string.main_tab_settings, icon = Icons.Rounded.Settings);
 }
 
+@Serializable
 sealed interface RootScreen: NavKey {
+    @Serializable
     data object Home: RootScreen
+    @Serializable
     data object Advanced: RootScreen
+    @Serializable
     data object About: RootScreen
+    @Serializable
+    data object ThemeSettings: RootScreen
+    @Serializable
     data object VirtualButtonOrder: RootScreen
+    @Serializable
     data object FullscreenControl: RootScreen // compatibility mode
+    @Serializable
     data class ScrcpyOptionRecord(val profileId: String): RootScreen
 }
 
@@ -155,7 +173,7 @@ fun MainScreen() {
     var pagerNavigationJob by remember { mutableStateOf<Job?>(null) }
     var isPagerNavigating by remember { mutableStateOf(false) }
     val currentTab = tabs[selectedTabIndex]
-    val rootBackStack = remember { mutableStateListOf<NavKey>(RootScreen.Home) }
+    val rootBackStack = rememberNavBackStack<RootScreen>(RootScreen.Home)
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
     var showReorderDevices by rememberSaveable { mutableStateOf(false) }
     var lastExitBackPressAtMs by rememberSaveable { mutableLongStateOf(0L) }
@@ -244,6 +262,8 @@ fun MainScreen() {
     }
 
     // Scrcpy instance and session state
+    // 实例与连接服务由 AppRuntime 持有, 跨 Activity 重建复用;
+    // 配置变化只回写 sessionConfig, 重建实例会丢掉正在投屏的会话与连接状态
     val customServerUri = asBundle.customServerUri
         .ifBlank { null }
     val customServerVersion = asBundle.customServerVersion
@@ -251,53 +271,23 @@ fun MainScreen() {
     val serverRemotePath = asBundle.serverRemotePath
         .ifBlank { AppSettings.SERVER_REMOTE_PATH.defaultValue }
     val lowLatency = asBundle.lowLatency
-    val scrcpy = remember(
-        appContext,
-        customServerUri,
-        customServerVersion,
-        serverRemotePath,
-        lowLatency,
-    ) {
-        Scrcpy(
-            appContext = appContext,
-            customServerUri = customServerUri,
-            serverVersion = customServerVersion,
-            serverRemotePath = serverRemotePath,
-            lowLatency = lowLatency,
-        ).also {
-            AppRuntime.scrcpy = it
-        }
-    }
+    val sessionConfig = Scrcpy.SessionConfig(
+        customServerUri = customServerUri,
+        serverVersion = customServerVersion,
+        serverRemotePath = serverRemotePath,
+        lowLatency = lowLatency,
+    )
 
-    val deviceConnectionServices = remember(scrcpy) {
-        val adbCoordinator = DeviceAdbConnectionCoordinator()
-        val connectionStateStore = ConnectionStateStore()
-        val connectionController = ConnectionController(
-            scrcpy = scrcpy,
-            stateStore = connectionStateStore,
-            adbCoordinator = adbCoordinator,
-        )
-        val autoReconnectManager = DeviceAdbAutoReconnectManager(
-            controller = connectionController,
-            stateStore = connectionStateStore,
-        )
-        DeviceConnectionServices(
-            adbCoordinator = adbCoordinator,
-            connectionStateStore = connectionStateStore,
-            connectionController = connectionController,
-            autoReconnectManager = autoReconnectManager,
-        )
+    val session = remember(appContext) { AppRuntime.obtainSession(sessionConfig) }
+    val scrcpy = session.scrcpy
+    val deviceConnectionServices = session.services
+
+    LaunchedEffect(sessionConfig) {
+        scrcpy.sessionConfig = sessionConfig
     }
 
     val deviceTabViewModelFactory = remember(scrcpy, deviceConnectionServices) {
         DeviceTabViewModel.Factory(scrcpy, deviceConnectionServices)
-    }
-
-    DisposableEffect(deviceConnectionServices) {
-        onDispose {
-            deviceConnectionServices.autoReconnectManager.close()
-            AppScreenOn.release()
-        }
     }
 
     // Side-effect launchers and composition locals
@@ -492,10 +482,43 @@ fun MainScreen() {
         }
     }
 
-    val rootEntryProvider = entryProvider<NavKey> {
-        entry(RootScreen.Home) {
-            val blurBackdrop = rememberBlurBackdrop(enableBlur = asBundle.blur)
-            val floatingBarBlurActive = asBundle.blur && asBundle.floatingBottomBarBlur
+    val isCrossActivityStyle = asBundle.navTransitionStyle == 1
+    val swipeBackDirection = when {
+        !asBundle.swipeBack -> NavSwipeDirection.None
+        LocalLayoutDirection.current == LayoutDirection.Rtl -> NavSwipeDirection.RightToLeft
+        else -> NavSwipeDirection.LeftToRight
+    }
+    val navTransition: NavTransition =
+        if (isCrossActivityStyle) CrossActivityTransition else NavTransitions.MiuixDefault
+    val navCornerRadius = rememberNavSystemCornerRadius()
+    val navBackdropColor = colorScheme.surface
+    val navEffects = remember(
+        isCrossActivityStyle,
+        asBundle.swipeBack,
+        navCornerRadius,
+        navBackdropColor,
+    ) {
+        NavDisplayEffects(
+            enableCornerClip = true,
+            cornerClipRadius = navCornerRadius,
+            cornerClipMode =
+                if (isCrossActivityStyle) NavCornerClipMode.All
+                else NavCornerClipMode.Leading,
+            dimAmount = 0.5f,
+            blockInputDuringTransition = true,
+            backdropColor = navBackdropColor,
+        )
+    }
+
+    val navRootContent: NavEntryBuilder.() -> Unit = {
+        entry<RootScreen.Home>(swipeDismiss = swipeBackDirection) {
+            val blurBackdrop = rememberBlurBackdrop(enableBlur = asBundle.blur != AppSettings.BlurMode.NONE)
+            // 悬浮底栏是否需要采样背后的内容 (液态玻璃和高斯模糊都要)
+            val floatingBarBlurActive = asBundle.blur != AppSettings.BlurMode.NONE
+            // 液态玻璃
+            val floatingBarGlassActive = floatingBarBlurActive && asBundle.floatingBottomBarBlur
+            // 液态玻璃关闭时悬浮底栏回退到高斯模糊
+            val floatingBarGaussianBlur = floatingBarBlurActive && !asBundle.floatingBottomBarBlur
             val surfaceColor = colorScheme.surface
             val glassBackdrop = rememberLayerBackdrop {
                 drawRect(surfaceColor)
@@ -505,7 +528,8 @@ fun MainScreen() {
             Scaffold(
                 bottomBar = {
                     if (!asBundle.floatingBottomBar) {
-                        BlurredBar(backdrop = blurBackdrop) {
+                        // 底栏不跟随渐进模糊, 渐进模糊回退到高斯模糊, 没启用模糊则无模糊
+                        BlurredBar(backdrop = blurBackdrop, allowProgressive = false) {
                             NavigationBar(
                                 color =
                                     if (blurBackdrop != null) Color.Transparent
@@ -553,7 +577,7 @@ fun MainScreen() {
                                 .fillMaxSize()
                                 .then(
                                     if (asBundle.floatingBottomBar && floatingBarBlurActive) {
-                                        Modifier.layerBackdrop(glassBackdrop)
+                                        Modifier.miuixLayerBackdrop(glassBackdrop)
                                     } else {
                                         Modifier
                                     },
@@ -602,7 +626,12 @@ fun MainScreen() {
                         }
                     }
 
-                    if (asBundle.floatingBottomBar) {
+                    // 悬浮底栏依赖 InteractiveHighlight, 其内部构造 android.graphics.RuntimeShader (API 33+),
+                    // 低版本组合即崩, 故在此拦截, 不依赖设置页的清理
+                    if (
+                        asBundle.floatingBottomBar &&
+                            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+                    ) {
                         FloatingBottomBar(
                             modifier = Modifier
                                 .align(Alignment.BottomCenter)
@@ -618,7 +647,8 @@ fun MainScreen() {
                             },
                             backdrop = glassBackdrop,
                             tabsCount = tabs.size,
-                            isBlurEnabled = floatingBarBlurActive,
+                            isBlurEnabled = floatingBarGlassActive,
+                            isGaussianBlurEnabled = floatingBarGaussianBlur,
                         ) {
                             tabs.forEach { tab ->
                                 FloatingBottomBarItem(
@@ -652,24 +682,28 @@ fun MainScreen() {
             }
         }
 
-        entry(RootScreen.Advanced) {
+        entry<RootScreen.Advanced>(swipeDismiss = swipeBackDirection) {
             ScrcpyAllOptionsScreen(
                 scrollBehavior = advancedPageScrollBehavior,
                 scrcpy = scrcpy,
             )
         }
 
-        entry(RootScreen.About) {
+        entry<RootScreen.About>(swipeDismiss = swipeBackDirection) {
             AboutScreen()
         }
 
-        entry(RootScreen.VirtualButtonOrder) {
+        entry<RootScreen.ThemeSettings>(swipeDismiss = swipeBackDirection) {
+            ThemeSettingsScreen()
+        }
+
+        entry<RootScreen.VirtualButtonOrder>(swipeDismiss = swipeBackDirection) {
             VirtualButtonOrderScreen(
                 scrollBehavior = advancedPageScrollBehavior,
             )
         }
 
-        entry(RootScreen.FullscreenControl) {
+        entry<RootScreen.FullscreenControl>(swipeDismiss = swipeBackDirection) {
             FullscreenControlRoute(
                 scrcpy = scrcpy,
                 onBack = rootNavigator.pop,
@@ -678,7 +712,7 @@ fun MainScreen() {
             )
         }
 
-        entry<RootScreen.ScrcpyOptionRecord> { route ->
+        entry<RootScreen.ScrcpyOptionRecord>(swipeDismiss = swipeBackDirection) { route ->
             RecordPreferencesScreen(
                 scrollBehavior = advancedPageScrollBehavior,
                 profileId = route.profileId,
@@ -686,11 +720,6 @@ fun MainScreen() {
             )
         }
     }
-
-    val rootEntries = rememberDecoratedNavEntries(
-        backStack = rootBackStack,
-        entryProvider = rootEntryProvider,
-    )
 
     val themeController = remember(
         asBundle.themeBaseIndex,
@@ -705,18 +734,22 @@ fun MainScreen() {
     MiuixTheme(
         controller = themeController,
     ) {
+        ApplySystemBarsAppearance(activity?.window)
         CompositionLocalProvider(
-            LocalEnableBlur provides asBundle.blur,
-            LocalEnableFloatingBottomBar provides asBundle.floatingBottomBar,
-            LocalEnableFloatingBottomBarBlur provides asBundle.floatingBottomBarBlur,
+            LocalEnableBlur provides (asBundle.blur != AppSettings.BlurMode.NONE),
+            LocalBlurMode provides asBundle.blur,
+            LocalSquircleEnabled provides asBundle.squircle,
             LocalRootNavigator provides rootNavigator,
             LocalSnackbarController provides snackbarController,
             LocalServerPicker provides serverPicker,
             LocalTerminalFontPicker provides terminalFontPicker,
         ) {
             NavDisplay(
-                entries = rootEntries,
+                backStack = rootBackStack,
                 onBack = rootNavigator.pop,
+                transition = navTransition,
+                effects = navEffects,
+                content = navRootContent,
             )
         }
     }

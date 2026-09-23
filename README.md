@@ -1,39 +1,33 @@
 <!-- markdownlint-disable MD033 -->
 
-# Scrcpy for Android (WireGuard Tunnel Fork)
+# Scrcpy for Android (QUIC Tunnel Fork)
 
 > [!IMPORTANT]
-> **Fork 说明**: 本仓库是 [Miuzarte/ScrcpyForAndroid](https://github.com/Miuzarte/ScrcpyForAndroid) 的个人 fork，在原版基础上增加 **WireGuard 隧道连接模式**。用于解决「被控端 adbd 无 RSA 认证时，公网直接暴露 5555 端口不安全」的问题（详见下文）。其余功能与原版一致，可直接跟随上游合并更新。
+> **Fork 说明**: 本仓库是 [Miuzarte/ScrcpyForAndroid](https://github.com/Miuzarte/ScrcpyForAndroid) 的个人 fork，在原版基础上增加 **QUIC 隧道连接模式**（多设备快速切换 + 预共享密钥认证）。用于解决「被控端 adbd 无 RSA 认证时，公网直接暴露 5555 端口不安全」的问题。其余功能与原版一致，跟随上游合并更新。
 
 ## 本 Fork 的更改
 
-### 新增：WireGuard 隧道连接模式
+### 新增：QUIC 隧道连接模式
 
-某些设备的 adbd 被 ROM 定制为**跳过 RSA 认证**（例如 OnePlus/OPPO 系），此时若直接通过公网连接 5555 端口，任何人都能免认证控制设备；且手机常带公网 IPv6，路由器无法过滤。本 fork 新增 WireGuard 隧道模式，把 adb 协议封装在 WireGuard 加密通道内，认证交给 WG 密钥：
+某些设备的 adbd 被 ROM 定制为**跳过 RSA 认证**（例如 OnePlus/OPPO 系），此时若直接通过公网连接 5555 端口，任何人都能免认证控制设备；且手机常带公网 IPv6，路由器无法过滤。
+
+本 fork 新增 QUIC 隧道模式：adb 流量封装在 QUIC 通道内（UDP 传输，自带 TLS 1.3 加密与流复用），认证走预共享密钥（PSK），**不占用 VpnService**，可与 V2Ray 等 VPN 应用共存。
 
 ```
-主控手机 ScrcpyForAndroid
-    │ 填 WG 配置 (对端地址/私钥/对端公钥/隧道IP)
-    ▼
-WireGuard UDP (内核态加密, 无 TCP-in-TCP)  ← 公网唯一入口
-    ▼
-被控端 WG IP:5555 (adbd 监听 WG 隧道接口)
+主控手机 ScrcpyForAndroid                        被控端
+本地 TCP listener (127.0.0.1)  →   QUIC stream  →  tunnel-server (22289/udp)
+     ↑ adb 连接                     TLS 1.3 加密       ↓ PSK 认证后转发
+                                                       127.0.0.1:5555 (adbd)
 ```
 
 **使用方式**:
-1. 被控端配置 WireGuard 接口，adbd 监听 WG 隧道 IP:5555
-2. 主控端 **设置 → WireGuard**：开启并填写对端地址/端口/本端私钥/对端公钥/隧道 IP
-3. 设备列表填写对端 WG IP，连接后 App 自动建立隧道并连接 adb
-4. 局域网直连场景可关闭 WG 隧道，行为与原版一致
-5. 首次开启会弹一次 Android VPN 授权弹窗（系统行为，仅一次）
 
-**改动文件**:
-- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/DeviceAdbConnectionCoordinator.kt` — 连接前判断 WG 配置，先建隧道再连 adb
-- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/nativecore/WGTunnelManager.kt` — 新增，WireGuard 隧道生命周期管理（VpnService/GoBackend）
-- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/storage/AppSettings.kt` — 新增 WG 配置字段
-- `app/src/main/java/io/github/miuzarte/scrcpyforandroid/pages/SettingsScreen.kt` — 设置页新增 WG 隧道配置区块
-- `gradle/libs.versions.toml` — 新增 wireguard-tunnel 依赖，移除 JSch
-- `app/src/main/AndroidManifest.xml` — 新增 VpnService 声明
+1. 被控端运行 `tunnel-server`（Go 二进制 + Magisk 模块，开机自启，iptables 只放行回环）
+2. 主控端 **设置 → TCP 隧道**：开启并添加设备（设备名 / 对端地址 / 端口 / 预共享密钥）
+3. 首页可直接快速切换隧道目标设备；连接时 App 自动建立 QUIC 隧道再连 adb
+4. 局域网直连场景可关闭隧道，行为与原版一致
+
+**改动文件清单与同步上游的流程**见 [FORK.md](FORK.md)。
 
 ### 构建
 
@@ -93,6 +87,7 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 - 多配置切换，设备绑定配置，连接后直接进入全屏
 - 可替换 scrcpy-server
 - 利用 mDNS 服务实现自动连接启用无线调试的设备、自动发现等待配对设备的IP与端口
+- 二维码配对
 - 自动横竖屏切换
 - 横屏布局
   - 仅屏幕比例小于 16:9 的设备
@@ -113,6 +108,7 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 - 虚拟按键的截图实现方式为发送
 `keycode 120`，安卓官方([keycodes.h#349](https://android.googlesource.com/platform/frameworks/native/+/master/include/android/keycodes.h#349))的定义为
 `System Request / Print Screen key.`，不同的厂商有不同的实现，在某些类原生(`AxionOS`) 上的行为是软重启
+- 切换语言后需要重启应用才能进入全屏
 
 ## TODO
 
@@ -168,7 +164,7 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 
 ## 构建
 
-- JDK 17+
+- JDK 21
 - Android SDK (`compileSdk 37` / `buildTools 37.0.0`)
 - Android NDK `29.0.14206865`
 
@@ -199,6 +195,7 @@ specific abi:
 - 画中画实现参考: [ClassicOldSong/moonlight-android](https://github.com/ClassicOldSong/moonlight-android)
 - 原生应用设置页跳转: [YifePlayte/WOMMO](https://github.com/YifePlayte/WOMMO)
 - 终端实现: [reapercanuk39/termux-kotlin-app](https://github.com/reapercanuk39/termux-kotlin-app) (仅 Apache 2.0 部分)
+- 二维码生成: [nayuki/QR-Code-generator](https://github.com/nayuki/QR-Code-generator/tree/master/java)
 
 ## License
 
@@ -207,9 +204,9 @@ specific abi:
 ## Star History
 
 <a href="https://www.star-history.com/?repos=Miuzarte%2FScrcpyForAndroid&type=date&legend=top-left">
-  <picture>
+ <picture>
    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=Miuzarte/ScrcpyForAndroid&type=date&theme=dark&legend=top-left&sealed_token=ZAxkizLKrqW0OrnbwXmuzTskU0mzMsjF--hGG8WW4F38bJGglf17mqXYZ6aQvePlP7ocCCS39PHNQYgjyLIEGcbU_8qQYXZ-YPs5N8slD0MphyJmujabc0AUKWMIpdq6iqSGifrLx-rQGBd26YTwEPikYV6SKjGVAxPhoMmMgzyJ13RtkP3rSm4-E2sN" />
    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=Miuzarte/ScrcpyForAndroid&type=date&legend=top-left&sealed_token=ZAxkizLKrqW0OrnbwXmuzTskU0mzMsjF--hGG8WW4F38bJGglf17mqXYZ6aQvePlP7ocCCS39PHNQYgjyLIEGcbU_8qQYXZ-YPs5N8slD0MphyJmujabc0AUKWMIpdq6iqSGifrLx-rQGBd26YTwEPikYV6SKjGVAxPhoMmMgzyJ13RtkP3rSm4-E2sN" />
    <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=Miuzarte/ScrcpyForAndroid&type=date&legend=top-left&sealed_token=ZAxkizLKrqW0OrnbwXmuzTskU0mzMsjF--hGG8WW4F38bJGglf17mqXYZ6aQvePlP7ocCCS39PHNQYgjyLIEGcbU_8qQYXZ-YPs5N8slD0MphyJmujabc0AUKWMIpdq6iqSGifrLx-rQGBd26YTwEPikYV6SKjGVAxPhoMmMgzyJ13RtkP3rSm4-E2sN" />
-  </picture>
- </a>
+ </picture>
+</a>

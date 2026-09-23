@@ -1,13 +1,11 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
 import android.content.Context
-import android.content.res.Configuration
 import androidx.annotation.StringRes
-import io.github.miuzarte.scrcpyforandroid.MainActivity
+import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import io.github.miuzarte.scrcpyforandroid.nativecore.AdbMdnsDiscoverer
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
-import java.util.Locale
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,11 +28,75 @@ object AppRuntime {
         get() = appContext
 
     var scrcpy: Scrcpy? = null
+        private set
     var currentConnectionTarget: ConnectionTarget? = null
     var currentConnectedDevice: ConnectedDeviceInfo? = null
 
     // 当前设备使用的 profile ID (session 级, 脱离快捷设备独立运作)
     val currentConnectionProfileId = MutableStateFlow("global")
+
+    private val sessionLock = Any()
+    private var sessionServices: DeviceConnectionServices? = null
+
+    /**
+     * 进程级会话: [Scrcpy] 与连接服务只创建一次, Activity 重建 (切语言 / 深浅色 / 系统回收) 时复用
+     *
+     * 配置变化不要重建实例, 改 [Scrcpy.sessionConfig] 即可, 下一次 start() 生效
+     */
+    internal fun obtainSession(sessionConfig: Scrcpy.SessionConfig): Session {
+        synchronized(sessionLock) {
+            val existingScrcpy = scrcpy
+            val existingServices = sessionServices
+            if (existingScrcpy != null && existingServices != null) {
+                return Session(existingScrcpy, existingServices)
+            }
+
+            val createdScrcpy = Scrcpy(
+                appContext = appContext,
+                initialSessionConfig = sessionConfig,
+            )
+            val adbCoordinator = DeviceAdbConnectionCoordinator()
+            val connectionStateStore = ConnectionStateStore()
+            val connectionController = ConnectionController(
+                scrcpy = createdScrcpy,
+                stateStore = connectionStateStore,
+                adbCoordinator = adbCoordinator,
+            )
+            val autoReconnectManager = DeviceAdbAutoReconnectManager(
+                controller = connectionController,
+                stateStore = connectionStateStore,
+            )
+            val services = DeviceConnectionServices(
+                adbCoordinator = adbCoordinator,
+                connectionStateStore = connectionStateStore,
+                connectionController = connectionController,
+                autoReconnectManager = autoReconnectManager,
+            )
+            scrcpy = createdScrcpy
+            sessionServices = services
+            return Session(createdScrcpy, services)
+        }
+    }
+
+    /**
+     * 收尾会话
+     *
+     * 只应在 MainActivity 真正退出 (isFinishing) 时调用;
+     * Activity 重建 (配置变更) 不能走这里, 否则连接状态与自动重连会被重置
+     */
+    internal fun releaseSession() {
+        synchronized(sessionLock) {
+            sessionServices?.autoReconnectManager?.close()
+            AppScreenOn.release()
+            sessionServices = null
+            scrcpy = null
+        }
+    }
+
+    internal class Session(
+        val scrcpy: Scrcpy,
+        val services: DeviceConnectionServices,
+    )
 
     private val snackbarHostStateLock = Any()
     private val snackbarHostStateStack = mutableListOf<SnackbarHostState>()
@@ -117,18 +179,9 @@ object AppRuntime {
         dismissNewest = dismissNewest,
     )
 
-    // 应用内语言设置只包裹了 Activity 的 base context,
-    // 这里用同样的方式包装 application context, 使 snackbar 等全局文案跟随应用内语言
-    private fun localizedContext(): Context {
-        val languageTag = MainActivity.getAppLanguageTag(appContext)
-        return if (languageTag.isEmpty()) appContext
-        else appContext.createConfigurationContext(
-            Configuration(appContext.resources.configuration).apply {
-                setLocale(Locale.forLanguageTag(languageTag))
-            },
-        )
-    }
-
-    fun stringResource(@StringRes resId: Int) = localizedContext().getString(resId)
-    fun stringResource(@StringRes resId: Int, vararg args: Any) = localizedContext().getString(resId, *args)
+    // application context 不经过 Activity 的 base context,
+    // 这里按当前应用内语言包装, 使 snackbar 等全局文案跟随应用内语言
+    fun stringResource(@StringRes resId: Int) = AppLocale.localizedContext(appContext).getString(resId)
+    fun stringResource(@StringRes resId: Int, vararg args: Any) =
+        AppLocale.localizedContext(appContext).getString(resId, *args)
 }

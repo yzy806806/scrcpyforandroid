@@ -1,14 +1,10 @@
 package io.github.miuzarte.scrcpyforandroid.nativecore
 
 import android.util.Log
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
-import kotlinx.coroutines.withContext
-import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.Path
@@ -53,27 +49,31 @@ object NativeAdbService {
             transport.keyName = value
         }
 
-    suspend fun pair(host: String, port: Int, pairingCode: String): Boolean = mutex.withLock {
-        val h = host.trim()
-        val code = pairingCode.trim()
-        require(h.isNotBlank()) { "host is blank" }
-        require(code.isNotBlank()) { "pairing code is blank" }
-        Log.i(TAG, "pair(): host=$h port=$port")
-        return@withLock try {
-            transport.pair(h, port, code)
-        } catch (e: Exception) {
-            Log.e(TAG, "pair(): failed host=$h port=$port", e)
-            val detail = e.message ?: "${e.javaClass.simpleName} (no message)"
-            throw IllegalStateException("ADB pair failed for $h:$port -> $detail", e)
+    suspend fun pair(host: String, port: Int, pairingCode: String): AdbPairingResult =
+        mutex.withLock {
+            val h = host.trim()
+            val code = pairingCode.trim()
+            require(h.isNotBlank()) { "host is blank" }
+            require(code.isNotBlank()) { "pairing code is blank" }
+            Log.i(TAG, "pair(): host=$h port=$port")
+            return@withLock try {
+                transport.pair(h, port, code)
+            } catch (e: Exception) {
+                Log.e(TAG, "pair(): failed host=$h port=$port", e)
+                val detail = e.message ?: "${e.javaClass.simpleName} (no message)"
+                throw IllegalStateException("ADB pair failed for $h:$port -> $detail", e)
+            }
         }
-    }
 
+    // 服务发现不触碰 ADB 连接, 故不取连接锁 (否则长时间发现会阻塞连接与心跳);
+    // 同类服务的并发发现由 AdbMdnsDiscoverer 内部串行化
     suspend fun discoverPairingService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
-    ): Pair<String, Int>? = mutex.withLock {
-        return@withLock try {
-            transport.discoverPairingService(timeoutMs, includeLanDevices)
+        matchInstanceName: String? = null,
+    ): Pair<String, Int>? = withContext(Dispatchers.IO) {
+        try {
+            transport.discoverPairingService(timeoutMs, includeLanDevices, matchInstanceName)
         } catch (e: Exception) {
             Log.w(TAG, "discoverPairingService(): failed", e)
             null
@@ -83,9 +83,16 @@ object NativeAdbService {
     suspend fun discoverConnectService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
-    ): Pair<String, Int>? = mutex.withLock {
-        return@withLock try {
-            transport.discoverConnectService(timeoutMs, includeLanDevices)
+        matchInstanceName: String? = null,
+        matchHostAddress: String? = null,
+    ): Pair<String, Int>? = withContext(Dispatchers.IO) {
+        try {
+            transport.discoverConnectService(
+                timeoutMs,
+                includeLanDevices,
+                matchInstanceName,
+                matchHostAddress,
+            )
         } catch (e: Exception) {
             Log.w(TAG, "discoverConnectService(): failed", e)
             null

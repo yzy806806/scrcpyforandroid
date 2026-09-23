@@ -38,7 +38,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceConnectionType
 import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcut
 import io.github.miuzarte.scrcpyforandroid.nativecore.UsbAdbDeviceWatcher
 import io.github.miuzarte.scrcpyforandroid.nativecore.UsbDeviceEvent
-import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
+import io.github.miuzarte.scrcpyforandroid.password.rememberPasswordPickerEntries
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.SectionSmallTitle
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
@@ -54,24 +54,17 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
-import top.yukonga.miuix.kmp.utils.PressFeedbackType
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.More
 import top.yukonga.miuix.kmp.menu.OverlayIconDropdownMenu
 import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
+import top.yukonga.miuix.kmp.utils.PressFeedbackType
 
 private const val PREVIEW_CARD_ITEM_KEY = "preview_card"
 private const val PREVIEW_CARD_ITEM_INDEX = 3
 private val DEVICE_TWO_PANE_CONFIG_MAX_WIDTH = 640.dp
-
-internal data class DeviceConnectionServices(
-    val adbCoordinator: DeviceAdbConnectionCoordinator,
-    val connectionStateStore: ConnectionStateStore,
-    val connectionController: ConnectionController,
-    val autoReconnectManager: DeviceAdbAutoReconnectManager,
-)
 
 @Composable
 internal fun DeviceTabScreen(
@@ -161,7 +154,11 @@ internal fun DeviceTabScreen(
             }
         },
     ) { pagePadding ->
-        Box(modifier = if (blurActive) Modifier.layerBackdrop(blurBackdrop) else Modifier) {
+        Box(
+            modifier =
+                if (blurActive) Modifier.layerBackdrop(blurBackdrop)
+                else Modifier,
+        ) {
             DeviceTabPage(
                 viewModel = viewModel,
                 contentPadding = pagePadding,
@@ -211,6 +208,7 @@ internal fun DeviceTabPage(
     val tunnelDevicesList by viewModel.tunnelDevicesList.collectAsState()
     val showTunnelDeviceSheet by viewModel.showTunnelDeviceSheet.collectAsState()
     val tunnelDeviceSelectedId by viewModel.tunnelDeviceSelectedId.collectAsState()
+    val qrPairingState by viewModel.qrPairingState.collectAsState()
 
     val adbConnected by viewModel.adbConnected.collectAsState()
     val statusLine by viewModel.statusLine.collectAsState()
@@ -316,11 +314,16 @@ internal fun DeviceTabPage(
         listState.animateScrollToItem(PREVIEW_CARD_ITEM_INDEX)
     }
 
-    fun handleVirtualButtonAction(action: VirtualButtonAction) {
-        when (action) {
-            VirtualButtonAction.RECENT_TASKS -> {
+    // 虚拟按钮的宿主动作: 预览卡上的动作只落在设备页自己的状态上
+    // 列表状态一律现读, 宿主对象会跨组合存活, 捕获快照会让 isEmpty() 停在首次组合的画面
+    val virtualButtonHost = remember(scope, context, viewModel) {
+        object: VirtualButtonHost {
+            override fun handleShowRecentTasks() {
                 viewModel.showRecentTasks()
-                if (recentTasks.isEmpty() && !listingsRefreshBusy) {
+                if (
+                    viewModel.scrcpyListings.recentTasks.isEmpty() &&
+                    !viewModel.listingsRefreshBusy.value
+                ) {
                     scope.launch(Dispatchers.IO) {
                         viewModel.refreshApps()
                     }
@@ -330,22 +333,41 @@ internal fun DeviceTabPage(
                 }
             }
 
-            VirtualButtonAction.ALL_APPS -> {
+            override fun handleShowAllApps() {
                 viewModel.showAllApps()
-                if (apps.isEmpty() && !listingsRefreshBusy) {
+                if (
+                    viewModel.scrcpyListings.apps.isEmpty() &&
+                    !viewModel.listingsRefreshBusy.value
+                ) {
                     scope.launch(Dispatchers.IO) {
                         viewModel.refreshApps()
                     }
                 }
             }
 
-            VirtualButtonAction.TOGGLE_IME -> viewModel.toggleIme()
-            VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> scope.launch {
-                viewModel.pasteLocalClipboard(context)
+            override fun handleToggleIme() {
+                viewModel.toggleIme()
             }
 
-            else -> viewModel.handleVirtualButtonAction(action)
+            override fun handlePasteLocalClipboard() {
+                // 与原先一致: 在主线程取剪贴板, 内部自行切到 IO
+                scope.launch {
+                    viewModel.pasteLocalClipboard(context)
+                }
+            }
         }
+    }
+
+    fun handleVirtualButtonAction(action: VirtualButtonAction) {
+        VirtualButtonActions.perform(
+            scope = scope,
+            action = action,
+            host = virtualButtonHost,
+            // 留在主线程调用: runBusy 的先查后置是主线程语义, 切 IO 由 VM 内部负责
+            onInjectKeycode = { keycode ->
+                viewModel.injectVirtualKeycode(keycode)
+            },
+        )
     }
 
     @Composable
@@ -612,6 +634,9 @@ internal fun DeviceTabPage(
             onCancelConnect = {
                 viewModel.cancelAdbConnect()
             },
+            onShowQrPairing = {
+                viewModel.startQrPairing()
+            },
         )
     }
 
@@ -800,9 +825,8 @@ internal fun DeviceTabPage(
             moreActions = virtualButtonLayout.second,
             showText = asBundle.previewVirtualButtonShowText,
             onAction = ::handleVirtualButtonAction,
-            passwordPopupContent = { onDismissRequest ->
-                PasswordPickerPopupContent(onDismissRequest = onDismissRequest)
-            },
+            // 有二级菜单的密码列表由宿主提供, 预览卡只负责在动作菜单里展开它
+            passwordChildren = rememberPasswordPickerEntries(),
             popupBottomPadding = bottomInnerPadding,
             modifier = modifier,
         )
@@ -1079,6 +1103,11 @@ internal fun DeviceTabPage(
         refreshBusy = listingsRefreshBusy,
         onDismissRequest = { viewModel.hideAllApps() },
         onRefresh = { scope.launch(Dispatchers.IO) { viewModel.refreshApps() } },
+    )
+
+    QrPairingDialog(
+        state = qrPairingState,
+        onDismiss = { viewModel.cancelQrPairing() },
     )
 
     TunnelDeviceSheet(

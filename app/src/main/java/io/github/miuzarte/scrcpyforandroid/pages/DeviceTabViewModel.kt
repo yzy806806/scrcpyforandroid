@@ -1,7 +1,9 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
+import androidx.annotation.StringRes
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -14,6 +16,7 @@ import io.github.miuzarte.scrcpyforandroid.models.DeviceShortcuts
 import io.github.miuzarte.scrcpyforandroid.models.TunnelDevice
 import io.github.miuzarte.scrcpyforandroid.models.TunnelDevices
 import io.github.miuzarte.scrcpyforandroid.nativecore.QuicTunnelManager
+import io.github.miuzarte.scrcpyforandroid.nativecore.QrPairingCredentials
 import io.github.miuzarte.scrcpyforandroid.nativecore.UsbAdbSession
 import io.github.miuzarte.scrcpyforandroid.nativecore.UsbDeviceInfo
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
@@ -29,6 +32,7 @@ import io.github.miuzarte.scrcpyforandroid.storage.Storage.scrcpyProfiles
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.tunnelDevices
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonSurface
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
@@ -41,6 +45,26 @@ private const val ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS = 2_000L
 private const val ADB_TCP_PROBE_TIMEOUT_MS = 500
 private const val ADB_HEALTH_CHECK_INTERVAL_MS = 3_000L
 private const val TAG = "DeviceTabViewModel"
+
+// 扫码配对: 手机停留在扫码页期间服务才存在, 因此由客户端决定整体等待预算
+private const val QR_PAIRING_TOTAL_TIMEOUT_MS = 120_000L
+private const val QR_PAIRING_DISCOVERY_WINDOW_MS = 4_000L
+private const val QR_PAIRING_RETRY_MIN_MS = 1_000L
+private const val QR_PAIRING_RETRY_MAX_MS = 3_000L
+private const val QR_PAIRING_CONNECT_DISCOVERY_MS = 8_000L
+
+/**
+ * State of the QR code pairing dialog.
+ *
+ * [payload] is the QR content; [statusRes] (with optional [statusArg]) is shown under
+ * the dialog title. The dialog stays open on failure so the reason remains readable.
+ */
+internal data class QrPairingUiState(
+    val visible: Boolean = false,
+    val payload: String = "",
+    @field:StringRes val statusRes: Int = R.string.device_pairing_qr_waiting,
+    val statusArg: String? = null,
+)
 
 @OptIn(FlowPreview::class)
 internal class DeviceTabViewModel(
@@ -237,12 +261,15 @@ internal class DeviceTabViewModel(
         _asBundle.map {
             VirtualButtonActions.splitLayout(
                 VirtualButtonActions.parseStoredLayout(it.virtualButtonsLayout),
+                // 设备页预览卡: 全屏专属动作 (如退出全屏) 在这里不出现
+                VirtualButtonSurface.PREVIEW,
             )
         }.stateIn(
             viewModelScope,
             SharingStarted.Eagerly,
             VirtualButtonActions.splitLayout(
                 VirtualButtonActions.parseStoredLayout(_asBundle.value.virtualButtonsLayout),
+                VirtualButtonSurface.PREVIEW,
             ),
         )
 
@@ -534,25 +561,25 @@ internal class DeviceTabViewModel(
         _savedShortcuts.update { it.remove(id) }
     }
 
-    fun handleVirtualButtonAction(action: VirtualButtonAction) {
-        when (action) {
-            VirtualButtonAction.RECENT_TASKS -> _showRecentTasksSheet.value = true
-            VirtualButtonAction.ALL_APPS -> _showAllAppsSheet.value = true
-            VirtualButtonAction.TOGGLE_IME -> _imeRequestToken.update { it + 1 }
-            VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> { /* handled by Composable with context */
-            }
-
-            else -> {
-                val keycode = action.keycode ?: return
-                runBusy(
-                    EventLogMessage.Resource(
-                        R.string.vm_send_action,
-                        listOf(EventLogMessage.Resource(action.titleResId)),
-                    ),
-                ) {
-                    scrcpy.injectKeycode(0, keycode)
-                    scrcpy.injectKeycode(1, keycode)
-                }
+    /**
+     * 注入一个虚拟按钮按键
+     *
+     * 按键类动作由 [VirtualButtonActions.perform] 统一分发, 这里只负责下发与日志
+     */
+    fun injectVirtualKeycode(keycode: Int) {
+        val action = VirtualButtonActions.byKeycode(keycode)
+        runBusy(
+            EventLogMessage.Resource(
+                R.string.vm_send_action,
+                listOf(
+                    action?.let { EventLogMessage.Resource(it.titleResId) }
+                        ?: EventLogMessage.Raw(keycode.toString()),
+                ),
+            ),
+        ) {
+            withContext(Dispatchers.IO) {
+                scrcpy.injectKeycode(0, keycode)
+                scrcpy.injectKeycode(1, keycode)
             }
         }
     }
@@ -668,15 +695,11 @@ internal class DeviceTabViewModel(
         cause: DisconnectCause = DisconnectCause.User,
         statusLine: String = "Disconnected",
     ) {
-        val result = connectionController.disconnectAdbConnection(
+        connectionController.disconnectAdbConnection(
             clearQuickOnlineForTarget,
             cause,
             statusLine,
         )
-        result.clearedTarget?.let { target ->
-            if (target.host.isNotBlank())
-                _savedShortcuts.update { it.update(host = target.host, port = target.port) }
-        }
         logMessage?.let { logEvent(it) }
     }
 
@@ -684,8 +707,6 @@ internal class DeviceTabViewModel(
         val disconnected = connectionController.disconnectCurrentTargetBeforeConnecting(newHost, newPort)
             ?: return
         sessionReconnectBlacklistHosts += disconnected.host
-        if (disconnected.host.isNotBlank())
-            _savedShortcuts.update { it.update(host = disconnected.host, port = disconnected.port) }
     }
 
     suspend fun connectWithTimeout(host: String, port: Int) {
@@ -858,12 +879,11 @@ internal class DeviceTabViewModel(
 
         applyConnectedDeviceCapabilities(info.sdkInt)
 
-        // USB 的 host 是 VID/PID; 快捷方式地址本身带 usb: 前缀 (解析后 host 即 VID/PID),
-        // 这里必须用原始 host 查找才能命中并更新名称
+        // 端口是临时的: 按 host 定位条目, 否则端口不一致时 (如 mDNS 换了端口) 名字会静默写不进去
+        // USB 的 host 是 VID/PID; 快捷方式地址本身带 usb: 前缀 (解析后 host 即 VID/PID), 同样按 host 命中
         _savedShortcuts.update {
-            it.update(
+            it.updateNameByHost(
                 host = host,
-                port = port,
                 name = fullLabel,
                 updateNameOnlyWhenEmpty = true,
             )
@@ -968,11 +988,7 @@ internal class DeviceTabViewModel(
 
         if (options.killAdbOnClose) {
             currentTarget.value?.host?.let { sessionReconnectBlacklistHosts += it }
-            val result = connectionController.stopScrcpySession(killAdbOnClose = true)
-            result.clearedTarget?.let { target ->
-                if (target.host.isNotBlank())
-                    _savedShortcuts.update { it.update(host = target.host, port = target.port) }
-            }
+            connectionController.stopScrcpySession(killAdbOnClose = true)
             logEvent(R.string.vm_scrcpy_stopped_adb_disconnected_log)
             AppRuntime.snackbar(R.string.vm_scrcpy_stopped_adb_disconnected)
         } else {
@@ -1142,7 +1158,7 @@ internal class DeviceTabViewModel(
             val h = host.trim()
             val p = port.trim().toIntOrNull() ?: return@runBusy
             val c = code.trim()
-            val ok = adbCoordinator.pair(h, p, c)
+            val ok = adbCoordinator.pair(h, p, c).success
             logEvent(
                 if (ok) R.string.vm_pairing_succeeded else R.string.vm_pairing_failed,
                 level = if (ok) Log.INFO else Log.ERROR,
@@ -1156,6 +1172,175 @@ internal class DeviceTabViewModel(
 
     suspend fun onDiscoverPairingTarget(): Pair<String, Int>? {
         return adbCoordinator.discoverPairingService(includeLanDevices = _asBundle.value.adbMdnsLanDiscovery)
+    }
+
+    private val _qrPairingState = MutableStateFlow(QrPairingUiState())
+    val qrPairingState: StateFlow<QrPairingUiState> = _qrPairingState.asStateFlow()
+
+    private var qrPairingJob: Job? = null
+
+    /** Show the pairing QR code and start looking for the phone that scans it. */
+    fun startQrPairing() {
+        if (qrPairingJob?.isActive == true) return
+        val credentials = QrPairingCredentials.generate()
+        _qrPairingState.value = QrPairingUiState(
+            visible = true,
+            payload = credentials.payload,
+            statusRes = R.string.device_pairing_qr_waiting,
+        )
+        qrPairingJob = viewModelScope.launch { pairScannedDevice(credentials) }
+    }
+
+    /** Dismiss the dialog and stop discovery/pairing. */
+    fun cancelQrPairing() {
+        qrPairingJob?.cancel()
+        qrPairingJob = null
+        // 协程取消打断不了阻塞中的 socket.connect, 这里显式中断在途连接
+        adbCoordinator.cancelPendingConnect()
+        _qrPairingState.value = QrPairingUiState()
+    }
+
+    private suspend fun pairScannedDevice(credentials: QrPairingCredentials) {
+        // 整个扫码配对会话期间置忙: 既阻止用户并发操作, 也让自动重连循环让位
+        // (runAutoReconnectLoop 的 isBusy 门控), 否则它会周期性争抢服务发现
+        _busy.value = true
+        try {
+            val deadline = SystemClock.elapsedRealtime() + QR_PAIRING_TOTAL_TIMEOUT_MS
+            var retryDelayMs = QR_PAIRING_RETRY_MIN_MS
+            while (SystemClock.elapsedRealtime() < deadline) {
+                // 手机把配对服务以二维码里的服务名原样广播, 因此只接受同名实例,
+                // 避免配对上附近正在配对的其它设备
+                val target = adbCoordinator.discoverPairingService(
+                    timeoutMs = QR_PAIRING_DISCOVERY_WINDOW_MS,
+                    includeLanDevices = true,
+                    matchInstanceName = credentials.serviceName,
+                )
+                if (target == null) {
+                    delay(retryDelayMs)
+                    retryDelayMs = (retryDelayMs * 2).coerceAtMost(QR_PAIRING_RETRY_MAX_MS)
+                    continue
+                }
+                retryDelayMs = QR_PAIRING_RETRY_MIN_MS
+
+                val (host, port) = target
+                updateQrPairingStatus(credentials, R.string.device_pairing_qr_pairing, host)
+                // 失败后继续监听: 手机重新进入扫码页会以同样的服务名/密码再次广播,
+                // 因此用户重新扫同一个二维码即可重试, 无需换码
+                val paired = try {
+                    adbCoordinator.pair(host, port, credentials.password)
+                } catch (cancel: CancellationException) {
+                    throw cancel
+                } catch (error: Exception) {
+                    val detail = error.message?.takeIf { it.isNotBlank() }
+                        ?: error.javaClass.simpleName
+                    logEvent(R.string.vm_pairing_failed, detail, level = Log.ERROR, error = error)
+                    updateQrPairingStatus(credentials, R.string.device_pairing_qr_failed, detail)
+                    delay(retryDelayMs)
+                    continue
+                }
+                if (!paired.success) {
+                    logEvent(R.string.vm_pairing_failed, level = Log.ERROR)
+                    updateQrPairingStatus(
+                        credentials,
+                        R.string.device_pairing_qr_failed_unknown,
+                        null,
+                    )
+                    delay(retryDelayMs)
+                    continue
+                }
+
+                logEvent(R.string.vm_pairing_succeeded)
+                updateQrPairingStatus(credentials, R.string.device_pairing_qr_connecting, host)
+                if (connectPairedDevice(host, paired.deviceGuid)) {
+                    AppRuntime.snackbar(R.string.device_pairing_qr_connected)
+                    // 配对并连接成功: 收起对话框
+                    _qrPairingState.update {
+                        if (it.payload == credentials.payload) QrPairingUiState() else it
+                    }
+                    return
+                }
+                updateQrPairingStatus(
+                    credentials,
+                    R.string.device_pairing_qr_connect_failed,
+                    host,
+                )
+                delay(retryDelayMs)
+            }
+            updateQrPairingStatus(credentials, R.string.device_pairing_qr_timeout, null)
+        } finally {
+            _busy.value = false
+        }
+    }
+
+    /**
+     * 只在本次会话的二维码仍在显示时写入状态: 取消后立刻重开会生成新的 S/P,
+     * 迟到的写入不应污染新会话
+     */
+    private fun updateQrPairingStatus(
+        credentials: QrPairingCredentials,
+        @StringRes statusRes: Int,
+        statusArg: String?,
+    ) {
+        _qrPairingState.update {
+            if (it.payload == credentials.payload) {
+                it.copy(statusRes = statusRes, statusArg = statusArg)
+            } else {
+                it
+            }
+        }
+    }
+
+    /**
+     * 配对成功后立即连接: 手机把 `_adb-tls-connect._tcp` 以设备 GUID 为实例名广播,
+     * 因此优先按 GUID 精确发现, 失败再按配对时用的地址兜底
+     */
+    private suspend fun connectPairedDevice(pairHost: String, deviceGuid: String?): Boolean {
+        val (host, port) = findConnectTarget(pairHost, deviceGuid) ?: return false
+        return try {
+            disconnectCurrentTargetBeforeConnecting(host, port)
+            // 先登记为快速设备 (同 IP 只更新端口), 这样 handleAdbConnected 能把设备名写进去
+            rememberPairedDevice(host, port)
+            connectWithTimeout(host, port)
+            handleAdbConnected(
+                host = host,
+                port = port,
+                autoStartScrcpy = false,
+                autoEnterFullScreen = false,
+                scrcpyProfileId = ScrcpyOptions.GLOBAL_PROFILE_ID,
+            )
+            // 已配对并存入快速设备列表, 按普通设备而非临时连接处理
+            connectionController.updateQuickConnected(false)
+            true
+        } catch (cancel: CancellationException) {
+            throw cancel
+        } catch (error: Exception) {
+            connectionController.markConnectionFailed(error)
+            logEvent(R.string.vm_adb_connection_failed, level = Log.ERROR, error = error)
+            false
+        }
+    }
+
+    /** 扫码配对得到的设备直接进快速设备列表: 同 IP 更新端口, 无条目则新增 */
+    private fun rememberPairedDevice(host: String, port: Int) {
+        _savedShortcuts.update { it.upsertByHost(host, port) }
+    }
+
+    private suspend fun findConnectTarget(
+        pairHost: String,
+        deviceGuid: String?,
+    ): Pair<String, Int>? {
+        if (deviceGuid != null) {
+            adbCoordinator.discoverConnectService(
+                timeoutMs = QR_PAIRING_CONNECT_DISCOVERY_MS,
+                includeLanDevices = true,
+                matchInstanceName = deviceGuid,
+            )?.let { return it }
+        }
+        return adbCoordinator.discoverConnectService(
+            timeoutMs = QR_PAIRING_CONNECT_DISCOVERY_MS,
+            includeLanDevices = true,
+            matchHostAddress = pairHost,
+        )
     }
 
     // TODO: unused
@@ -1217,13 +1402,7 @@ internal class DeviceTabViewModel(
                     )
                 },
                 onMdnsPortChanged = { host, oldPort, newPort ->
-                    _savedShortcuts.update {
-                        it.update(
-                            host = host,
-                            port = oldPort,
-                            newPort = newPort,
-                        )
-                    }
+                    _savedShortcuts.update { it.upsertByHost(host, newPort) }
                     logEvent(R.string.vm_mdns_updated, host, oldPort, newPort)
                 },
                 onKnownDeviceReconnected = { target ->
@@ -1231,7 +1410,8 @@ internal class DeviceTabViewModel(
                     logEvent(R.string.vm_quick_probe_success, target.host, target.port)
                 },
                 onDiscoveredDeviceReconnected = { host, port, _ ->
-                    _savedShortcuts.update { it.update(host = host, port = port) }
+                    // 列表里存的是旧端口, 按 host 覆盖端口
+                    _savedShortcuts.update { it.upsertByHost(host, port) }
                     logEvent(R.string.vm_quick_probe_success, host, port)
                 },
                 retryIntervalMs = ADB_AUTO_RECONNECT_RETRY_INTERVAL_MS,

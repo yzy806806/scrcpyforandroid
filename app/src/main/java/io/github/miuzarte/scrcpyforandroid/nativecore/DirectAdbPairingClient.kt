@@ -37,8 +37,19 @@ private class PeerInfo(val type: Byte, rawData: ByteArray) {
         buffer.put(data)
     }
 
+    /**
+     * Reads the payload as a NUL-terminated ASCII/UTF-8 string, which is how the
+     * device encodes its GUID in [ADB_DEVICE_GUID] peer info.
+     */
+    fun stringOrNull(): String? =
+        data.takeWhile { it != 0.toByte() }
+            .toByteArray()
+            .toString(Charsets.UTF_8)
+            .takeIf { it.isNotBlank() }
+
     companion object {
         const val ADB_RSA_PUB_KEY: Byte = 0
+        const val ADB_DEVICE_GUID: Byte = 1
 
         fun readFrom(buffer: ByteBuffer): PeerInfo {
             val type = buffer.get()
@@ -151,6 +162,13 @@ internal class DirectAdbPairingClient(
     private lateinit var pairingContext: PairingContext
     private var state: State = State.READY
 
+    /**
+     * GUID reported by the device during the peer info exchange, when available.
+     * The device advertises its `_adb-tls-connect._tcp` service under this name.
+     */
+    var deviceGuid: String? = null
+        private set
+
     fun start(): Boolean {
         check(isLibraryLoaded) { "Pairing native bridge is unavailable" }
 
@@ -257,7 +275,9 @@ internal class DirectAdbPairingClient(
             Log.e(TAG, "invalid peer info size: ${decrypted.size}")
             return false
         }
-        PeerInfo.readFrom(ByteBuffer.wrap(decrypted).order(ByteOrder.BIG_ENDIAN))
+        PeerInfo.readFrom(ByteBuffer.wrap(decrypted).order(ByteOrder.BIG_ENDIAN)).let { theirInfo ->
+            if (theirInfo.type == PeerInfo.ADB_DEVICE_GUID) deviceGuid = theirInfo.stringOrNull()
+        }
         return true
     }
 

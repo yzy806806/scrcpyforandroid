@@ -31,6 +31,8 @@ fork 相对上游新增/改动的文件：
 | `CHANGELOG.md` / `README.md` | 修改 | fork 说明 + QUIC 隧道文档 |
 | `nativecore/UsbAdb*.kt`、`res/xml/usb_device_filter.xml` | 上游新增 | USB 有线 ADB（v0.6.0 同步引入） |
 | `scrcpy/GamepadInput.kt` | 上游新增 | 手柄支持（v0.5.6 同步引入） |
+| `i18n/AppLocale.kt`、`i18n/LocalizedActivity.kt` | 上游新增 | 多语言收拢（v0.6.5 同步引入）；`preBuild` 校验要求所有 Activity 继承 `LocalizedActivity` |
+| `util/QrCodeEncoder.kt`、`widgets/QrPairingDialog.kt`、`nativecore/QrPairingCredentials.kt` | 上游新增 | 二维码配对（v0.6.2 同步引入） |
 
 ## QUIC 隧道方案（核心差异）
 
@@ -95,6 +97,16 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 
 ## 版本约定
 
-- `versionName` 带后缀标识 fork 特性：`0.6.0-quic`（当前，同步上游 v0.6.0）
-- `versionCode` 单调递增：当前 47
-- 发布走 GitHub Release + tag（如 `v0.6.0-quic`）
+- `versionName` 带后缀标识 fork 特性：`0.6.6-quic`（当前，同步上游 v0.6.6）
+- `versionCode` 单调递增：当前 50
+- 发布走 GitHub Release + tag（如 `v0.6.6-quic`）
+
+## 同步记录
+
+- 2026-09-05 → v0.6.0-quic（versionCode 47）：USB ADB / 手柄 / Android 17 权限
+- 2026-09-23 → v0.6.6-quic（versionCode 50）：外观重构 / 二维码配对 / 虚拟按键重构 / 多语言收拢 / 会话保活
+
+## 上游同步注意（新增坑）
+
+- 上游 v0.6.5 起 `preBuild` 有 `verifyAppLocaleWiring` 校验：Activity 未继承 `LocalizedActivity`、或 `AppLocale.SUPPORTED_TAGS` / `locales_config.xml` / `values-xx` 三者不一致时**构建失败**
+- 上游 v0.6.6 起 JDK 目标为 21（`sourceCompatibility`/`targetCompatibility`/`jvmTarget`），CI 用 JDK 21

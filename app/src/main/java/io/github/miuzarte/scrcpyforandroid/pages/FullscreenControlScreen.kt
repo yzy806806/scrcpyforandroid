@@ -30,12 +30,12 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
-import androidx.fragment.app.FragmentActivity
 import io.github.miuzarte.scrcpyforandroid.NativeCoreFacade
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
-import io.github.miuzarte.scrcpyforandroid.password.PasswordPickerPopupContent
+import io.github.miuzarte.scrcpyforandroid.password.rememberPasswordPickerEntries
 import io.github.miuzarte.scrcpyforandroid.scrcpy.ClientOptions
+import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadHid
 import io.github.miuzarte.scrcpyforandroid.scrcpy.GamepadInputHandler
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
@@ -64,7 +64,6 @@ fun FullscreenControlScreen(
     val activity = LocalActivity.current
     val context = LocalContext.current
     val snackbarController = LocalSnackbarController.current
-    val fragmentActivity = remember(activity) { activity as? FragmentActivity }
 
     val taskScope = remember { CoroutineScope(SupervisorJob() + Dispatchers.IO) }
 
@@ -100,12 +99,18 @@ fun FullscreenControlScreen(
     }
 
     val buttonItems = remember(asBundle.virtualButtonsLayout) {
-        VirtualButtonActions.splitLayout(
-            VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
-        )
+        VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout)
     }
+    // 停靠栏: 按用户排序切分成"栏上按钮 / 更多菜单"
+    val virtualButtonLayout = remember(buttonItems) {
+        VirtualButtonActions.splitLayout(buttonItems)
+    }
+    // 悬浮球: 与停靠栏同一份用户排序, 但动作合并回一条列表并去掉"更多"这个开关本身
     val floatingActions = remember(buttonItems) {
-        (buttonItems.first + buttonItems.second).filter { it != VirtualButtonAction.MORE }
+        VirtualButtonActions.mergedOrder(
+            items = buttonItems,
+            excluded = setOf(VirtualButtonAction.MORE),
+        )
     }
     val fullscreenDebugInfo = asBundle.fullscreenDebugInfo
     val showFullscreenVirtualButtons = asBundle.showFullscreenVirtualButtons
@@ -199,10 +204,17 @@ fun FullscreenControlScreen(
             ?: false
     }
 
-    val bar = remember(buttonItems) {
+    val bar = remember(virtualButtonLayout) {
         VirtualButtonBar(
-            outsideActions = buttonItems.first,
-            moreActions = buttonItems.second,
+            outside = virtualButtonLayout.first,
+            more = virtualButtonLayout.second,
+        )
+    }
+    // 悬浮球与停靠栏是同一个组件的两种画法: 球把全部动作收进菜单, 所以没有"栏上按钮"
+    val ballBar = remember(floatingActions) {
+        VirtualButtonBar(
+            outside = emptyList(),
+            more = floatingActions,
         )
     }
     val recentTasks = remember(listingsRefreshVersion) { scrcpy.listings.recentTasks }
@@ -301,11 +313,20 @@ fun FullscreenControlScreen(
         }
     }
 
-    fun handleButtonAction(action: VirtualButtonAction) {
-        when (action) {
-            VirtualButtonAction.RECENT_TASKS -> {
+    val virtualButtonHostScope = rememberCoroutineScope()
+
+    // 虚拟按钮的宿主动作: 该界面上能把动作落到哪里, 由这里决定
+    // 列表状态一律现读, 宿主对象会跨组合存活, 捕获快照会让 isEmpty() 停在首次组合的画面
+    val virtualButtonHost = remember(onBack) {
+        object: VirtualButtonHost {
+            override fun handleExitFullscreen() = onBack()
+
+            override fun handleShowRecentTasks() {
                 showRecentTasksSheet = true
-                if (recentTasks.isEmpty() && !listingsRefreshBusy) {
+                if (
+                    scrcpy.listings.recentTasks.isEmpty() &&
+                    !scrcpy.listings.refreshBusyState.value
+                ) {
                     taskScope.launch {
                         refreshApps()
                         refreshRecentTasks()
@@ -313,18 +334,23 @@ fun FullscreenControlScreen(
                 }
             }
 
-            VirtualButtonAction.ALL_APPS -> {
+            override fun handleShowAllApps() {
                 showAllAppsSheet = true
-                if (apps.isEmpty() && !listingsRefreshBusy) {
+                if (
+                    scrcpy.listings.apps.isEmpty() &&
+                    !scrcpy.listings.refreshBusyState.value
+                ) {
                     taskScope.launch {
                         refreshApps()
                     }
                 }
             }
 
-            VirtualButtonAction.TOGGLE_IME -> imeRequestToken++
+            override fun handleToggleIme() {
+                imeRequestToken++
+            }
 
-            VirtualButtonAction.PASTE_LOCAL_CLIPBOARD ->
+            override fun handlePasteLocalClipboard() {
                 taskScope.launch {
                     val session = currentSession ?: return@launch
                     val text = LocalInputService.getClipboardText(activity ?: return@launch)
@@ -347,26 +373,32 @@ fun FullscreenControlScreen(
                         )
                     }
                 }
-
-            else -> action.keycode?.let {
-                taskScope.launch {
-                    runCatching {
-                        withContext(Dispatchers.IO) {
-                            scrcpy.injectKeycode(0, it)
-                            scrcpy.injectKeycode(1, it)
-                        }
-                    }.onFailure { e ->
-                        Log.w(
-                            "FullscreenControlPage",
-                            "sendKeycode failed for keycode=$it",
-                            e,
-                        )
-                    }
-                }
             }
         }
     }
 
+    fun handleButtonAction(action: VirtualButtonAction) {
+        VirtualButtonActions.perform(
+            // 主线程作用域: 宿主动作直接落界面状态, 按键下发在回调内部切到 IO
+            scope = virtualButtonHostScope,
+            action = action,
+            host = virtualButtonHost,
+            onInjectKeycode = { keycode ->
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        scrcpy.injectKeycode(0, keycode)
+                        scrcpy.injectKeycode(1, keycode)
+                    }
+                }.onFailure { e ->
+                    Log.w(
+                        "FullscreenControlPage",
+                        "sendKeycode failed for keycode=$keycode",
+                        e,
+                    )
+                }
+            },
+        )
+    }
     suspend fun startApp(packageName: String) =
         runCatching {
             withContext(Dispatchers.IO) {
@@ -378,6 +410,9 @@ fun FullscreenControlScreen(
                 error.message ?: error.javaClass.simpleName,
             )
         }
+
+    // 虚拟按钮级联菜单二级的密码列表; 无法拉起验证时这里只会给出不可点击的提示项
+    val passwordPickerEntries = rememberPasswordPickerEntries()
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -395,6 +430,7 @@ fun FullscreenControlScreen(
                 onDismiss = onBack,
                 showDebugInfo = fullscreenDebugInfo && !isInPip,
                 currentFps = currentFps,
+                gamepadDeviceName = asBundle.gamepadDeviceName.ifBlank { GamepadHid.NAME },
                 imeRequestToken = imeRequestToken,
                 enableBackHandler = false,
                 interactive = !isInPip,
@@ -434,20 +470,15 @@ fun FullscreenControlScreen(
                     reverseOrder = fullscreenVirtualButtonReverseOrder,
                     thickness = fullscreenVirtualButtonHeight,
                     onAction = ::handleButtonAction,
-                    passwordPopupContent = fragmentActivity?.let {
-                        { onDismissRequest -> PasswordPickerPopupContent(onDismissRequest = onDismissRequest) }
-                    },
+                    passwordChildren = passwordPickerEntries,
                 )
             }
 
             if (asBundle.showFullscreenFloatingButton && !isInPip) {
-                bar.FloatingBall(
-                    actions = floatingActions,
+                ballBar.FloatingBall(
                     modifier = Modifier.fillMaxSize(),
                     onAction = ::handleButtonAction,
-                    passwordPopupContent = fragmentActivity?.let {
-                        { onDismissRequest -> PasswordPickerPopupContent(onDismissRequest = onDismissRequest) }
-                    },
+                    passwordChildren = passwordPickerEntries,
                 )
             }
 
@@ -612,6 +643,7 @@ fun FullscreenControlPage(
     onDismiss: () -> Unit,
     showDebugInfo: Boolean,
     currentFps: Float,
+    gamepadDeviceName: String = GamepadHid.NAME,
     imeRequestToken: Int = 0,
     enableBackHandler: Boolean = true,
     interactive: Boolean = true,
@@ -663,10 +695,12 @@ fun FullscreenControlPage(
         )
     }
 
+    val gamepadDeviceNameLatest = rememberUpdatedState(gamepadDeviceName)
     val gamepadHandler = remember(session.gamepadEnabled, scrcpy) {
         if (session.gamepadEnabled) {
             GamepadInputHandler(
                 scope = coroutineScope,
+                deviceName = { gamepadDeviceNameLatest.value },
                 onUhidCreate = { id, vendorId, productId, name, reportDesc ->
                     scrcpy.uhidCreate(id, vendorId, productId, name, reportDesc)
                 },

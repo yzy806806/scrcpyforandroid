@@ -134,7 +134,7 @@ fun FileManagerScreen(
 
     Scaffold(
         topBar = {
-            BlurredBar(backdrop = blurBackdrop) {
+            BlurredBar(backdrop = blurBackdrop, allowProgressive = false) {
                 SmallTopAppBar(
                     title = stringResource(R.string.main_tab_files),
                     color =
@@ -691,6 +691,7 @@ private fun CreateFolderDialog(
                         haptic.contextClick()
                         onDismissRequest()
                     },
+                    modifier = Modifier.weight(1f),
                 )
                 TextButton(
                     text = stringResource(R.string.fm_button_create),
@@ -698,6 +699,8 @@ private fun CreateFolderDialog(
                         haptic.confirm()
                         onConfirm()
                     },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.textButtonColorsPrimary(),
                 )
             }
         }

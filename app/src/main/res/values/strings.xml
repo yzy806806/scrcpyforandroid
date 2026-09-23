@@ -87,6 +87,17 @@
     <string name="device_section_logs">Logs</string>
     <string name="device_pairing_title">Pair device using pairing code</string>
     <string name="device_pairing_desc">Use a six-digit pairing code to pair a new device</string>
+    <string name="device_pairing_qr_title">Pair device using QR code</string>
+    <string name="device_pairing_qr_hint">On the phone, open\nDeveloper options - Wireless debugging - Pair device with QR code\nScan this code and stay on that screen until pairing finishes</string>
+    <string name="device_pairing_qr_waiting">Waiting for the phone to scan the code…</string>
+    <string name="device_pairing_qr_pairing">Device found (%1$s), pairing…</string>
+    <string name="device_pairing_qr_connecting">Paired with %1$s, connecting…</string>
+    <string name="device_pairing_qr_connected">Paired and connected</string>
+    <string name="device_pairing_qr_failed">Pairing failed: %1$s. Scan the code again on the phone to retry.</string>
+    <string name="device_pairing_qr_failed_unknown">Pairing failed. Scan the code again on the phone to retry.</string>
+    <string name="device_pairing_qr_connect_failed">Paired, but connecting to %1$s failed. Scan the code again on the phone to retry.</string>
+    <string name="device_pairing_qr_timeout">Timed out waiting for the phone. Close and reopen this dialog for a new code.</string>
+    <string name="cd_show_qr_pairing">Show pairing QR code</string>
     <string name="device_quick_connect_title">Connect / Add device</string>
     <string name="device_status_mirroring">Mirroring</string>
     <string name="device_status_resolution">Resolution</string>
@@ -147,6 +158,7 @@
 
     <!-- Settings - Theme -->
     <string name="section_theme">Theme</string>
+    <string name="section_appearance">Appearance</string>
     <string name="pref_title_appearance_mode">Appearance mode</string>
     <string name="pref_summary_appearance_mode">Select the app\'s appearance mode</string>
     <string name="pref_title_monet">Monet color</string>
@@ -165,6 +177,20 @@
     <string name="pref_summary_liquid_glass">Enable liquid glass effect on the floating bottom bar</string>
     <string name="pref_title_smooth_corners">Smooth corners</string>
     <string name="pref_summary_smooth_corners">Enable global smooth corner effect</string>
+    <string name="pref_title_theme_settings">Theme settings</string>
+    <string name="pref_summary_theme_settings">Appearance, blur, navigation and more</string>
+    <string name="pref_blur_none">None</string>
+    <string name="pref_blur_gaussian">Gaussian blur</string>
+    <string name="pref_blur_progressive">Progressive blur</string>
+    <string name="pref_title_squircle">Enable squircle shapes</string>
+    <string name="pref_summary_squircle">Use smooth squircle corners on rounded UI elements</string>
+    <string name="section_navigation">Navigation</string>
+    <string name="pref_title_transition_style">Transition Style</string>
+    <string name="pref_summary_transition_style">Page transition animation style</string>
+    <string name="pref_transition_style_miuix">Miuix</string>
+    <string name="pref_transition_style_aosp">AOSP</string>
+    <string name="pref_title_enable_swipe_back">Enable Swipe Back</string>
+    <string name="pref_summary_enable_swipe_back">Swipe a pushed page to pop it; direction follows layout</string>
 
     <!-- Settings - Screen Mirroring -->
     <string name="section_screen_mirroring">Screen mirroring</string>
@@ -270,6 +296,7 @@
     <string name="pref_summary_clear_logs_on_exit">Clear logs when double-pressing back to exit the app</string>
     <string name="pref_title_hide_log_box">Hide device page log box</string>
     <string name="pref_summary_hide_log_box">Hide the log box at the bottom of the device page</string>
+    <string name="pref_title_gamepad_device_name">Virtual gamepad device name</string>
     <string name="pref_title_language">Language</string>
     <string name="pref_summary_language">App display language</string>
 
@@ -309,6 +336,7 @@
     <string name="vb_recent_tasks">Recent tasks</string>
     <string name="vb_toggle_ime">Toggle IME</string>
     <string name="vb_paste_clipboard">Paste local clipboard</string>
+    <string name="vb_exit_fullscreen">Exit fullscreen</string>
 
     <!-- Dock Positions -->
     <string name="dock_follow">Follow</string>
@@ -601,7 +629,6 @@
     <string name="language_follow_system">Follow system</string>
     <string name="language_english">English</string>
     <string name="language_chinese">Chinese</string>
-
     <string name="pref_title_tunnel">TCP tunnel</string>
     <string name="pref_summary_tunnel">Forward adb through a lightweight TCP tunnel with pre-shared key auth. No VpnService, coexists with VPN apps.</string>
     <string name="pref_title_tunnel_host">Remote host</string>

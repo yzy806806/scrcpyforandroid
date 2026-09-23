@@ -210,3 +210,13 @@ private fun RSAPublicKey.adbEncoded(name: String): ByteArray {
  * Thrown when the supplied pairing code is invalid during the pairing flow.
  */
 internal class AdbInvalidPairingCodeException: Exception()
+
+/**
+ * Outcome of an ADB pairing attempt. [deviceGuid] is the GUID the device reported as
+ * its pairing peer info, when it sent one; the device also advertises it as the mDNS
+ * instance name of its `_adb-tls-connect._tcp` service.
+ */
+data class AdbPairingResult(
+    val success: Boolean,
+    val deviceGuid: String? = null,
+)

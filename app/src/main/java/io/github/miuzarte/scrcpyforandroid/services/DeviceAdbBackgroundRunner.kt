@@ -119,18 +119,18 @@ internal class DeviceAdbBackgroundRunner: Closeable {
                 continue
             }
 
-            val portToReplace = savedShortcuts()
-                .filter { it != knownDevice }
-                .firstNotNullOfOrNull { device ->
-                    device.addresses.firstNotNullOfOrNull { addr ->
-                        val ct = ConnectionTarget.unmarshalFrom(addr)
-                        if (ct != null && ct.host == discoveredHost && ct.port != discoveredPort) ct.port
-                        else null
-                    }
-                }
-            if (portToReplace != null) {
+            // 旧端口就记录在命中该 host 的条目上, 不能去别的条目里找
+            val recordedPort = knownDevice.addresses.firstNotNullOfOrNull { addr ->
+                val target = ConnectionTarget.unmarshalFrom(addr)
+                if (target != null &&
+                    target.host == discoveredHost &&
+                    target.connectionType == DeviceConnectionType.LAN
+                ) target.port
+                else null
+            }
+            if (recordedPort != null && recordedPort != discoveredPort) {
                 withContext(Dispatchers.Main) {
-                    onMdnsPortChanged(discoveredHost, portToReplace, discoveredPort)
+                    onMdnsPortChanged(discoveredHost, recordedPort, discoveredPort)
                 }
             }
 

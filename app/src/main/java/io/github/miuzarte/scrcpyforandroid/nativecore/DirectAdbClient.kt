@@ -110,7 +110,7 @@ internal object DirectAdbTransport {
         return conn
     }
 
-    fun pair(host: String, port: Int, pairingCode: String): Boolean {
+    fun pair(host: String, port: Int, pairingCode: String): AdbPairingResult {
         val targetHost = host.trim()
         val targetCode = pairingCode.trim()
         require(targetHost.isNotBlank()) { "host is blank" }
@@ -121,21 +121,30 @@ internal object DirectAdbTransport {
             alias = keyName.ifBlank { AppSettings.ADB_KEY_NAME.defaultValue },
         )
         return DirectAdbPairingClient(targetHost, port, targetCode, pairingKey).use {
-            it.start()
+            val success = it.start()
+            AdbPairingResult(success = success, deviceGuid = it.deviceGuid)
         }
     }
 
     fun discoverPairingService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
+        matchInstanceName: String? = null,
     ): Pair<String, Int>? =
-        AdbMdnsDiscoverer.discoverPairingService(timeoutMs, includeLanDevices)
+        AdbMdnsDiscoverer.discoverPairingService(timeoutMs, includeLanDevices, matchInstanceName)
 
     fun discoverConnectService(
         timeoutMs: Long = 12_000,
         includeLanDevices: Boolean = true,
+        matchInstanceName: String? = null,
+        matchHostAddress: String? = null,
     ): Pair<String, Int>? =
-        AdbMdnsDiscoverer.discoverConnectService(timeoutMs, includeLanDevices)
+        AdbMdnsDiscoverer.discoverConnectService(
+            timeoutMs,
+            includeLanDevices,
+            matchInstanceName,
+            matchHostAddress,
+        )
 
     data class ImportedKeyInfo(
         val fingerprint: String,

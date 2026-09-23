@@ -28,15 +28,13 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.core.net.toUri
-
-
 import io.github.miuzarte.scrcpyforandroid.BuildConfig
 import io.github.miuzarte.scrcpyforandroid.LockscreenPasswordActivity
-import io.github.miuzarte.scrcpyforandroid.MainActivity
 import io.github.miuzarte.scrcpyforandroid.R
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import io.github.miuzarte.scrcpyforandroid.models.TunnelDevice
 import io.github.miuzarte.scrcpyforandroid.models.TunnelDevices
+import io.github.miuzarte.scrcpyforandroid.i18n.AppLocale
 import io.github.miuzarte.scrcpyforandroid.nativecore.DirectAdbTransport
 import io.github.miuzarte.scrcpyforandroid.nativecore.QuicTunnelManager
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ArrowSlider
@@ -66,20 +64,17 @@ import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
-import top.yukonga.miuix.kmp.theme.ThemeColorSpec
-import top.yukonga.miuix.kmp.theme.ThemePaletteStyle
 import java.io.File
 import kotlin.math.roundToInt
 import android.provider.Settings as AndroidSettings
 
-private val languages = listOf(
-    R.string.language_follow_system to "",
-    R.string.language_english to "en",
-    R.string.language_chinese to "zh",
+private val languageLabelRes = mapOf(
+    AppLocale.FOLLOW_SYSTEM to R.string.language_follow_system,
+    "en" to R.string.language_english,
+    "zh" to R.string.language_chinese,
 )
+private val languages = listOf(AppLocale.FOLLOW_SYSTEM) + AppLocale.SUPPORTED_TAGS
 private const val TERMINAL_FONT_RELATIVE_PATH = "terminal/font.ttf"
-private val monetPaletteStyleOptions = ThemePaletteStyle.entries.map { it.name }
-private val monetColorSpecOptions = ThemeColorSpec.entries.map { it.name }
 
 suspend fun clearTerminalFont(context: Context) =
     withContext(Dispatchers.IO) {
@@ -236,8 +231,6 @@ fun SettingsPage(
         )
     }
 
-    val themeItems = AppSettings.ThemeModes.baseOptions.map { stringResource(it.labelResId) }
-
     val fullscreenVirtualButtonDock = remember(asBundle.fullscreenVirtualButtonDock) {
         FullscreenVirtualButtonDock.fromStoredValue(asBundle.fullscreenVirtualButtonDock)
     }
@@ -259,6 +252,13 @@ fun SettingsPage(
         mutableStateOf(
             if (asBundle.adbKeyName == AppSettings.ADB_KEY_NAME.defaultValue) ""
             else asBundle.adbKeyName,
+        )
+    }
+
+    var gamepadDeviceNameInput by rememberSaveable(asBundle.gamepadDeviceName) {
+        mutableStateOf(
+            if (asBundle.gamepadDeviceName == AppSettings.GAMEPAD_DEVICE_NAME.defaultValue) ""
+            else asBundle.gamepadDeviceName,
         )
     }
 
@@ -378,6 +378,9 @@ fun SettingsPage(
         LazyListState()
     }
 
+    // 语言选择不走 bundle: AppLocale 是唯一来源
+    var selectedLanguageTag by rememberSaveable { mutableStateOf(AppLocale.currentTag(context)) }
+
     // 设置
     LazyColumn(
         contentPadding = contentPadding,
@@ -393,130 +396,31 @@ fun SettingsPage(
                     summary = stringResource(R.string.pref_summary_language),
                     entries = listOf(
                         DropdownEntry(
-                            items = languages.map { lang ->
+                            items = languages.map { tag ->
                                 DropdownItem(
-                                    text = stringResource(lang.first),
-                                    selected = lang.second == asBundle.languageTag,
+                                    text = languageLabelRes[tag]?.let { stringResource(it) } ?: tag,
+                                    selected = tag == selectedLanguageTag,
                                     onClick = {
-                                        asBundle = asBundle.copy(
-                                            languageTag = lang.second,
-                                        )
-                                        MainActivity.setAppLanguageTag(context, lang.second)
-                                        activity?.recreate()
+                                        selectedLanguageTag = tag
+                                        AppLocale.setTag(context, tag)
+                                        // API 33+ 的 locale 配置变更由 MainActivity 就地处理 (见 manifest), 不重建
+                                        // 低于 33 必须重建, 才能换掉 attachBaseContext 里包装的 base context
+                                        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU)
+                                            activity?.recreate()
                                     },
                                 )
                             },
                         ),
                     ),
                 )
-                OverlayDropdownPreference(
-                    title = stringResource(R.string.pref_title_appearance_mode),
-                    summary = stringResource(R.string.pref_summary_appearance_mode),
-                    items = themeItems,
-                    selectedIndex = asBundle.themeBaseIndex
-                        .coerceIn(0, AppSettings.ThemeModes.baseOptions.lastIndex),
-                    onSelectedIndexChange = {
-                        asBundle = asBundle.copy(
-                            themeBaseIndex = it,
-                        )
+                ArrowPreference(
+                    title = stringResource(R.string.pref_title_theme_settings),
+                    summary = stringResource(R.string.pref_summary_theme_settings),
+                    onClick = {
+                        haptic.contextClick()
+                        navigator.push(RootScreen.ThemeSettings)
                     },
                 )
-                SwitchPreference(
-                    title = stringResource(R.string.pref_title_monet),
-                    summary = stringResource(R.string.pref_summary_monet),
-                    checked = asBundle.monet,
-                    onCheckedChange = {
-                        asBundle = asBundle.copy(
-                            monet = it,
-                        )
-                    },
-                )
-                AnimatedVisibility(asBundle.monet) {
-                    Column {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.pref_title_monet_key_color),
-                            summary = stringResource(R.string.pref_summary_monet_key_color),
-                            items = MonetKeyColorOptions,
-                            selectedIndex = asBundle.monetSeedIndex
-                                .coerceIn(0, MonetKeyColorOptions.lastIndex),
-                            onSelectedIndexChange = {
-                                asBundle = asBundle.copy(
-                                    monetSeedIndex = it,
-                                )
-                            },
-                        )
-                    }
-                }
-                AnimatedVisibility(asBundle.monet && asBundle.monetSeedIndex > 0) {
-                    Column {
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.pref_title_monet_palette_style),
-                            summary = stringResource(R.string.pref_summary_monet_palette_style),
-                            items = monetPaletteStyleOptions,
-                            selectedIndex = asBundle.monetPaletteStyle
-                                .coerceIn(0, monetPaletteStyleOptions.lastIndex),
-                            onSelectedIndexChange = {
-                                asBundle = asBundle.copy(
-                                    monetPaletteStyle = it,
-                                )
-                            },
-                        )
-                        OverlayDropdownPreference(
-                            title = stringResource(R.string.pref_title_monet_color_spec),
-                            summary = stringResource(R.string.pref_summary_monet_color_spec),
-                            items = monetColorSpecOptions,
-                            selectedIndex = asBundle.monetColorSpec
-                                .coerceIn(0, monetColorSpecOptions.lastIndex),
-                            onSelectedIndexChange = {
-                                asBundle = asBundle.copy(
-                                    monetColorSpec = it,
-                                )
-                            },
-                        )
-                    }
-                }
-                SwitchPreference(
-                    title = stringResource(R.string.pref_title_blur),
-                    summary = stringResource(R.string.pref_summary_blur),
-                    checked = asBundle.blur,
-                    onCheckedChange = {
-                        asBundle = asBundle.copy(
-                            blur = it,
-                        )
-                    },
-                )
-                // 悬浮底栏依赖 InteractiveHighlight，其内部构造 android.graphics.RuntimeShader（API 33+ 引入），
-                // 低版本开启会闪退，故仅 Android 13+ 显示该开关
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU && asBundle.floatingBottomBar) {
-                    asBundle = asBundle.copy(floatingBottomBar = false, floatingBottomBarBlur = false)
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    SwitchPreference(
-                        title = stringResource(R.string.pref_title_floating_bottom_bar),
-                        summary = stringResource(R.string.pref_summary_floating_bottom_bar),
-                        checked = asBundle.floatingBottomBar,
-                        onCheckedChange = {
-                            asBundle = asBundle.copy(
-                                floatingBottomBar = it,
-                            )
-                        },
-                    )
-                    AnimatedVisibility(asBundle.floatingBottomBar && asBundle.blur) {
-                        Column {
-                            SwitchPreference(
-                                title = stringResource(R.string.pref_title_liquid_glass),
-                                summary = stringResource(R.string.pref_summary_liquid_glass),
-                                checked = asBundle.floatingBottomBar && asBundle.blur
-                                        && asBundle.floatingBottomBarBlur,
-                                onCheckedChange = {
-                                    asBundle = asBundle.copy(
-                                        floatingBottomBarBlur = it,
-                                    )
-                                },
-                            )
-                        }
-                    }
-                }
             }
         }
 
@@ -1420,6 +1324,36 @@ fun SettingsPage(
                         )
                     },
                 )
+                Column(
+                    modifier = Modifier.padding(vertical = UiSpacing.Large),
+                    verticalArrangement = Arrangement.spacedBy(UiSpacing.ContentVertical),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(horizontal = UiSpacing.Large),
+                        verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.pref_title_gamepad_device_name),
+                            fontWeight = FontWeight.Medium,
+                        )
+                        SuperTextField(
+                            value = gamepadDeviceNameInput,
+                            onValueChange = { gamepadDeviceNameInput = it },
+                            onFocusLost = {
+                                if (gamepadDeviceNameInput == AppSettings.GAMEPAD_DEVICE_NAME.defaultValue)
+                                    gamepadDeviceNameInput = ""
+                                asBundle = asBundle.copy(
+                                    gamepadDeviceName = gamepadDeviceNameInput
+                                        .ifBlank { AppSettings.GAMEPAD_DEVICE_NAME.defaultValue },
+                                )
+                            },
+                            label = AppSettings.GAMEPAD_DEVICE_NAME.defaultValue,
+                            useLabelAsPlaceholder = true,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                }
             }
         }
 

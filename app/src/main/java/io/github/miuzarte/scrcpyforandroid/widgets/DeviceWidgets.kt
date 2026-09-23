@@ -421,13 +421,13 @@ internal fun VirtualButtonCard(
     moreActions: List<VirtualButtonAction>,
     showText: Boolean,
     onAction: (VirtualButtonAction) -> Unit,
-    passwordPopupContent: (@Composable (onDismissRequest: () -> Unit) -> Unit)? = null,
+    passwordChildren: List<DropdownItem>? = null,
     popupBottomPadding: Dp = 0.dp,
 ) {
     val bar = remember(outsideActions, moreActions) {
         VirtualButtonBar(
-            outsideActions = outsideActions,
-            moreActions = moreActions,
+            outside = outsideActions,
+            more = moreActions,
         )
     }
 
@@ -436,7 +436,7 @@ internal fun VirtualButtonCard(
             enabled = true,
             showText = showText,
             onAction = { if (!busy) onAction(it) },
-            passwordPopupContent = passwordPopupContent,
+            passwordChildren = passwordChildren,
             popupBottomPadding = popupBottomPadding,
             modifier = Modifier
                 .fillMaxWidth()
@@ -1456,6 +1456,7 @@ internal fun QuickConnectCard(
     onConnect: () -> Unit,
     onCancelConnect: () -> Unit,
     onAddDevice: () -> Unit,
+    onShowQrPairing: (() -> Unit)? = null,
     connecting: Boolean = false,
     enabled: Boolean = true,
 ) {
@@ -1497,6 +1498,25 @@ internal fun QuickConnectCard(
                 keyboardActions = KeyboardActions(onDone = { focusManager.clearFocus() }),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                 onFocusLost = onFocusLost,
+                trailingIcon = onShowQrPairing?.let { onShowQr ->
+                    {
+                        Row(modifier = Modifier.padding(end = UiSpacing.Medium)) {
+                            IconButton(
+                                onClick = {
+                                    haptic.contextClick()
+                                    focusManager.clearFocus()
+                                    onShowQr()
+                                },
+                                enabled = enabled,
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.QrCode2,
+                                    contentDescription = stringResource(R.string.cd_show_qr_pairing),
+                                )
+                            }
+                        }
+                    }
+                },
             )
             Row(
                 modifier = Modifier.fillMaxWidth(),

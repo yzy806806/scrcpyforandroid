@@ -2,10 +2,10 @@ package io.github.miuzarte.scrcpyforandroid
 
 import android.content.Context
 import android.content.Intent
-import android.content.res.Configuration
 import android.os.Bundle
 import android.view.WindowManager
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardActions
@@ -26,24 +26,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
-import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import io.github.miuzarte.scrcpyforandroid.i18n.LocalizedActivity
 import io.github.miuzarte.scrcpyforandroid.password.*
 import io.github.miuzarte.scrcpyforandroid.scaffolds.LazyColumn
 import io.github.miuzarte.scrcpyforandroid.scaffolds.ReorderableList
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.LocalSnackbarController
 import io.github.miuzarte.scrcpyforandroid.services.SnackbarController
+import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
 import io.github.miuzarte.scrcpyforandroid.storage.Settings
 import io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings
-import io.github.miuzarte.scrcpyforandroid.ui.confirm
-import io.github.miuzarte.scrcpyforandroid.ui.contextClick
-import io.github.miuzarte.scrcpyforandroid.ui.createThemeController
-import io.github.miuzarte.scrcpyforandroid.ui.rememberBlurBackdrop
+import io.github.miuzarte.scrcpyforandroid.ui.*
 import kotlinx.coroutines.*
-import java.util.Locale
 import top.yukonga.miuix.kmp.basic.*
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.icon.MiuixIcons
@@ -55,27 +52,16 @@ import top.yukonga.miuix.kmp.overlay.OverlayBottomSheet
 import top.yukonga.miuix.kmp.overlay.OverlayDialog
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.SwitchPreference
+import top.yukonga.miuix.kmp.squircle.LocalSquircleEnabled
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 
-class LockscreenPasswordActivity: FragmentActivity() {
-    override fun attachBaseContext(newBase: Context) {
-        val languageTag = MainActivity.getAppLanguageTag(newBase)
-        val wrappedContext =
-            if (languageTag.isNotEmpty()) {
-                val config = Configuration(newBase.resources.configuration)
-                config.setLocale(Locale.forLanguageTag(languageTag))
-                newBase.createConfigurationContext(config)
-            } else {
-                newBase
-            }
-        super.attachBaseContext(wrappedContext)
-    }
-
+class LockscreenPasswordActivity: LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        enableEdgeToEdge()
         PasswordRepository.refresh()
         setContent {
             val asBundle by appSettings.bundleState.collectAsState()
@@ -100,7 +86,11 @@ class LockscreenPasswordActivity: FragmentActivity() {
             MiuixTheme(
                 controller = themeController,
             ) {
+                ApplySystemBarsAppearance(this.window)
                 CompositionLocalProvider(
+                    LocalEnableBlur provides (asBundle.blur != AppSettings.BlurMode.NONE),
+                    LocalBlurMode provides asBundle.blur,
+                    LocalSquircleEnabled provides asBundle.squircle,
                     LocalSnackbarController provides snackbarController,
                 ) {
                     LockscreenPasswordScreen(
@@ -200,91 +190,97 @@ private fun LockscreenPasswordScreen(
         pendingCreate = false
     }
 
-    val blurBackdrop = rememberBlurBackdrop(asBundle.blur)
+    val blurBackdrop = rememberBlurBackdrop(asBundle.blur != AppSettings.BlurMode.NONE)
+    val blurActive = blurBackdrop != null
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = stringResource(R.string.password_autofill_title),
-                modifier =
-                    if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop)
-                    else Modifier,
-                color =
-                    if (blurBackdrop != null) Color.Transparent
-                    else colorScheme.surface,
-                navigationIcon = {
-                    IconButton(
-                        onClick = {
-                            haptic.contextClick()
-                            activity.onBackPressedDispatcher.onBackPressed()
-                        },
-                    ) {
-                        Icon(
-                            Icons.AutoMirrored.Rounded.ArrowBack,
-                            contentDescription = stringResource(R.string.cd_back),
-                        )
-                    }
-                },
-                actions = {
-                    val textCreateNew = stringResource(R.string.password_create_new)
-                    OverlayIconDropdownMenu(
-                        entry = DropdownEntry(
-                            items = listOf(
-                                DropdownItem(
-                                    text = textCreateNew,
-                                    onClick = {
-                                        pendingCreate = true
-                                    },
+            BlurredBar(backdrop = blurBackdrop) {
+                TopAppBar(
+                    title = stringResource(R.string.password_autofill_title),
+                    color =
+                        if (blurActive) Color.Transparent
+                        else colorScheme.surface,
+                    navigationIcon = {
+                        IconButton(
+                            onClick = {
+                                haptic.contextClick()
+                                activity.onBackPressedDispatcher.onBackPressed()
+                            },
+                        ) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back),
+                            )
+                        }
+                    },
+                    actions = {
+                        val textCreateNew = stringResource(R.string.password_create_new)
+                        OverlayIconDropdownMenu(
+                            entry = DropdownEntry(
+                                items = listOf(
+                                    DropdownItem(
+                                        text = textCreateNew,
+                                        onClick = {
+                                            pendingCreate = true
+                                        },
+                                    ),
                                 ),
                             ),
-                        ),
-                    ) {
-                        Icon(
-                            imageVector = MiuixIcons.More,
-                            contentDescription = stringResource(R.string.cd_more),
-                        )
-                    }
-                },
-                scrollBehavior = scrollBehavior,
-            )
+                        ) {
+                            Icon(
+                                imageVector = MiuixIcons.More,
+                                contentDescription = stringResource(R.string.cd_more),
+                            )
+                        }
+                    },
+                    scrollBehavior = scrollBehavior,
+                )
+            }
         },
         snackbarHost = { SnackbarHost(hostState) },
     ) { pagePadding ->
-        LockscreenPasswordPage(
-            contentPadding = pagePadding,
-            scrollBehavior = scrollBehavior,
-            entries = entries,
-            requireAuth = asBundle.passwordRequireAuth,
-            canAuthenticate = BiometricGate.canAuthenticate(),
-            onToggleRequireAuth = { checked ->
-                if (checked) {
-                    asBundle = asBundle.copy(passwordRequireAuth = true)
-                } else {
-                    if (entries.any { it.cipherText != null }) {
-                        showDisableDialog = true
+        Box(
+            modifier =
+                if (blurActive) Modifier.layerBackdrop(blurBackdrop)
+                else Modifier,
+        ) {
+            LockscreenPasswordPage(
+                contentPadding = pagePadding,
+                scrollBehavior = scrollBehavior,
+                entries = entries,
+                requireAuth = asBundle.passwordRequireAuth,
+                canAuthenticate = BiometricGate.canAuthenticate(),
+                onToggleRequireAuth = { checked ->
+                    if (checked) {
+                        asBundle = asBundle.copy(passwordRequireAuth = true)
                     } else {
-                        asBundle = asBundle.copy(passwordRequireAuth = false)
+                        if (entries.any { it.cipherText != null }) {
+                            showDisableDialog = true
+                        } else {
+                            asBundle = asBundle.copy(passwordRequireAuth = false)
+                        }
                     }
-                }
-            },
-            onCreate = {
-                pendingCreate = true
-            },
-            onRename = { entry ->
-                dialogMode = PasswordDialogMode.Rename
-                editingId = entry.id
-                editorInitialName = entry.name
-            },
-            onDelete = { entry ->
-                pendingDeleteId = entry.id
-            },
-            onMove = { fromIndex, toIndex ->
-                val reordered = entries.toMutableList().apply {
-                    add(toIndex, removeAt(fromIndex))
-                }
-                PasswordRepository.updateOrder(reordered.map { it.id })
-            },
-        )
+                },
+                onCreate = {
+                    pendingCreate = true
+                },
+                onRename = { entry ->
+                    dialogMode = PasswordDialogMode.Rename
+                    editingId = entry.id
+                    editorInitialName = entry.name
+                },
+                onDelete = { entry ->
+                    pendingDeleteId = entry.id
+                },
+                onMove = { fromIndex, toIndex ->
+                    val reordered = entries.toMutableList().apply {
+                        add(toIndex, removeAt(fromIndex))
+                    }
+                    PasswordRepository.updateOrder(reordered.map { it.id })
+                },
+            )
+        }
 
         OverlayDialog(
             show = showRiskDialog,
