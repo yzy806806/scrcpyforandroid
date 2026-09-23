@@ -28,8 +28,17 @@ jobs:
           distribution: temurin
           java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+      # runner 预装 Android SDK; android-actions/setup-android@v3 已失效
+      # (尝试安装已被 Google 移除的 'tools' 包, sdkmanager 退出码 1)
+      - name: Locate Android SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${ANDROID_HOME:-}" ]; then
+            echo "ANDROID_HOME=$ANDROID_SDK_ROOT" >> "$GITHUB_ENV"
+          fi
+          echo "SDK root: ${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
 
       - name: Decode signing keystore
         shell: bash
