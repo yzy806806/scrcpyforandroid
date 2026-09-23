@@ -475,23 +475,33 @@ internal class DeviceTabViewModel(
 
     /**
      * Switch the active tunnel device: write its host/port/key into the live
-     * AppSettings tunnel fields, record the selected id, and close any running
-     * tunnel so the next connect opens with the new config.
+     * AppSettings tunnel fields, record the selected id, and drop any running
+     * connection so the next connect opens with the new config.
+     *
+     * 断开是必须的: 当前 adb 链路走的是旧隧道, 只 close 隧道会让 UI 停在
+     * "已连接" 而实际链路已死 (静默失败)。disconnectAdbConnection 内部会
+     * stop scrcpy 并经由 Coordinator 关闭隧道。
      */
     fun selectTunnelDevice(device: TunnelDevice) {
-        QuicTunnelManager.close()
-        _tdBundle.update { it.copy(tunnelDeviceSelectedId = device.id) }
-        _asBundle.update {
-            it.copy(
-                tunnelHost = device.host,
-                tunnelPort = device.port,
-                tunnelKey = device.key,
+        viewModelScope.launch {
+            if (connectionState.value.adbSession.isConnected) {
+                disconnectAdbConnection(cause = DisconnectCause.SwitchTarget)
+            } else {
+                QuicTunnelManager.close()
+            }
+            _tdBundle.update { it.copy(tunnelDeviceSelectedId = device.id) }
+            _asBundle.update {
+                it.copy(
+                    tunnelHost = device.host,
+                    tunnelPort = device.port,
+                    tunnelKey = device.key,
+                )
+            }
+            AppRuntime.snackbar(
+                R.string.tunnel_device_switched_reconnect,
+                device.name.ifBlank { device.host },
             )
         }
-        AppRuntime.snackbar(
-            R.string.tunnel_device_switched,
-            device.name.ifBlank { device.host },
-        )
     }
 
     fun addTunnelDevice(device: TunnelDevice) {

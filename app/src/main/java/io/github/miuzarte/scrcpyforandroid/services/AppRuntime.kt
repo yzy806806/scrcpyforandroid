@@ -79,6 +79,19 @@ object AppRuntime {
     }
 
     /**
+     * 断开当前连接 (adb + scrcpy + 隧道)
+     *
+     * 供没有 ViewModel 的页面使用 (如设置页切换隧道设备): 只停 scrcpy 会把
+     * "已连接" 的状态标志留在 store 里, 造成 UI 与实际链路不一致。
+     * 未连接时调用是安全的 (内部各步幂等)。
+     */
+    internal suspend fun disconnectCurrentConnection(
+        cause: DisconnectCause = DisconnectCause.SwitchTarget,
+    ) {
+        sessionServices?.connectionController?.disconnectAdbConnection(cause = cause)
+    }
+
+    /**
      * 收尾会话
      *
      * 只应在 MainActivity 真正退出 (isFinishing) 时调用;

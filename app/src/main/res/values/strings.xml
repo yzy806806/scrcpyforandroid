@@ -645,7 +645,7 @@
     <string name="tunnel_device_delete">Delete</string>
     <string name="tunnel_device_edit">Edit</string>
     <string name="tunnel_device_no_devices">No devices yet. Tap “Add device”.</string>
-    <string name="tunnel_device_switched">Tunnel device switched to %1$s</string>
+    <string name="tunnel_device_switched_reconnect">Switched to %1$s — reconnect to apply</string>
     <string name="tunnel_device_in_use">Current</string>
     <string name="section_tunnel">TCP Tunnel</string>
 </resources>

@@ -311,7 +311,11 @@ internal fun DeviceTabPage(
     LaunchedEffect(pendingScrollToPreview, isPreviewCardVisible) {
         if (!pendingScrollToPreview) return@LaunchedEffect
         if (isPreviewCardVisible) return@LaunchedEffect
-        listState.animateScrollToItem(PREVIEW_CARD_ITEM_INDEX)
+        // 列表 item 顺序: StatusSection → [TunnelDeviceSection] → DeviceListSection → ...
+        // 隧道区块按开关条件插入, 会让其后所有 item 索引 +1;
+        // 直接用常量会滚到配置区而不是预览卡
+        val previewIndex = PREVIEW_CARD_ITEM_INDEX + if (asBundle.tunnelEnabled) 1 else 0
+        listState.animateScrollToItem(previewIndex)
     }
 
     // 虚拟按钮的宿主动作: 预览卡上的动作只落在设备页自己的状态上

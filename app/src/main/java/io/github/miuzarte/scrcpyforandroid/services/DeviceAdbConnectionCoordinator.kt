@@ -51,7 +51,7 @@ internal class DeviceAdbConnectionCoordinator(
         if (QuicTunnelManager.isConfigured(settings)) {
             try {
                 if (!QuicTunnelManager.isOpen()) {
-                    val (proxyHost, proxyPort) = QuicTunnelManager.open(settings)
+                    QuicTunnelManager.open(settings)
                 }
                 val proxyPort = QuicTunnelManager.currentLocalPort()
                 Log.i(TAG, "Tunnel active, adb -> 127.0.0.1:$proxyPort (requested $host:$port)")
@@ -181,6 +181,14 @@ internal class DeviceAdbConnectionCoordinator(
 
     suspend fun probeTcpReachable(host: String, port: Int, timeoutMs: Int): Boolean {
         return withContext(Dispatchers.IO) {
+            // 隧道模式下对端 adbd 不暴露公网 (只放行回环), 探测真实地址必然失败:
+            // 若照旧返回 false, 快捷设备连接 (connectFirstReachable) 与自动重连
+            // (DeviceAdbBackgroundRunner) 会在探测阶段就整体失效。
+            // 这里直接放行, 由 connectWithTimeout 建立隧道并暴露真实错误。
+            if (QuicTunnelManager.isConfigured(Storage.appSettings.bundleState.value)) {
+                Log.i(TAG, "probeTcpReachable skipped in tunnel mode: $host:$port")
+                return@withContext true
+            }
             val resolved = resolveHost(host)
             runCatching {
                 Socket().use { socket ->

@@ -218,7 +218,11 @@ fun SettingsPage(
     var showTunnelDeviceEditor by rememberSaveable { mutableStateOf(false) }
 
     fun selectTunnelDevice(device: TunnelDevice) {
+        // 设置页切换同样要断开: 当前投屏走的是旧隧道, 只 close 隧道会让画面
+        // 卡死而状态仍显示运行中 (静默失败)。这里走 AppRuntime 的进程级入口
+        // 一次性断开 adb + scrcpy + 隧道 (未连接时调用安全)。
         QuicTunnelManager.close()
+        scope.launch { runCatching { AppRuntime.disconnectCurrentConnection() } }
         tdBundle = tdBundle.copy(tunnelDeviceSelectedId = device.id)
         asBundle = asBundle.copy(
             tunnelHost = device.host,
@@ -226,7 +230,7 @@ fun SettingsPage(
             tunnelKey = device.key,
         )
         AppRuntime.snackbar(
-            R.string.tunnel_device_switched,
+            R.string.tunnel_device_switched_reconnect,
             device.name.ifBlank { device.host },
         )
     }

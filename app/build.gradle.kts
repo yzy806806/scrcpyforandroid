@@ -59,7 +59,7 @@ android {
         applicationId = "io.github.miuzarte.scrcpyforandroid"
         minSdk = 26
         targetSdk = 37
-        versionCode = 50
+        versionCode = 51
         versionName = "0.6.6-quic"
 
         externalNativeBuild {
