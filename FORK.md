@@ -97,14 +97,15 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 
 ## 版本约定
 
-- `versionName` 带后缀标识 fork 特性：`0.6.6-quic`（当前，同步上游 v0.6.6）
-- `versionCode` 单调递增：当前 51
+- `versionName` 带后缀标识 fork 特性：`0.6.8-quic`（当前，同步上游 v0.6.8）
+- `versionCode` 单调递增：当前 52
 - 发布走 GitHub Release + tag（如 `v0.6.6-quic`）
 
 ## 同步记录
 
 - 2026-09-05 → v0.6.0-quic（versionCode 47）：USB ADB / 手柄 / Android 17 权限
 - 2026-09-23 → v0.6.6-quic（versionCode 50 → 51 修复版）：外观重构 / 二维码配对 / 虚拟按键重构 / 多语言收拢 / 会话保活
+- 2026-09-30 → v0.6.8-quic（versionCode 52）：备选设备地址保存丢失修复 / 横屏虚拟按键布局 / 手柄返回键误判
 
 ## 上游同步注意（新增坑）
 

@@ -606,6 +606,7 @@ internal fun DeviceTabPage(
                     startScrcpyOnConnect = updated.startScrcpyOnConnect,
                     openFullscreenOnStart = updated.openFullscreenOnStart,
                     scrcpyProfileId = updated.scrcpyProfileId,
+                    addresses = updated.addresses,
                 )
             },
             onEditorDelete = { device ->
