@@ -95,8 +95,9 @@ fun MultiSessionScreen(onBack: () -> Unit) {
 
     DisposableEffect(Unit) {
         onDispose {
-            // 离开页面只停投屏，被控端应用继续跑
-            scope.launch { SlotSessionManager.stopAllSessions() }
+            // 离开页面只停投屏，被控端应用继续跑。
+            // 必须走管理器自己的 scope：onDispose 之后本组合的协程已被取消。
+            SlotSessionManager.stopAllSessionsAsync()
         }
     }
 
@@ -185,6 +186,9 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                             val index = row * 2 + col
                             SlotCell(
                                 index = index,
+                                // 全屏时把缩略图节点移出组合：返回四宫格时 surface 会重建，
+                                // 否则那格会停在最后一帧（会话已被全屏那路挤掉）
+                                showVideo = fullscreen == null,
                                 selected = selected == index,
                                 onSelect = { selected = index },
                                 onFullscreen = {
@@ -310,6 +314,7 @@ fun MultiSessionScreen(onBack: () -> Unit) {
 @Composable
 private fun SlotCell(
     index: Int,
+    showVideo: Boolean,
     selected: Boolean,
     onSelect: () -> Unit,
     onFullscreen: () -> Unit,
@@ -343,7 +348,7 @@ private fun SlotCell(
                     onDoubleClick = { if (slot.occupied) onFullscreen() },
                 ),
         ) {
-            if (slot.occupied) {
+            if (slot.occupied && showVideo) {
                 SlotSurface(index = index, full = false)
             }
             if (selected) {
@@ -381,7 +386,7 @@ private fun SlotSurface(index: Int, full: Boolean) {
                     override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, ht: Int) = Unit
 
                     override fun surfaceDestroyed(holder: SurfaceHolder) {
-                        scope.launch { SlotSessionManager.detachSurface(index) }
+                        SlotSessionManager.detachSurfaceAsync(index)
                     }
                 })
             }

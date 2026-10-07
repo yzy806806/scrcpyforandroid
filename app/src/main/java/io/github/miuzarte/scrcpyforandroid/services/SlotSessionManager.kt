@@ -132,10 +132,11 @@ object SlotSessionManager {
                 it.error = null
             }
             // 等显示就绪再取 id
-            repeat(6) {
+            var waited = 0
+            while (waited < 6 && slot(index).displayId < 0) {
                 delay(400)
                 refresh()
-                if (slot(index).displayId >= 0) return@repeat
+                waited++
             }
             if (slot(index).displayId >= 0 && slot(index).surface != null) {
                 startSession(slot(index))
@@ -191,6 +192,21 @@ object SlotSessionManager {
         refresh()
     }
 
+    /**
+     * 离开页面时调用。
+     *
+     * 不能在 UI 的 rememberCoroutineScope 里跑：组合被销毁时那个 scope 会被取消，
+     * 停会话的协程根本执行不到，scrcpy 会话就泄漏了。
+     */
+    fun stopAllSessionsAsync() {
+        scope.launch { stopAllSessions() }
+    }
+
+    /** 同 [detachSurface]，但用管理器自己的 scope（SurfaceView 回调可能晚于组合销毁）。 */
+    fun detachSurfaceAsync(index: Int) {
+        scope.launch { detachSurface(index) }
+    }
+
     /** 停掉所有投屏（不影响被控端应用运行 —— 这正是 holder 架构的意义）。 */
     suspend fun stopAllSessions() {
         _slots.value.forEach { stopSession(it) }
@@ -216,7 +232,8 @@ object SlotSessionManager {
         try {
             val renderer = PersistentVideoRenderer()
             val controller = VideoDecoderController(renderer)
-            val scrcpy = Scrcpy(AppRuntime.context)
+            // 关键：槽位会话必须关掉 facade 上报，否则会顶掉主投屏的解码器绑定
+            val scrcpy = Scrcpy(AppRuntime.context).apply { reportToNativeCoreFacade = false }
 
             slot.renderer = renderer
             slot.controller = controller

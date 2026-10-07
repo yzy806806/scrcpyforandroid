@@ -75,6 +75,14 @@ class Scrcpy(
     @Volatile
     var sessionConfig: SessionConfig = initialSessionConfig
 
+    /**
+     * 是否把会话事件上报给全局 [NativeCoreFacade]。
+     *
+     * 多应用挂机的槽位会话自己管解码/渲染（每路一套 facade），必须置 false，
+     * 否则槽位会话会顶掉主投屏的解码器绑定，槽位停止时还会清掉主会话状态。
+     */
+    var reportToNativeCoreFacade: Boolean = true
+
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     // 多会话槽位需要拿到 Session 以挂载各自的视频消费者（原为 private）
     internal val session = Session(
@@ -226,7 +234,7 @@ class Scrcpy(
             startClipboardSync()
 
             // Setup video consumer (notify NativeCoreFacade to setup decoders)
-            if (options.video) {
+            if (options.video && reportToNativeCoreFacade) {
                 NativeCoreFacade.onScrcpySessionStarted(info, session, this@Scrcpy, options)
             }
 
@@ -366,7 +374,9 @@ class Scrcpy(
                 wavRecorder = null
                 aacRecorder?.release()
                 aacRecorder = null
-                NativeCoreFacade.onScrcpySessionStopped()
+                if (reportToNativeCoreFacade) {
+                    NativeCoreFacade.onScrcpySessionStopped()
+                }
                 session.stop()
                 audioPlayer?.release()
                 audioPlayer = null
@@ -500,7 +510,9 @@ class Scrcpy(
         val current = _currentSessionState.value ?: return
         if (current.width == width && current.height == height) return
         _currentSessionState.value = current.copy(width = width, height = height)
-        NativeCoreFacade.onVideoSizeChanged(width, height)
+        if (reportToNativeCoreFacade) {
+            NativeCoreFacade.onVideoSizeChanged(width, height)
+        }
     }
 
     private fun startClipboardSync() {
