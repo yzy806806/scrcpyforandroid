@@ -1,49 +1,62 @@
 # quic-tunnel
 
-QUIC 隧道,用于 ScrcpyForAndroid fork 的远程 adb 控制。
+QUIC tunnel + Magisk module used by the [scrcpyforandroid](https://github.com/yzy806806/scrcpyforandroid)
+fork for remote adb control, plus the resident **display holder** that keeps apps
+running on the controlled device after the controller disconnects.
 
-## 架构
+## Architecture
 
 ```
-小米 app (客户端)                   被控设备 (服务端)
-本地 TCP listener (127.0.0.1)      tunnel-server (监听 :22289/udp)
-    ↓ adb 连接                      ↓ PSK 认证
-QUIC stream (TLS 1.3 加密)  ←→    转发到 127.0.0.1:5555 (adbd)
+Controller (Android app)                 Controlled device (root + Magisk)
+────────────────────────                 ──────────────────────────────────
+local TCP listener (127.0.0.1)           tunnel-server  (UDP :22289, PSK auth)
+      ↓ adb                                   ↓ forwards to 127.0.0.1:5555 (adbd)
+QUIC stream (TLS 1.3)  ←──────────→      display-holder (app_process, resident)
+                                              ↓ owns up to 4 virtual displays
+                                         apps keep running on those displays
 ```
 
-- 协议:QUIC(quic-go),UDP 传输,自带 TLS 1.3 + 可靠传输 + 流复用 + 拥塞控制
-- 认证:预共享密钥(PSK),通过 QUIC stream 发送 `AUTH:<key>`,对端验证
-- 不占用 VpnService,与 V2Ray 等 VPN 共存
+- **Transport**: QUIC (quic-go) over UDP — TLS 1.3, multiplexed streams,
+  congestion control. No `VpnService`, so it coexists with VPN clients.
+- **Auth**: pre-shared key sent as `AUTH:<key>` on the first stream.
+- **Displays**: held by a resident `app_process` process, not by the scrcpy
+  client, so the apps' lifetime is independent of the controller's.
 
-## 目录
+## Layout
 
-- `quictunnel.go` — 隧道核心:`StartClient` / `StartServer`,gomobile bind 导出
-- `cmd/main.go` — 服务端 CLI(编译为 `tunnel-server-quic`,部署到被控设备)
+```
+tunnel/          Go sources: client (gomobile AAR) + server CLI
+module/          Magisk module: packaging, supervisor, display-holder
+```
 
-## 构建
-
-**服务端二进制**(部署到 OnePlus/Redmi 等 root 设备):
+## Build
 
 ```bash
-CGO_ENABLED=0 GOOS=android GOARCH=arm64 go build -ldflags="-s -w" -o tunnel-server-quic ./cmd
+# server binary (deploy on the controlled device)
+cd tunnel && CGO_ENABLED=0 GOOS=android GOARCH=arm64 \
+    go build -ldflags="-s -w" -o ../build/tunnel-server ./cmd
+
+# controller-side AAR (integrated by the Android app)
+cd tunnel && gomobile bind -target=android/arm64 -o ../build/libquictunnel.aar .
+
+# whole Magisk module (server + holder + packaging) -> flashable zip
+ANDROID_SDK_ROOT=/path/to/android-sdk bash module/build.sh
 ```
 
-**客户端 AAR**(gomobile bind,供 Android app 集成):
+## Runtime files on the device
 
-```bash
-gomobile bind -target=android/arm64 -o libquictunnel.aar .
-```
+| Path | Purpose |
+|---|---|
+| `/data/local/tmp/tunnel-key` | PSK (`0600`, generated on install if absent) |
+| `/data/local/tmp/tunnel-server.log` | tunnel log |
+| `/data/local/tmp/display-holder/state.json` | slot → display id / package (read by the controller) |
+| `/data/local/tmp/display-holder/cmd` | command channel (append one command per line) |
+| `/data/local/tmp/display-holder/desired` | slots to restore after a holder restart |
 
-## 密钥
+See [module/README.md](module/README.md) for deployment details and the verified
+on-device constraints (output surface, display group, keep-awake).
 
-PSK 从 `/data/local/tmp/tunnel-key` 读取(64 字符 hex),或用 `TUNNEL_KEY` 环境变量。
+## Related
 
-服务端运行:
-
-```bash
-./tunnel-server-quic -mode server -listen :22289 -target 127.0.0.1:5555
-```
-
-## 关联仓库
-
-- [yzy806806/scrcpyforandroid](https://github.com/yzy806806/scrcpyforandroid) — 使用本库的 Android app fork
+- [scrcpyforandroid](https://github.com/yzy806806/scrcpyforandroid) — the controller app
+- [scrcpy](https://github.com/Genymobile/scrcpy) — the virtual display approach is derived from its server

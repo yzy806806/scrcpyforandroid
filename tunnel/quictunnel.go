@@ -1,6 +1,6 @@
 // Package quictunnel provides a QUIC-based TCP tunnel.
 // Client (app): local TCP listener → QUIC stream → server
-// Server (OnePlus): QUIC listener → TCP 127.0.0.1:5555
+// Server (Android device): QUIC listener → TCP 127.0.0.1:5555
 package quictunnel
 
 import (

@@ -7,3 +7,6 @@ tunnel-server
 
 # Binary compiled for devices
 *.so
+
+# Build output
+build/
