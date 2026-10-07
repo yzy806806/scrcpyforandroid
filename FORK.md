@@ -30,6 +30,7 @@ fork 相对上游新增/改动的文件：
 | `.github/workflows/pr-check.yml` → `renovate-check.yml` | 重命名 | 上游 rename 跟随 |
 | `CHANGELOG.md` / `README.md` | 修改 | fork 说明 + QUIC 隧道文档 |
 | `docs/multi-app-session-design.md` | 新增 | 多应用会话模式设计文档（虚拟显示 + display-holder） |
+| `magisk-module/` | 合并 | 被控端 Magisk 模块（QUIC 隧道服务端 + display-holder），来自独立仓库 `yzy806806/quic-tunnel`，用 `git subtree` 保留历史 |
 | `.gitignore` | 修改 | 加例外放行 `docs/multi-app-session-design.md`（上游默认忽略 `docs/`） |
 | `nativecore/UsbAdb*.kt`、`res/xml/usb_device_filter.xml` | 上游新增 | USB 有线 ADB（v0.6.0 同步引入） |
 | `scrcpy/GamepadInput.kt` | 上游新增 | 手柄支持（v0.5.6 同步引入） |

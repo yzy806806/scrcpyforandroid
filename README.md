@@ -29,6 +29,24 @@
 
 **改动文件清单与同步上游的流程**见 [FORK.md](FORK.md)。
 
+### 新增：多应用挂机会话（实验）
+
+原版一次只镜像一个画面，且投屏一断被控端应用就停。本 fork 增加「挂机模式」：
+被控端由 Magisk 模块里的常驻 `display-holder` 持有最多 4 个虚拟显示并运行应用，
+主控端只负责**附着**上去看、以及切换，所以：
+
+- 主控端切后台 / 退出 / 断连，被控端应用**继续运行**
+- 首页是应用列表 + 2×2 画格，点应用即占用一个挂机位，双击画格进全屏
+- 全屏时那一路按高画质重连（被控端应用不重启，只换画面通道）
+
+入口：设备页右上角菜单 → 「多应用挂机」。设计与实测结论见
+[docs/multi-app-session-design.md](docs/multi-app-session-design.md)，被控端组件见
+[magisk-module/](magisk-module/)。
+
+> [!IMPORTANT]
+> 被控端需**保持唤醒**（虚拟显示与主屏同显示组，主屏休眠会连带冻结其上的应用），
+> 建议插充电器使用。
+
 ### 构建
 
 GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions artifacts。
@@ -133,6 +151,7 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 
 ## 建议搭配模块
 
+- 本仓库自带: [magisk-module/](magisk-module/) —— QUIC 隧道服务端 + display-holder（被控端常驻，见下）
 - 密码锁屏无法捕获: [LSPosed/DisableFlagSecure](https://github.com/LSPosed/DisableFlagSecure)
 - 开机自动启用 adb: [gist/906291](https://gist.github.com/Miuzarte/9062915f1615d5eebd363c759fda496c)
 
