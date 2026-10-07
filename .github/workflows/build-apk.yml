@@ -72,7 +72,9 @@ jobs:
             echo "sdkmanager not found under $ANDROID_SDK_ROOT/cmdline-tools" >&2
             exit 1
           fi
-          yes | "$sdkmanager" --install "ndk;${{ steps.ndk.outputs.version }}"
+          # license 已在 runner 预装环境接受; 不要用 `yes |` —— sdkmanager 读完输入即关闭 stdin,
+          # 会让 yes 收到 SIGPIPE, 在 pipefail 下整条管道返回非零
+          "$sdkmanager" --install "ndk;${{ steps.ndk.outputs.version }}"
           ls -d "$ANDROID_SDK_ROOT/ndk/${{ steps.ndk.outputs.version }}"
 
       - name: Decode signing keystore
