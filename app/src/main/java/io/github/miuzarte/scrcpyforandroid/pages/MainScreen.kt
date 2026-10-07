@@ -128,6 +128,10 @@ sealed interface RootScreen: NavKey {
     data object ThemeSettings: RootScreen
     @Serializable
     data object VirtualButtonOrder: RootScreen
+
+    /** 多应用会话（挂机）首页 —— holder 持有虚拟显示，主控端只负责看与切换。 */
+    @Serializable
+    data object MultiSession: RootScreen
     @Serializable
     data object FullscreenControl: RootScreen // compatibility mode
     @Serializable
@@ -700,6 +704,12 @@ fun MainScreen() {
         entry<RootScreen.VirtualButtonOrder>(swipeDismiss = swipeBackDirection) {
             VirtualButtonOrderScreen(
                 scrollBehavior = advancedPageScrollBehavior,
+            )
+        }
+
+        entry<RootScreen.MultiSession>(swipeDismiss = swipeBackDirection) {
+            MultiSessionScreen(
+                onBack = { rootNavigator.pop() },
             )
         }
 

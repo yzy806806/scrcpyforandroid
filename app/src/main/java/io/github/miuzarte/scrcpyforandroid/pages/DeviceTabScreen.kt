@@ -125,6 +125,12 @@ internal fun DeviceTabScreen(
                                     },
                                 ),
                                 DropdownItem(
+                                    text = "多应用挂机",
+                                    onClick = {
+                                        navigator.push(RootScreen.MultiSession)
+                                    },
+                                ),
+                                DropdownItem(
                                     text = stringResource(R.string.device_menu_clear_logs),
                                     enabled = EventLogger.hasLogs(),
                                     onClick = {

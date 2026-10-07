@@ -76,7 +76,8 @@ class Scrcpy(
     var sessionConfig: SessionConfig = initialSessionConfig
 
     private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val session = Session(
+    // 多会话槽位需要拿到 Session 以挂载各自的视频消费者（原为 private）
+    internal val session = Session(
         ::handleRemoteClipboardText,
         ::updateCurrentSessionSize,
     ) {
