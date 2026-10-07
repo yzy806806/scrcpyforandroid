@@ -97,8 +97,8 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 
 ## 版本约定
 
-- `versionName` 带后缀标识 fork 特性：`0.6.8-quic`（当前，同步上游 v0.6.8）
-- `versionCode` 单调递增：当前 52
+- `versionName` 带后缀标识 fork 特性：`0.7.0-quic`（当前，同步上游 v0.7.0）
+- `versionCode` 单调递增：当前 53
 - 发布走 GitHub Release + tag（如 `v0.6.6-quic`）
 
 ## 同步记录
@@ -106,8 +106,11 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 - 2026-09-05 → v0.6.0-quic（versionCode 47）：USB ADB / 手柄 / Android 17 权限
 - 2026-09-23 → v0.6.6-quic（versionCode 50 → 51 修复版）：外观重构 / 二维码配对 / 虚拟按键重构 / 多语言收拢 / 会话保活
 - 2026-09-30 → v0.6.8-quic（versionCode 52）：备选设备地址保存丢失修复 / 横屏虚拟按键布局 / 手柄返回键误判
+- 2026-10-07 → v0.7.0-quic（versionCode 53）：scrcpy-server v5.0（音频采集覆盖全部 usage / 语音捕获修复）/ NDK 30
 
 ## 上游同步注意（新增坑）
 
 - 上游 v0.6.5 起 `preBuild` 有 `verifyAppLocaleWiring` 校验：Activity 未继承 `LocalizedActivity`、或 `AppLocale.SUPPORTED_TAGS` / `locales_config.xml` / `values-xx` 三者不一致时**构建失败**
 - 上游 v0.6.6 起 JDK 目标为 21（`sourceCompatibility`/`targetCompatibility`/`jvmTarget`），CI 用 JDK 21
+- 上游 v0.7.0 起 `ndkVersion` 从 `libs.versions.libcxx` 派生（30.0.16248370）；**CI 必须显式安装该 NDK**（runner 预装版本未必匹配），我们的 `build-apk.yml` 已加 Read/Cache/Install NDK 三步
+- scrcpy-server 二进制不进 git（只有 `.gitkeep`），构建时按 SHA256 下载；v5.0 起 gradle 任务会自动清理旧版本文件

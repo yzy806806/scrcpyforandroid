@@ -13,6 +13,8 @@ jobs:
       RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_STORE_PASSWORD }}
       RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
       RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      # sdkmanager 与 NDK 安装路径都依赖它 (GitHub runner 的预装路径)
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
 
     steps:
       - uses: actions/checkout@v7
@@ -39,6 +41,39 @@ jobs:
           fi
           echo "SDK root: ${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
           ls "${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+
+      # NDK 版本由 libcxx 派生 (app/build.gradle.kts 里 ndkVersion = libs.versions.libcxx),
+      # runner 预装的 NDK 未必是这个版本, 必须显式安装
+      - name: Read NDK version
+        id: ndk
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(sed -n 's/^libcxx[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' gradle/libs.versions.toml)"
+          if [[ -z "$version" ]]; then
+            echo "libcxx version not found in gradle/libs.versions.toml" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "NDK version: $version"
+
+      - name: Cache Android NDK
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.ANDROID_SDK_ROOT }}/ndk/${{ steps.ndk.outputs.version }}
+          key: ndk-${{ runner.os }}-${{ steps.ndk.outputs.version }}
+
+      - name: Install Android NDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager="$(find "$ANDROID_SDK_ROOT/cmdline-tools" -maxdepth 3 -type f -name sdkmanager | sort | tail -n1)"
+          if [[ -z "$sdkmanager" ]]; then
+            echo "sdkmanager not found under $ANDROID_SDK_ROOT/cmdline-tools" >&2
+            exit 1
+          fi
+          yes | "$sdkmanager" --install "ndk;${{ steps.ndk.outputs.version }}"
+          ls -d "$ANDROID_SDK_ROOT/ndk/${{ steps.ndk.outputs.version }}"
 
       - name: Decode signing keystore
         shell: bash
