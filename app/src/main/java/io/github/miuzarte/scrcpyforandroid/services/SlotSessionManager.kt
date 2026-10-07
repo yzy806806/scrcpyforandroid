@@ -265,12 +265,15 @@ object SlotSessionManager {
                     "${info.width}x${info.height}",
             )
 
-            // 尺寸变化（例如应用旋转）要重建解码器；用轮询避开对 currentSessionState 类型细节的依赖
+            // v4.0 协议下 start() 返回的宽高是 0，真正的尺寸来自首个视频包，所以解码器
+            // 一定是在这里被创建出来的（rebuildDecoderForSize 在无解码器时会新建）。
+            // 首次检查要快，否则每次附着都要黑屏一秒。
             slot.sizeWatchJob = scope.launch {
                 var lastW = -1
                 var lastH = -1
+                var tick = 0
                 while (true) {
-                    delay(1000)
+                    delay(if (tick++ == 0) 120 else 500)
                     val cur = slot.scrcpy?.currentSessionState?.value ?: continue
                     if (cur.width <= 0 || cur.height <= 0) continue
                     if (cur.width != lastW || cur.height != lastH) {
