@@ -48,4 +48,6 @@ abandoned_assets/
 # scrcpy-server binary (downloaded by Gradle during build)
 app/src/main/assets/bin/scrcpy-server-v*
 
-docs/
+# docs/ 是上游的本地文档目录（默认忽略）；fork 的设计文档需要随仓库走
+docs/*
+!docs/multi-app-session-design.md
