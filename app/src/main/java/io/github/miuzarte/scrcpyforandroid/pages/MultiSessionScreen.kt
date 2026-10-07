@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
+import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
 import io.github.miuzarte.scrcpyforandroid.storage.MultiSessionPrefs
 import kotlinx.coroutines.delay
@@ -147,7 +148,11 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                         if (installed.isEmpty() && !loadingApps) {
                             loadingApps = true
                             scope.launch {
-                                installed = runCatching { Scrcpy.getApps() }.getOrDefault(emptyList())
+                                // 应用列表挂在当前 Scrcpy 实例的 listings 上（列表模式跑一次 scrcpy server）
+                                val instance = AppRuntime.scrcpy
+                                installed = runCatching {
+                                    instance?.listings?.getApps(forceRefresh = true).orEmpty()
+                                }.getOrDefault(emptyList())
                                     .sortedBy { it.label ?: it.packageName }
                                 loadingApps = false
                             }
