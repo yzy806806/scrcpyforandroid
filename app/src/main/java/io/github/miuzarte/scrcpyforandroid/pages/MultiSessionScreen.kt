@@ -201,7 +201,7 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                items(prefs.favorites, key = { it.packageName }) { fav ->
+                prefs.favorites.forEach { fav ->
                     val running = slots.any { it.packageName == fav.packageName }
                     OutlinedButton(
                         onClick = {
