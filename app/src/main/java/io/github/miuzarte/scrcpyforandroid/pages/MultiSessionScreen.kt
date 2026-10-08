@@ -536,6 +536,10 @@ private fun FullscreenSlot(
                 .then(
                     if (touchEventHandler != null) {
                         Modifier.pointerInteropFilter { event ->
+                            android.util.Log.i(
+                                "SlotFullscreen",
+                                "interopFilter action=${event.actionMasked} x=${event.x} y=${event.y}",
+                            )
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
                                     val b = ballBounds
