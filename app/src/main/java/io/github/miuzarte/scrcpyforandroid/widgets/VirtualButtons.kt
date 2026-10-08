@@ -852,13 +852,7 @@ class VirtualButtonBar(
                         (asBundleShared.fullscreenFloatingButtonRingAlphaPercent / 100f)
                             .coerceIn(0f, 1f),
                     // 「更多」不在球的条目里, 用它当"打开菜单"的触发动作
-                    onClick = {
-                        android.util.Log.i(
-                            "FloatingBall",
-                            "ball onClick -> trigger(MORE) entries=${popups.entries.size}",
-                        )
-                        popups.trigger(VirtualButtonAction.MORE)
-                    },
+                    onClick = { popups.trigger(VirtualButtonAction.MORE) },
                 )
 
                 ActionCascadingPopup(

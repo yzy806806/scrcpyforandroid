@@ -536,19 +536,11 @@ private fun FullscreenSlot(
                 .then(
                     if (touchEventHandler != null) {
                         Modifier.pointerInteropFilter { event ->
-                            android.util.Log.i(
-                                "SlotFullscreen",
-                                "interopFilter action=${event.actionMasked} x=${event.x} y=${event.y}",
-                            )
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
                                     val b = ballBounds
                                     ballOwnsPointer = b != null && b.inflate(ballHitPadPx)
                                         .contains(Offset(event.x, event.y))
-                                    android.util.Log.i(
-                                        "SlotFullscreen",
-                                        "DOWN at ${event.x},${event.y} -> ball=$ballOwnsPointer bounds=$b",
-                                    )
                                     if (ballOwnsPointer) false
                                     else touchEventHandler.handleMotionEvent(event)
                                 }
@@ -579,16 +571,22 @@ private fun FullscreenSlot(
         // 兄弟层。若放进透传层内，点球会被注入到被控端 —— 原版正是这样摆放的
         // （FullscreenControlScreen 里球在 Page 外、透传层在 Page 根）。
         val asBundle by Storage.appSettings.bundleState.collectAsState()
-        val ballBar = VirtualButtonBar(
-            outside = emptyList(),
-            more = VirtualButtonActions.mergedOrder(
+        val ballActions = remember(asBundle.virtualButtonsLayout) {
+            VirtualButtonActions.mergedOrder(
                 items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
                 excluded = setOf(VirtualButtonAction.MORE),
             ) + listOf(
                 VirtualButtonAction.SLOT_NEXT_APP,
                 VirtualButtonAction.SLOT_BACK_TO_GRID,
-            ),
-        )
+            )
+        }
+        // **必须 remember**：球内部的弹层状态槽是 `remember(this) { PopupSlots() }`，
+        // this 就是 VirtualButtonBar 实例。每次重组重建实例 → 状态槽被换成新的（关闭的）
+        // 那一份 → 菜单刚被 trigger(MORE) 打开就被重置，永远弹不出来。
+        // 原版 FullscreenControlScreen 同样是 remember(...) 出来的。
+        val ballBar = remember(ballActions) {
+            VirtualButtonBar(outside = emptyList(), more = ballActions)
+        }
         ballBar.FloatingBall(
             onBoundsChanged = { ballBounds = it },
             onAction = { action ->
