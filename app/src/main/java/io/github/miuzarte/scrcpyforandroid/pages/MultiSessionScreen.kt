@@ -501,7 +501,11 @@ private fun FullscreenSlot(
     ) {
         val rootWidth = constraints.maxWidth
         val rootHeight = constraints.maxHeight
-        var touchAreaSize by remember { mutableStateOf(IntSize(rootWidth, rootHeight)) }
+        // 必须跟随容器尺寸重建：设备旋转后本页从竖屏变横屏，画布尺寸跟着变，
+        // 若只在首次组合取一次，触摸坐标会一直按旋转前的画布换算（横屏游戏点不准/点不动）。
+        var touchAreaSize by remember(rootWidth, rootHeight) {
+            mutableStateOf(IntSize(rootWidth, rootHeight))
+        }
 
         // 悬浮球占用的屏幕区域。
         //
@@ -518,7 +522,10 @@ private fun FullscreenSlot(
 
         val sessionInfo = SlotSessionManager.sessionInfo(index)
         val scope2 = rememberCoroutineScope()
-        val touchEventHandler = remember(sessionInfo, touchAreaSize) {
+        // sessionSize 是被 collectAsState 的可观察尺寸，进 key 才能保证「会话尺寸从 0x0
+        // 变成真实尺寸」时一定重组：否则 handler 会停在 0x0，mapToDevice 把每个触摸都
+        // 算成 (0,0) —— 竖屏应用恰好还能用，横屏游戏则完全点不动。
+        val touchEventHandler = remember(sessionInfo, touchAreaSize, sessionSize) {
             sessionInfo?.let { info ->
                 TouchEventHandler(
                     coroutineScope = scope2,
