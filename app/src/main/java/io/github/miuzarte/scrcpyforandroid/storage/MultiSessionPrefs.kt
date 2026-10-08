@@ -25,6 +25,8 @@ object MultiSessionPrefs {
         val fullMaxSize: Int = 0,
         val fullFps: String = "",
         val fullBitRate: Int = 8_000_000,
+        val ballXFraction: Float = 0.5f,
+        val ballYFraction: Float = 0.5f,
     )
 
     private val json = Json {
@@ -57,6 +59,12 @@ object MultiSessionPrefs {
     }
 
     /** 把持久化的画质参数灌进 [SlotSessionManager]。 */
+    /** 全屏页悬浮球的位置（fraction 0..1），持久化到同一份配置里。 */
+    fun saveBallPosition(context: Context, x: Float, y: Float): Prefs {
+        val prefs = load(context)
+        return prefs.copy(ballXFraction = x, ballYFraction = y).also { save(context, it) }
+    }
+
     fun applyToSessionManager(prefs: Prefs) {
         SlotSessionManager.thumbMaxSize = prefs.thumbMaxSize
         SlotSessionManager.thumbFps = prefs.thumbFps

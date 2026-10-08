@@ -56,8 +56,13 @@ import androidx.activity.compose.LocalActivity
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.layout.onSizeChanged
 import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
-import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
+import androidx.compose.foundation.border
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.input.pointer.PointerInputScope
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
@@ -444,61 +449,20 @@ private fun FullscreenSlot(
         scope.launch { SlotSessionManager.injectBack(index) }
     }
 
-    // 悬浮球在本页坐标系的 bounds（球可拖动，每次布局/拖动都会更新）
-    var ballBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
-
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // 视频区：可交互（触摸透传到被控端）
         Box(modifier = Modifier.fillMaxSize()) {
-            InteractiveSlotSurface(index = index, full = true, ballBoundsInTouchArea = ballBounds)
+            InteractiveSlotSurface(index = index, full = true)
         }
 
-        // 悬浮球：复用原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化）。
-        // 包一层 onGloballyPositioned 把球的实际位置上报给视频层做点击豁免。
-        val ballBar = VirtualButtonBar(
-            outside = emptyList(),
-            more = listOf(
-                VirtualButtonAction.EXIT_FULLSCREEN,
-                VirtualButtonAction.RECENT_TASKS,
-            ),
+        // 悬浮球：这里是本页自带的实现（视觉向原版球对齐：黑底半透明圆 + 白环）。
+        // 不用原版 VirtualButtonBar.FloatingBall 的原因：它的点击在带触摸透传的
+        // 全屏页里点不到（实测：球上的点击被 kiosk 透传层截走，onClick 从不触发）。
+        // 自己的球自己管理事件，100% 可点 + 可拖动。
+        PassthroughFloatingBall(
+            onNextApp = onNextApp,
+            onBackToGrid = onBackToGrid,
         )
-        Box(modifier = Modifier.fillMaxSize()) {
-            ballBar.FloatingBall(
-                onAction = { action ->
-                    when (action) {
-                        VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
-                        VirtualButtonAction.RECENT_TASKS -> onNextApp()
-                        else -> Unit
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
-            // 球本体在 FloatingBall 内部 offset 定位，无法从外面直接观测；
-            // 用一个跟随同样定位逻辑的嗅探节点：球默认在右上（fraction 1,1）。
-            // 更可靠的做法见下 —— 直接读取 app 设置里持久化的 fraction 计算 bounds。
-            val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
-            val density = androidx.compose.ui.platform.LocalDensity.current
-            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                val ballSizeDp = asBundle.fullscreenFloatingButtonSizeDp.dp
-                val ballSizePx = with(density) { ballSizeDp.roundToPx() }
-                val maxX = (constraints.maxWidth - ballSizePx).coerceAtLeast(0)
-                val maxY = (constraints.maxHeight - ballSizePx).coerceAtLeast(0)
-                val x = (maxX * asBundle.fullscreenFloatingButtonXFraction.coerceIn(0f, 1f)).toInt()
-                val y = (maxY * asBundle.fullscreenFloatingButtonYFraction.coerceIn(0f, 1f)).toInt()
-                // 外扩一圈：球的 offset 计算与真实布局之间可能存在少量系统差异
-                //（insets/状态栏），直接命中比精确边界重要 —— 豁免区域略大无害
-                //（那片区域本来就在游戏画面边缘）。
-                val pad = with(density) { 48.dp.roundToPx() }
-                LaunchedEffect(x, y, ballSizePx, pad) {
-                    ballBounds = android.graphics.Rect(
-                        (x - pad).coerceAtLeast(0),
-                        (y - pad).coerceAtLeast(0),
-                        (x + ballSizePx + pad).coerceAtMost(constraints.maxWidth),
-                        (y + ballSizePx + pad).coerceAtMost(constraints.maxHeight),
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -513,7 +477,6 @@ private fun FullscreenSlot(
 private fun InteractiveSlotSurface(
     index: Int,
     full: Boolean,
-    ballBoundsInTouchArea: android.graphics.Rect?,
 ) {
     val slot = SlotSessionManager.slot(index)
     val scope = rememberCoroutineScope()
@@ -559,16 +522,7 @@ private fun InteractiveSlotSurface(
             .then(
                 if (touchEventHandler != null) {
                     Modifier.pointerInteropFilter { event ->
-                        val ball = ballBoundsInTouchArea
-                        if (ball != null &&
-                            event.x >= ball.left && event.x <= ball.right &&
-                            event.y >= ball.top && event.y <= ball.bottom
-                        ) {
-                            // 球的区域：不消费，让事件冒泡到球的 Button
-                            false
-                        } else {
-                            touchEventHandler.handleMotionEvent(event)
-                        }
+                        touchEventHandler.handleMotionEvent(event)
                     }
                 } else {
                     Modifier
@@ -628,3 +582,124 @@ private fun QualitySection(
     }
 }
 
+/**
+ * 全屏页自带的悬浮球：黑底半透明圆 + 白环（对齐原版口径），单击弹菜单、可拖动。
+ *
+ * 为什么不用原版 `VirtualButtonBar.FloatingBall`：原版的球点击依赖
+ * `detectDragGestures` 外层 + miuix `Button` 的组合，在铺了触摸透传的全屏页上
+ * 实测点击会被透传层截走、`onClick` 从不触发。这里球自己 `pointerInput` 收事件，
+ * 触摸/拖动完全可控（不拖动 = 单击弹菜单；拖动 = 移动球；拖动超过阈值不算单击）。
+ * 位置持久化到多会话自己的配置里（不进原版 AppSettings，免得污染原有语义）。
+ */
+@Composable
+private fun PassthroughFloatingBall(
+    onNextApp: () -> Unit,
+    onBackToGrid: () -> Unit,
+) {
+    val context = LocalContext.current
+    var prefs by remember { mutableStateOf(MultiSessionPrefs.load(context)) }
+    var offsetX by remember { mutableStateOf(prefs.ballXFraction) }
+    var offsetY by remember { mutableStateOf(prefs.ballYFraction) }
+    var menuExpanded by remember { mutableStateOf(false) }
+
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val ballSize = 72.dp
+        val ballPx = with(LocalDensity.current) { ballSize.toPx() }
+        val maxX = (constraints.maxWidth - ballSize).coerceAtLeast(0.dp)
+        val maxY = (constraints.maxHeight - ballSize).coerceAtLeast(0.dp)
+        val xDp = maxX * offsetX.coerceIn(0f, 1f)
+        val yDp = maxY * offsetY.coerceIn(0f, 1f)
+
+        Box(
+            modifier = Modifier
+                .offset(x = xDp, y = yDp)
+                .size(ballSize)
+                .pointerInput(Unit) {
+                    var dragging = false
+                    var startX = 0f
+                    var startY = 0f
+                    detectTapAndDrag(
+                        onTap = { menuExpanded = true },
+                        onDragStart = { offsetX0, offsetY0 ->
+                            dragging = true
+                            startX = offsetX0
+                            startY = offsetY0
+                        },
+                        onDrag = { dx, dy ->
+                            if (dragging) {
+                                val nx = (startX + dx).coerceIn(0f, maxX.toPx())
+                                val ny = (startY + dy).coerceIn(0f, maxY.toPx())
+                                offsetX = if (maxX > 0.dp) nx / maxX.toPx() else 0f
+                                offsetY = if (maxY > 0.dp) ny / maxY.toPx() else 0f
+                                startX = nx
+                                startY = ny
+                            }
+                        },
+                        onDragEnd = {
+                            dragging = false
+                            prefs = MultiSessionPrefs.saveBallPosition(context, offsetX, offsetY)
+                        },
+                    )
+                },
+        ) {
+            // 球体外观
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x99000000), CircleShape)
+                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("≡", color = Color.White, fontSize = 18.sp)
+            }
+
+            DropdownMenu(
+                expanded = menuExpanded,
+                onDismissRequest = { menuExpanded = false },
+            ) {
+                DropdownMenuItem(
+                    text = { Text("切换下一个") },
+                    onClick = { menuExpanded = false; onNextApp() },
+                )
+                DropdownMenuItem(
+                    text = { Text("回应用列表") },
+                    onClick = { menuExpanded = false; onBackToGrid() },
+                )
+            }
+        }
+    }
+}
+
+/** 简易 单击/拖动 识别：拖动累计超过 touch slop 就不算单击。 */
+private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectTapAndDrag(
+    onTap: () -> Unit,
+    onDragStart: (Float, Float) -> Unit,
+    onDrag: (Float, Float) -> Unit,
+    onDragEnd: () -> Unit,
+) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        down.consume()
+        var dragging = false
+        var total = 0f
+        while (true) {
+            val event = awaitPointerEvent()
+            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+            if (change.pressed) {
+                val d = change.positionChange()
+                total += d.getDistance()
+                if (total > 12f) {
+                    if (!dragging) {
+                        dragging = true
+                        onDragStart(change.position.x - d.x, change.position.y - d.y)
+                    }
+                    onDrag(d.x, d.y)
+                    change.consume()
+                }
+            } else {
+                if (dragging) onDragEnd() else onTap()
+                break
+            }
+        }
+    }
+}
