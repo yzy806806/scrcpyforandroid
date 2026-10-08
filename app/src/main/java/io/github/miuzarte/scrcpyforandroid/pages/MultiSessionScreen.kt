@@ -481,27 +481,10 @@ private fun FullscreenSlot(
         // pointerInput 派发整轮被跳过，于是**球永远收不到点击**，事件反而被注入到被控端
         // （实测：点球 = 被控端右下角的一次点击）。所以 down 落在球上时必须返回 false，
         // 把这一轮事件让给 Compose，由球自己处理（点击开菜单 / 拖动）。
-        val asBundle by Storage.appSettings.bundleState.collectAsState()
-        val ballSizeDp = asBundle.fullscreenFloatingButtonSizeDp.dp
-        val density = LocalDensity.current
-        val ballRect = remember(
-            asBundle.fullscreenFloatingButtonXFraction,
-            asBundle.fullscreenFloatingButtonYFraction,
-            ballSizeDp,
-            density,
-            rootWidth,
-            rootHeight,
-        ) {
-            with(density) {
-                val sizePx = ballSizeDp.toPx()
-                val pad = 8.dp.toPx()
-                val spanX = (rootWidth - sizePx).coerceAtLeast(0f)
-                val spanY = (rootHeight - sizePx).coerceAtLeast(0f)
-                val left = spanX * asBundle.fullscreenFloatingButtonXFraction.coerceIn(0f, 1f)
-                val top = spanY * asBundle.fullscreenFloatingButtonYFraction.coerceIn(0f, 1f)
-                Rect(left - pad, top - pad, left + sizePx + pad, top + sizePx + pad)
-            }
-        }
+        // 球的实际矩形，由球自己上报（见 FloatingBall 的 onBoundsChanged）。不用设置换算：
+        // 拖动会改变位置，换算值早晚与实际不符，而判断偏一点就等于球仍然点不到。
+        var ballBounds by remember { mutableStateOf<Rect?>(null) }
+        val ballHitPadPx = with(LocalDensity.current) { 6.dp.toPx() }
         // 一旦这一轮触摸被判给球，后续 move/up 也要一直让路，拖动才不会被中途透传
         var ballOwnsPointer by remember { mutableStateOf(false) }
 
@@ -555,7 +538,13 @@ private fun FullscreenSlot(
                         Modifier.pointerInteropFilter { event ->
                             when (event.actionMasked) {
                                 MotionEvent.ACTION_DOWN -> {
-                                    ballOwnsPointer = ballRect.contains(Offset(event.x, event.y))
+                                    val b = ballBounds
+                                    ballOwnsPointer = b != null && b.inflate(ballHitPadPx)
+                                        .contains(Offset(event.x, event.y))
+                                    android.util.Log.i(
+                                        "SlotFullscreen",
+                                        "DOWN at ${event.x},${event.y} -> ball=$ballOwnsPointer bounds=$b",
+                                    )
                                     if (ballOwnsPointer) false
                                     else touchEventHandler.handleMotionEvent(event)
                                 }
@@ -596,6 +585,7 @@ private fun FullscreenSlot(
             ),
         )
         ballBar.FloatingBall(
+            onBoundsChanged = { ballBounds = it },
             onAction = { action ->
                 when (action) {
                     VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()

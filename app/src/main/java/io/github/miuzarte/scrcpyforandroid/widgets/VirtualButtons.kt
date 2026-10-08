@@ -13,6 +13,7 @@ import androidx.compose.material.icons.automirrored.rounded.VolumeUp
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -751,6 +752,15 @@ class VirtualButtonBar(
         onAction: suspend (VirtualButtonAction) -> Unit,
         modifier: Modifier = Modifier,
         passwordChildren: List<DropdownItem>? = null,
+        /**
+         * 上报球的**实际**矩形（相对球容器，即宿主传入的 modifier 的坐标空间）。
+         *
+         * 宿主若在同层用 `pointerInteropFilter` 做触摸透传，必须知道球占哪块区域才能
+         * 让路（interopFilter 在 View 层抢事件，返回 true 时 Compose 派发整轮被跳过，
+         * 球永远收不到点击）。由球自己上报而不是调用方按设置换算 —— 拖动后位置会变，
+         * 换算早晚会算错。
+         */
+        onBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
     ) {
         val popups = rememberActionPopups(
             passwordChildren = passwordChildren,
@@ -802,6 +812,9 @@ class VirtualButtonBar(
                 modifier = Modifier
                     .offset { IntOffset(currentX.roundToPx(), currentY.roundToPx()) }
                     .size(ballSize)
+                    .onGloballyPositioned { coordinates ->
+                        onBoundsChanged?.invoke(coordinates.boundsInParent())
+                    }
                     .pointerInput(maxX, maxY) {
                         var dragStartXFraction = offsetXFraction
                         var dragStartYFraction = offsetYFraction
