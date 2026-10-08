@@ -105,6 +105,18 @@ import kotlinx.coroutines.launch
 fun MultiSessionScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val activity = LocalActivity.current
+
+    // 主屏投屏会话被系统收进**画中画**后，那个小窗会浮在页面之上；而全屏页的触摸层是
+    // 全屏覆盖、所有触摸都透传给被控端，画中画窗口因此**收不到任何触摸** —— 用户看到
+    // 的就是「有个浮窗关不掉」。进到挂机/全屏这一页就退出画中画。
+    DisposableEffect(activity) {
+        val act = activity
+        if (act != null && act.isInPictureInPictureMode) {
+            runCatching { act.exitPictureInPictureMode() }
+        }
+        onDispose { }
+    }
 
     var prefs by remember { mutableStateOf(MultiSessionPrefs.load(context)) }
     val slots by SlotSessionManager.slots.collectAsState()
