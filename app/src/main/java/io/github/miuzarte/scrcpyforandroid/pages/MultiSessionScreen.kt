@@ -1,5 +1,8 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowCompat
 import top.yukonga.miuix.kmp.basic.Scaffold
 import android.view.MotionEvent
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
@@ -454,7 +457,24 @@ private fun FullscreenSlot(
     }
     val sessionSize by SlotSessionManager.sessionSize(index).collectAsState()
     DisposableEffect(activity) {
-        onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+        // 全屏沉浸：隐藏系统栏（照原版全屏页的做法）
+        val window = activity?.window
+        if (window != null) {
+            WindowCompat.setDecorFitsSystemWindows(window, false)
+            val controller = WindowInsetsControllerCompat(window, window.decorView)
+            controller.hide(WindowInsetsCompat.Type.systemBars())
+            controller.systemBarsBehavior =
+                WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        }
+        onDispose {
+            activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+            val w = activity?.window
+            if (w != null) {
+                WindowCompat.setDecorFitsSystemWindows(w, true)
+                WindowInsetsControllerCompat(w, w.decorView)
+                    .show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
     }
     LaunchedEffect(sessionSize) {
         val (w, h) = sessionSize

@@ -245,6 +245,17 @@ object SlotSessionManager {
     suspend fun attachSurface(index: Int, surface: Surface, full: Boolean) {
         val s = session[index]
         if (s.running && s.full == full && s.surface === surface) return
+
+        // 同一模式下的 surface 重建（设备旋转/尺寸变化）**不重建会话**：会话（scrcpy 连接 +
+        // 解码器）与渲染目标无关，拆了重建既慢又会和紧随其后的销毁回调打架，实测就是
+        // 横屏游戏点进全屏后黑屏（会话明明建好了、首包 2378x1080 也到了）。换 surface 即可。
+        if (s.running && s.full == full && s.scrcpy != null && s.surface !== surface) {
+            s.surface = surface
+            runCatching { s.controller?.attachDisplaySurface(surface) }
+                .onFailure { t -> AndroidLog.w(TAG, "attachSurface(slot=$index) 复用会话换 surface 失败", t) }
+            return
+        }
+
         s.surface = surface
         s.full = full
         if (s.displayId < 0) {
@@ -269,6 +280,10 @@ object SlotSessionManager {
         val s = session[index]
         if (s.full != full) return
         s.surface = null
+        // 旋转时 surfaceDestroyed 紧跟 surfaceCreated：等一下，如果新的 surface 已经接管，
+        // 说明只是换了个渲染目标，会话要保留（否则横屏游戏一进全屏就被自己拆掉）。
+        delay(500)
+        if (s.surface != null) return
         stopSession(s)
         publishUi()
     }
