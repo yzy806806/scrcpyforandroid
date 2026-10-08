@@ -598,6 +598,8 @@ private fun FullscreenSlot(
                 }
             },
             modifier = Modifier.fillMaxSize(),
+            // 多会话全屏页拿不到根 Scaffold 的弹层宿主（菜单不会显示），改用局部宿主
+            renderInRootScaffold = false,
         )
     }
 }

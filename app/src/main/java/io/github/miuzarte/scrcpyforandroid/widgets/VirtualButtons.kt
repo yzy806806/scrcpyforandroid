@@ -762,6 +762,11 @@ class VirtualButtonBar(
          * 换算早晚会算错。
          */
         onBoundsChanged: ((androidx.compose.ui.geometry.Rect) -> Unit)? = null,
+        /**
+         * 菜单挂到哪一层宿主。true = 根 Scaffold 的 overlay 层（原版行为）。
+         * 宿主拿不到时菜单不会有任何可见效果，此时传 false 用局部宿主。
+         */
+        renderInRootScaffold: Boolean = true,
     ) {
         val popups = rememberActionPopups(
             passwordChildren = passwordChildren,
@@ -852,14 +857,24 @@ class VirtualButtonBar(
                         (asBundleShared.fullscreenFloatingButtonRingAlphaPercent / 100f)
                             .coerceIn(0f, 1f),
                     // 「更多」不在球的条目里, 用它当"打开菜单"的触发动作
-                    onClick = { popups.trigger(VirtualButtonAction.MORE) },
+                    onClick = {
+                        android.util.Log.i("FloatingBall", "ball onClick")
+                        popups.trigger(VirtualButtonAction.MORE)
+                    },
                 )
 
+                val ballMenuOpen = popups.isOpen(popups.menuSlot)
+                android.util.Log.i(
+                    "FloatingBall",
+                    "render: show=$ballMenuOpen entries=${popups.entries.size} " +
+                        "items=${popups.entries.firstOrNull()?.items?.size} rootScaffold=$renderInRootScaffold",
+                )
                 ActionCascadingPopup(
-                    show = popups.isOpen(popups.menuSlot),
+                    show = ballMenuOpen,
                     entries = popups.entries,
                     onDismissRequest = popups::close,
                     alignment = popupAlignment,
+                    renderInRootScaffold = renderInRootScaffold,
                 )
             }
         }
