@@ -347,6 +347,12 @@ object SlotSessionManager {
             s.running = true
             s.error = null
             publishUi()
+            AndroidLog.i(
+                TAG,
+                "startSession(slot=${s.index}): display=${s.displayId} full=$full " +
+                    "control=${options.control} size=${info.width}x${info.height} " +
+                    "sessionState=${s.scrcpy?.currentSessionState?.value != null}",
+            )
             Log.i(
                 TAG,
                 "slot${s.index}: 会话已启动 display=${s.displayId} full=$full " +
@@ -413,9 +419,13 @@ object SlotSessionManager {
     ) {
         if (index !in session.indices) return
         val s = session[index]
-        val scrcpy = s.scrcpy ?: return
+        val scrcpy = s.scrcpy ?: run {
+            AndroidLog.e(TAG, "injectTouch(slot=$index): 该槽位没有会话，丢弃")
+            return
+        }
         s.jobScope.launch {
             runCatching {
+                AndroidLog.i(TAG, "injectTouch(slot=$index) action=$action x=$x y=$y -> 会话 ${screenWidth}x$screenHeight")
                 scrcpy.injectTouch(
                     action = action,
                     pointerId = pointerId,
@@ -428,7 +438,7 @@ object SlotSessionManager {
                     buttons = buttons,
                 )
             }.onFailure { t ->
-                AndroidLog.w(TAG, "injectTouch(slot=$index) failed", t)
+                AndroidLog.e(TAG, "injectTouch(slot=$index) failed", t)
             }
         }
     }
@@ -437,7 +447,11 @@ object SlotSessionManager {
     fun injectBack(index: Int) {
         if (index !in session.indices) return
         val s = session[index]
-        val scrcpy = s.scrcpy ?: return
+        val scrcpy = s.scrcpy ?: run {
+            AndroidLog.e(TAG, "injectBack(slot=$index): 该槽位没有会话，丢弃")
+            return
+        }
+        AndroidLog.i(TAG, "injectBack(slot=$index)")
         s.jobScope.launch {
             runCatching {
                 scrcpy.injectKeycode(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK)
