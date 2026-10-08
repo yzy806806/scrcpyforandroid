@@ -257,8 +257,17 @@ object SlotSessionManager {
         startSession(s)
     }
 
-    suspend fun detachSurface(index: Int) {
+    /**
+     * 解绑该槽位的渲染 surface 并停掉会话。
+     *
+     * [full] 标识调用方身份（缩略图 / 全屏）。SurfaceView 的销毁回调可能**晚于**新页面的
+     * attach 到达：进全屏时缩略图的 surface 被销毁，若此时无条件停会话，就会把刚建立的
+     * 全屏会话杀掉（现象：全屏里触摸毫无反应，日志是 "该槽位没有会话，丢弃"）。
+     * 所以只有回调所属的模式仍是当前模式时才生效。
+     */
+    suspend fun detachSurface(index: Int, full: Boolean) {
         val s = session[index]
+        if (s.full != full) return
         s.surface = null
         stopSession(s)
         publishUi()
@@ -289,8 +298,8 @@ object SlotSessionManager {
     }
 
     /** 同 [detachSurface]，但用管理器自己的 scope（SurfaceView 回调可能晚于组合销毁）。 */
-    fun detachSurfaceAsync(index: Int) {
-        scope.launch { detachSurface(index) }
+    fun detachSurfaceAsync(index: Int, full: Boolean) {
+        scope.launch { detachSurface(index, full) }
     }
 
     /** 停掉所有投屏（不影响被控端应用运行 —— 这正是 holder 架构的意义）。 */

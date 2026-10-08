@@ -414,7 +414,9 @@ private fun SlotSurface(index: Int, full: Boolean) {
                     override fun surfaceChanged(h: SurfaceHolder, f: Int, w: Int, ht: Int) = Unit
 
                     override fun surfaceDestroyed(holder: SurfaceHolder) {
-                        SlotSessionManager.detachSurfaceAsync(index)
+                        // 传 full：该销毁回调可能是过期的（页面已切到另一种模式），
+                        // 过期回调不得停掉新页面的会话
+                        SlotSessionManager.detachSurfaceAsync(index, full)
                     }
                 })
             }
