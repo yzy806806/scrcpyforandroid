@@ -382,7 +382,11 @@ private fun SlotCell(
     Column(modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "格 ${index + 1}  " + (slot.label.ifEmpty { "空" }),
+                // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
+                // 于是有画面运行的格子也显示「格 N 空」，看起来像没跑起来。
+                text = "格 ${index + 1}  " + slot.label.ifEmpty {
+                    slot.packageName.substringAfterLast('.').ifEmpty { "空" }
+                },
                 fontSize = 12.sp,
                 maxLines = 1,
                 color = if (slot.error != null) Color(0xFFC62828) else Color.Unspecified,
