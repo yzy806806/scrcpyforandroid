@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import top.yukonga.miuix.kmp.basic.SnackbarDuration
 import io.github.miuzarte.scrcpyforandroid.storage.AppSettings
+import java.net.Inet4Address
 import java.net.InetAddress
 
 /**
@@ -49,13 +50,16 @@ object QuicTunnelManager {
         try {
             // Resolve DNS (QUIC needs IP, not hostname)
             val resolvedHost = try {
-                InetAddress.getByName(host).hostAddress
+                val addrs = InetAddress.getAllByName(host)
+                // 优先 IPv4：隧道入口是家庭宽带上的 UDP 端口映射，IPv6 入站通常被路由器防火墙
+                // 拦掉（实测同一入口 IPv4 AUTH OK、IPv6 超时）。只有真的没有 IPv4 时才用 IPv6。
+                (addrs.firstOrNull { it is Inet4Address } ?: addrs.first()).hostAddress
             } catch (e: Exception) {
                 host
             }
             // IPv6 字面量必须加方括号，否则 quic-go 侧 net.SplitHostPort 会报
-            // "too many colons in address"（实测：移动网络解析到 IPv6 时整条隧道连不上，
-            // 而解析到 IPv4 的网络一切正常，所以这个问题只在部分网络下暴露）
+            // "too many colons in address"（实测：拿到 IPv6 结果时整条隧道连不上，
+            // 而拿到 IPv4 的网络一切正常，所以这个问题只在部分网络下暴露）
             val serverAddr = if (resolvedHost.contains(':') && !resolvedHost.startsWith("[")) {
                 "[$resolvedHost]:$port"
             } else {
