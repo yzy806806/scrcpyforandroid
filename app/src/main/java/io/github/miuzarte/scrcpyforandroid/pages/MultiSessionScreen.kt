@@ -1,5 +1,9 @@
+@file:OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.core.view.WindowInsetsControllerCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowCompat
@@ -193,7 +197,10 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 ) { Text("+ 添加") }
             }
 
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 items(prefs.favorites, key = { it.packageName }) { fav ->
                     val running = slots.any { it.packageName == fav.packageName }
                     OutlinedButton(
@@ -290,6 +297,9 @@ fun MultiSessionScreen(onBack: () -> Unit) {
         // （日志里 show=true、条目 20 个，但屏幕上什么都没有）。
         fullscreen?.let { index ->
           Scaffold(containerColor = Color.Black) {
+            // key(index)：切到下一个挂机位时，AndroidView 里的 SurfaceView 不会因为参数
+            // 变化而重建，会继续画上一个槽位的画面 —— 表现就是「下一个应用」按钮像是没反应。
+            key(index) {
             FullscreenSlot(
                 index = index,
                 onNextApp = {
@@ -301,6 +311,7 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 },
                 onBackToGrid = { fullscreen = null },
             )
+            }
           }
         }
 
@@ -417,8 +428,17 @@ private fun SlotCell(
 @Composable
 private fun SlotSurface(index: Int, full: Boolean) {
     val scope = rememberCoroutineScope()
+    // 按会话的宽高比显示：之前直接 fillMaxSize()，横屏应用会被拉成方格、竖屏应用被压扁，
+    // 看着就是「比例怪怪的」。尺寸未知时先铺满，等首包给了尺寸再收敛到正确比例。
+    val sizePair by SlotSessionManager.sessionSize(index).collectAsState()
+    val ratio = if (sizePair.width > 0 && sizePair.height > 0) {
+        sizePair.width.toFloat() / sizePair.height.toFloat()
+    } else {
+        0f
+    }
+    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     AndroidView(
-        modifier = Modifier.fillMaxSize(),
+        modifier = if (ratio > 0f) Modifier.aspectRatio(ratio) else Modifier.fillMaxSize(),
         factory = { ctx ->
             SurfaceView(ctx).apply {
                 holder.addCallback(object : SurfaceHolder.Callback {
@@ -437,6 +457,7 @@ private fun SlotSurface(index: Int, full: Boolean) {
             }
         },
     )
+    }
 }
 
 @Composable
@@ -600,10 +621,21 @@ private fun FullscreenSlot(
         val asBundle by Storage.appSettings.bundleState.collectAsState()
         // 不用手动加多会话的两个动作: parseStoredLayout 会把「未出现在已存布局里的动作」
         // 统一追加到末尾（新增动作本来就不需要迁移存储）。手动再加一遍会让菜单里出现两份。
-        val ballActions = remember(asBundle.virtualButtonsLayout) {
+        // 应用挂机跑在**虚拟显示**上，没有 launcher、也没有独立的任务栈：
+        // 主页 / 多任务 / 最近任务 / 所有应用 这几个动作在这里按下去不会有用，
+        // 与其留着让人以为"坏了"，不如直接从菜单里去掉。
+        val slotUnsupportedActions = remember {
+            setOf(
+                VirtualButtonAction.HOME,
+                VirtualButtonAction.APP_SWITCH,
+                VirtualButtonAction.RECENT_TASKS,
+                VirtualButtonAction.ALL_APPS,
+            )
+        }
+        val ballActions = remember(asBundle.virtualButtonsLayout, slotUnsupportedActions) {
             VirtualButtonActions.mergedOrder(
                 items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
-                excluded = setOf(VirtualButtonAction.MORE),
+                excluded = setOf(VirtualButtonAction.MORE) + slotUnsupportedActions,
             )
         }
         // **必须 remember**：球内部的弹层状态槽是 `remember(this) { PopupSlots() }`，
