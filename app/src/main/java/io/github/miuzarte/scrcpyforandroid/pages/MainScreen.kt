@@ -613,6 +613,7 @@ fun MainScreen() {
                                                 ConnectionTarget.unmarshalFrom(quickInput)
                                                     ?.let(slotDeviceViewModel::onQuickConnect)
                                             },
+                                            bottomPadding = bottomInnerPadding,
                                         )
                                     }
 

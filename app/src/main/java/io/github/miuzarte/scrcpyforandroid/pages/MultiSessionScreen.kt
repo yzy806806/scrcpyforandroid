@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.foundation.layout.fillMaxHeight
 import io.github.miuzarte.scrcpyforandroid.R
 import androidx.compose.ui.res.stringResource
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
@@ -109,6 +110,8 @@ fun MultiSessionScreen(
     onBack: () -> Unit,
     /** 「直接连接」：复用设备页那套连接逻辑（含隧道/超时），由 MainScreen 注入。 */
     onDirectConnect: () -> Unit = {},
+    /** 底部 tab 栏占掉的高度（由 MainScreen 传入），否则页面底部的按钮会被 tab 栏压住看不见。 */
+    bottomPadding: Dp = 0.dp,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -160,7 +163,8 @@ fun MultiSessionScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(12.dp),
+                .padding(12.dp)
+                .padding(bottom = bottomPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // ── 状态条 ──────────────────────────────────────────
@@ -395,7 +399,9 @@ private fun SlotCell(
     val slots by SlotSessionManager.slots.collectAsState()
     val slot = slots.getOrNull(index) ?: return
 
-    Column(modifier = modifier) {
+    // 必须 fillMaxHeight：本格在 Row 里拿到的是"半屏高"的槽位，但 Column 默认按内容高，
+    // 里面的 weight(1f) 就落到了无界高度上而失效 —— 格子会被压成扁的（实测就是这么出现的）。
+    Column(modifier = modifier.fillMaxHeight()) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
                 // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
