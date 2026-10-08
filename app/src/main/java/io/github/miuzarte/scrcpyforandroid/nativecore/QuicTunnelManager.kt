@@ -53,7 +53,14 @@ object QuicTunnelManager {
             } catch (e: Exception) {
                 host
             }
-            val serverAddr = "$resolvedHost:$port"
+            // IPv6 字面量必须加方括号，否则 quic-go 侧 net.SplitHostPort 会报
+            // "too many colons in address"（实测：移动网络解析到 IPv6 时整条隧道连不上，
+            // 而解析到 IPv4 的网络一切正常，所以这个问题只在部分网络下暴露）
+            val serverAddr = if (resolvedHost.contains(':') && !resolvedHost.startsWith("[")) {
+                "[$resolvedHost]:$port"
+            } else {
+                "$resolvedHost:$port"
+            }
 
             // Call Go via JNI to start QUIC client
             val result = quictunnel.Quictunnel.startClient(serverAddr, listenPort.toLong(), key)
