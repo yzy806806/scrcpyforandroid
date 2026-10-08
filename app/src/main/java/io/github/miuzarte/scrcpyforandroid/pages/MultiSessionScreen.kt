@@ -45,6 +45,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
@@ -482,7 +483,7 @@ private fun FullscreenSlot(
 private fun InteractiveSlotSurface(index: Int, full: Boolean) {
     val slot = SlotSessionManager.slot(index)
     val scope = rememberCoroutineScope()
-    var touchAreaSize by remember { mutableStateOf(android.util.Size(0, 0)) }
+    var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
 
     // 该槽位对应的 scrcpy 会话信息（宽高/鼠标悬停支持等）
     val sessionInfo = SlotSessionManager.sessionInfo(index)
@@ -520,7 +521,7 @@ private fun InteractiveSlotSurface(index: Int, full: Boolean) {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .onSizeChanged { touchAreaSize = android.util.Size(it.width, it.height) }
+            .onSizeChanged { touchAreaSize = it }
             .then(
                 if (touchEventHandler != null) {
                     Modifier.pointerInteropFilter { event ->
