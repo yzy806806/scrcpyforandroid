@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.ui.unit.Dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
 import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
@@ -684,6 +685,3 @@ private fun FullscreenSlot(
         )
     }
 }
-
-@Composable
-
