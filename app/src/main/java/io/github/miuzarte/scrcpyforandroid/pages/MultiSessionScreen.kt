@@ -510,10 +510,6 @@ private fun InteractiveSlotSurface(
     val scope = rememberCoroutineScope()
     var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
 
-    // 悬浮球占据的区域（本组件坐标系）：事件落在这里时放行给球，不注入被控端。
-    // 由 FullscreenSlot 用球的 onGloballyPositioned 算好后传进来。
-    val ballBoundsInTouchArea: android.graphics.Rect?
-
     // 该槽位对应的 scrcpy 会话信息（宽高/鼠标悬停支持等）
     val sessionInfo = SlotSessionManager.sessionInfo(index)
 
@@ -571,7 +567,6 @@ private fun InteractiveSlotSurface(
             ),
     ) {
         SlotSurface(index = index, full = full)
-        FloatingBallRegion(onBoundsChanged = { ballScreenBounds = it })
     }
 }
 
