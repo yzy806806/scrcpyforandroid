@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -263,7 +264,6 @@ fun MultiSessionScreen(onBack: () -> Unit) {
         fullscreen?.let { index ->
             FullscreenSlot(
                 index = index,
-                label = slots.getOrNull(index)?.label.orEmpty(),
                 onNextApp = {
                     val occupied = slots.indices.filter { slots[it].occupied }
                     if (occupied.size > 1) {
@@ -411,7 +411,6 @@ private fun SlotSurface(index: Int, full: Boolean) {
 @Composable
 private fun FullscreenSlot(
     index: Int,
-    label: String,
     onNextApp: () -> Unit,
     onBackToGrid: () -> Unit,
 ) {
@@ -445,13 +444,17 @@ private fun FullscreenSlot(
         scope.launch { SlotSessionManager.injectBack(index) }
     }
 
+    // 悬浮球在本页坐标系的 bounds（球可拖动，每次布局/拖动都会更新）
+    var ballBounds by remember { mutableStateOf<android.graphics.Rect?>(null) }
+
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         // 视频区：可交互（触摸透传到被控端）
         Box(modifier = Modifier.fillMaxSize()) {
-            InteractiveSlotSurface(index = index, full = true)
+            InteractiveSlotSurface(index = index, full = true, ballBoundsInTouchArea = ballBounds)
         }
 
-        // 悬浮球：复用原版 VirtualButtonBar.FloatingBall
+        // 悬浮球：复用原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化）。
+        // 包一层 onGloballyPositioned 把球的实际位置上报给视频层做点击豁免。
         val ballBar = VirtualButtonBar(
             outside = emptyList(),
             more = listOf(
@@ -459,16 +462,34 @@ private fun FullscreenSlot(
                 VirtualButtonAction.RECENT_TASKS,
             ),
         )
-        ballBar.FloatingBall(
-            onAction = { action ->
-                when (action) {
-                    VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
-                    VirtualButtonAction.RECENT_TASKS -> onNextApp()
-                    else -> Unit
+        Box(modifier = Modifier.fillMaxSize()) {
+            ballBar.FloatingBall(
+                onAction = { action ->
+                    when (action) {
+                        VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
+                        VirtualButtonAction.RECENT_TASKS -> onNextApp()
+                        else -> Unit
+                    }
+                },
+                modifier = Modifier.fillMaxSize(),
+            )
+            // 球本体在 FloatingBall 内部 offset 定位，无法从外面直接观测；
+            // 用一个跟随同样定位逻辑的嗅探节点：球默认在右上（fraction 1,1）。
+            // 更可靠的做法见下 —— 直接读取 app 设置里持久化的 fraction 计算 bounds。
+            val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
+            val density = androidx.compose.ui.platform.LocalDensity.current
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val ballSizeDp = asBundle.fullscreenFloatingButtonSizeDp.dp
+                val ballSizePx = with(density) { ballSizeDp.roundToPx() }
+                val maxX = (constraints.maxWidth - ballSizePx).coerceAtLeast(0)
+                val maxY = (constraints.maxHeight - ballSizePx).coerceAtLeast(0)
+                val x = (maxX * asBundle.fullscreenFloatingButtonXFraction.coerceIn(0f, 1f)).toInt()
+                val y = (maxY * asBundle.fullscreenFloatingButtonYFraction.coerceIn(0f, 1f)).toInt()
+                LaunchedEffect(x, y, ballSizePx) {
+                    ballBounds = android.graphics.Rect(x, y, x + ballSizePx, y + ballSizePx)
                 }
-            },
-            modifier = Modifier.fillMaxSize(),
-        )
+            }
+        }
     }
 }
 
@@ -480,10 +501,18 @@ private fun FullscreenSlot(
  * [TouchEventHandler]，由它按会话分辨率换算坐标后走 scrcpy 控制通道注入。
  */
 @Composable
-private fun InteractiveSlotSurface(index: Int, full: Boolean) {
+private fun InteractiveSlotSurface(
+    index: Int,
+    full: Boolean,
+    ballBoundsInTouchArea: android.graphics.Rect?,
+) {
     val slot = SlotSessionManager.slot(index)
     val scope = rememberCoroutineScope()
     var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
+
+    // 悬浮球占据的区域（本组件坐标系）：事件落在这里时放行给球，不注入被控端。
+    // 由 FullscreenSlot 用球的 onGloballyPositioned 算好后传进来。
+    val ballBoundsInTouchArea: android.graphics.Rect?
 
     // 该槽位对应的 scrcpy 会话信息（宽高/鼠标悬停支持等）
     val sessionInfo = SlotSessionManager.sessionInfo(index)
@@ -525,7 +554,16 @@ private fun InteractiveSlotSurface(index: Int, full: Boolean) {
             .then(
                 if (touchEventHandler != null) {
                     Modifier.pointerInteropFilter { event ->
-                        touchEventHandler.handleMotionEvent(event)
+                        val ball = ballBoundsInTouchArea
+                        if (ball != null &&
+                            event.x >= ball.left && event.x <= ball.right &&
+                            event.y >= ball.top && event.y <= ball.bottom
+                        ) {
+                            // 球的区域：不消费，让事件冒泡到球的 Button
+                            false
+                        } else {
+                            touchEventHandler.handleMotionEvent(event)
+                        }
                     }
                 } else {
                     Modifier
@@ -533,8 +571,11 @@ private fun InteractiveSlotSurface(index: Int, full: Boolean) {
             ),
     ) {
         SlotSurface(index = index, full = full)
+        FloatingBallRegion(onBoundsChanged = { ballScreenBounds = it })
     }
 }
+
+
 
 @Composable
 private fun QualitySection(
