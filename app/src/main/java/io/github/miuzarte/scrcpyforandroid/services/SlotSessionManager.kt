@@ -14,18 +14,35 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 /**
- * 一个挂机槽位的运行时状态。
+ * 一个挂机槽位对外暴露的**不可变快照**。
+ *
+ * 必须不可变：StateFlow 只在 `equals` 变化时发射。早先直接对外暴露可变对象并原地改字段，
+ * 引用不变 → 界面永远不刷新（挂着「拉不起来」的现象，其实是两个 bug 叠在一起）。
+ */
+data class SlotUi(
+    val index: Int = 0,
+    val displayId: Int = -1,
+    val packageName: String = "",
+    val label: String = "",
+    val full: Boolean = false,
+    val running: Boolean = false,
+    val error: String? = null,
+) {
+    val occupied: Boolean get() = packageName.isNotEmpty()
+}
+
+/**
+ * 槽位内部可变状态，只在管理器内部使用；对外一律走 [SlotUi] 快照。
  *
  * 被控端侧由常驻 holder 持有虚拟显示并运行应用；主控端这里只维护「看这一路」的
  * scrcpy 会话（scrcpy server 通过 `display_id` 附着到 holder 的显示上）。
  * 所以停掉/重启这一路**不会影响被控端应用的运行**。
  */
-class SlotSession(val index: Int) {
+private class SlotSession(val index: Int) {
     var displayId: Int = -1
     var packageName: String = ""
     var label: String = ""
@@ -36,13 +53,11 @@ class SlotSession(val index: Int) {
     var running: Boolean = false
     var error: String? = null
 
-    internal var surface: Surface? = null
-    internal var scrcpy: Scrcpy? = null
-    internal var renderer: PersistentVideoRenderer? = null
-    internal var controller: VideoDecoderController? = null
-    internal var sizeWatchJob: Job? = null
-
-    val occupied: Boolean get() = packageName.isNotEmpty()
+    var surface: Surface? = null
+    var scrcpy: Scrcpy? = null
+    var renderer: PersistentVideoRenderer? = null
+    var controller: VideoDecoderController? = null
+    var sizeWatchJob: Job? = null
 }
 
 /**
@@ -66,8 +81,10 @@ object SlotSessionManager {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
-    private val _slots = MutableStateFlow(List(MAX_SLOTS) { SlotSession(it) })
-    val slots: StateFlow<List<SlotSession>> = _slots.asStateFlow()
+    private val session = List(MAX_SLOTS) { SlotSession(it) }
+
+    private val _slots = MutableStateFlow(List(MAX_SLOTS) { SlotUi(index = it) })
+    val slots: StateFlow<List<SlotUi>> = _slots.asStateFlow()
 
     private val _holderAlive = MutableStateFlow(false)
     val holderAlive: StateFlow<Boolean> = _holderAlive.asStateFlow()
@@ -75,12 +92,20 @@ object SlotSessionManager {
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
 
-    fun slot(index: Int): SlotSession = _slots.value[index.coerceIn(0, MAX_SLOTS - 1)]
+    fun slot(index: Int): SlotUi = _slots.value[index.coerceIn(0, MAX_SLOTS - 1)]
 
-    private fun updateSlot(index: Int, block: (SlotSession) -> Unit) {
-        _slots.update { list ->
-            list[index].also(block)
-            list
+    /** 把内部可变状态发布成不可变快照。每次改动后都要调，否则界面不刷新。 */
+    private fun publishUi() {
+        _slots.value = session.map { s ->
+            SlotUi(
+                index = s.index,
+                displayId = s.displayId,
+                packageName = s.packageName,
+                label = s.label,
+                full = s.full,
+                running = s.running,
+                error = s.error,
+            )
         }
     }
 
@@ -90,63 +115,94 @@ object SlotSessionManager {
         _holderAlive.value = state != null
         if (state == null) {
             Log.w(TAG, "refresh(): holder 不可用")
+            publishUi()
             return@withContext
         }
-        _slots.update { list ->
-            list.forEach { slot ->
-                val remote = state.slots.firstOrNull { it.slot == slot.index }
-                val displayId = remote?.displayId ?: -1
-                if (displayId != slot.displayId) {
-                    Log.i(TAG, "slot${slot.index}: displayId $displayId (was ${slot.displayId})")
-                    slot.displayId = displayId
-                }
-                val pkg = remote?.packageName.orEmpty()
-                if (pkg != slot.packageName) {
-                    slot.packageName = pkg
-                    if (pkg.isEmpty()) {
-                        slot.label = ""
-                    }
+        session.forEach { s ->
+            val remote = state.slots.firstOrNull { it.slot == s.index }
+            val displayId = remote?.displayId ?: -1
+            if (displayId != s.displayId) {
+                Log.i(TAG, "slot${s.index}: displayId ${s.displayId} -> $displayId")
+                s.displayId = displayId
+            }
+            val pkg = remote?.packageName.orEmpty()
+            if (pkg != s.packageName) {
+                s.packageName = pkg
+                if (pkg.isEmpty()) {
+                    s.label = ""
                 }
             }
-            list
         }
+        publishUi()
     }
 
-    /** 占用一个槽位：让 holder 建显示并拉起应用，然后（若已有画面容器）开始投屏。 */
+    /**
+     * 占用一个槽位：让 holder 建显示并拉起应用，然后（若已有画面容器）开始投屏。
+     *
+     * 整段必须在 IO 线程：adb 的 shell 调用是阻塞 socket 操作，放主线程会抛
+     * NetworkOnMainThreadException —— 而且当初用 runCatching 把它吞掉了，
+     * 表现为「点了没反应、也没有任何报错」。
+     */
     suspend fun startApp(index: Int, packageName: String, label: String) {
         _busy.value = true
         try {
-            val slot = slot(index)
-            if (!_holderAlive.value) refresh()
-            if (!_holderAlive.value) {
-                updateSlot(index) { it.error = "holder 未运行" }
-                return
-            }
-            // holder 的 create / launch 都是幂等的
-            DisplayHolderClient.create(index)
-            delay(500)
-            DisplayHolderClient.launch(index, packageName)
-            updateSlot(index) {
-                it.packageName = packageName
-                it.label = label
-                it.error = null
-            }
-            // 等显示就绪再取 id
-            var waited = 0
-            while (waited < 6 && slot(index).displayId < 0) {
-                delay(400)
-                refresh()
-                waited++
-            }
-            if (slot(index).displayId >= 0 && slot(index).surface != null) {
-                startSession(slot(index))
+            withContext(Dispatchers.IO) {
+                val s = session[index]
+
+                if (!_holderAlive.value) refresh()
+                if (!_holderAlive.value) {
+                    s.error = "挂机服务未运行"
+                    publishUi()
+                    return@withContext
+                }
+
+                // holder 的 create / launch 都是幂等的
+                if (!DisplayHolderClient.create(index)) {
+                    s.error = "命令发送失败（create）"
+                    publishUi()
+                    Log.e(TAG, "startApp(slot=$index): create 命令发送失败")
+                    return@withContext
+                }
+                delay(500)
+                if (!DisplayHolderClient.launch(index, packageName)) {
+                    s.error = "命令发送失败（launch）"
+                    publishUi()
+                    Log.e(TAG, "startApp(slot=$index): launch 命令发送失败")
+                    return@withContext
+                }
+
+                s.packageName = packageName
+                s.label = label
+                s.error = null
+                publishUi()
+
+                // 等 holder 把显示建出来（显示 id 由 holder 分配，需要回读 state.json）
+                var waited = 0
+                while (waited < 6 && s.displayId < 0) {
+                    delay(400)
+                    refresh()
+                    waited++
+                }
+
+                if (s.displayId < 0) {
+                    s.error = "显示未就绪"
+                    publishUi()
+                    Log.e(TAG, "startApp(slot=$index): holder 未在超时内创建显示")
+                    return@withContext
+                }
+
+                if (s.surface != null) {
+                    startSession(s)
+                } else {
+                    Log.i(TAG, "slot$index: 显示就绪 id=${s.displayId}，等画面容器附着")
+                }
             }
         } catch (t: Throwable) {
             Log.e(TAG, "startApp(slot=$index, pkg=$packageName) failed", t)
-            updateSlot(index) { it.error = t.message ?: "启动失败" }
+            session[index].error = t.message ?: "启动失败"
+            publishUi()
         } finally {
             _busy.value = false
-            refresh()
         }
     }
 
@@ -157,37 +213,37 @@ object SlotSessionManager {
      * （被控端应用不受影响）。
      */
     suspend fun attachSurface(index: Int, surface: Surface, full: Boolean) {
-        val slot = slot(index)
-        if (slot.running && slot.full == full && slot.surface === surface) return
-        slot.surface = surface
-        slot.full = full
-        if (slot.displayId < 0) {
+        val s = session[index]
+        if (s.running && s.full == full && s.surface === surface) return
+        s.surface = surface
+        s.full = full
+        if (s.displayId < 0) {
             refresh()
         }
-        if (slot.displayId < 0) {
+        if (s.displayId < 0) {
             Log.w(TAG, "attachSurface(slot=$index): 显示尚未就绪")
             return
         }
-        startSession(slot)
+        startSession(s)
     }
 
     suspend fun detachSurface(index: Int) {
-        val slot = slot(index)
-        slot.surface = null
-        stopSession(slot)
+        val s = session[index]
+        s.surface = null
+        stopSession(s)
+        publishUi()
     }
 
     /** 关掉一路：停投屏 + 让 holder force-stop 应用并销毁显示。 */
     suspend fun stopSlot(index: Int) = withContext(Dispatchers.IO) {
-        val slot = slot(index)
-        stopSession(slot)
+        val s = session[index]
+        stopSession(s)
         runCatching { DisplayHolderClient.kill(index) }
-        updateSlot(index) {
-            it.packageName = ""
-            it.label = ""
-            it.displayId = -1
-            it.error = null
-        }
+        s.packageName = ""
+        s.label = ""
+        s.displayId = -1
+        s.error = null
+        publishUi()
         delay(400)
         refresh()
     }
@@ -209,25 +265,26 @@ object SlotSessionManager {
 
     /** 停掉所有投屏（不影响被控端应用运行 —— 这正是 holder 架构的意义）。 */
     suspend fun stopAllSessions() {
-        _slots.value.forEach { stopSession(it) }
+        session.forEach { stopSession(it) }
+        publishUi()
     }
 
     /** 停掉投屏并杀光所有挂机应用。 */
     suspend fun stopAllAndKill() = withContext(Dispatchers.IO) {
-        _slots.value.forEach { slot ->
-            stopSession(slot)
-            if (slot.occupied) {
-                runCatching { DisplayHolderClient.kill(slot.index) }
+        session.forEach { s ->
+            stopSession(s)
+            if (s.packageName.isNotEmpty()) {
+                runCatching { DisplayHolderClient.kill(s.index) }
             }
         }
         delay(400)
         refresh()
     }
 
-    private suspend fun startSession(slot: SlotSession) = withContext(Dispatchers.IO) {
-        stopSession(slot)
-        val surface = slot.surface ?: return@withContext
-        if (slot.displayId < 0) return@withContext
+    private suspend fun startSession(s: SlotSession) = withContext(Dispatchers.IO) {
+        stopSession(s)
+        val surface = s.surface ?: return@withContext
+        if (s.displayId < 0) return@withContext
 
         try {
             val renderer = PersistentVideoRenderer()
@@ -235,15 +292,15 @@ object SlotSessionManager {
             // 关键：槽位会话必须关掉 facade 上报，否则会顶掉主投屏的解码器绑定
             val scrcpy = Scrcpy(AppRuntime.context).apply { reportToNativeCoreFacade = false }
 
-            slot.renderer = renderer
-            slot.controller = controller
-            slot.scrcpy = scrcpy
+            s.renderer = renderer
+            s.controller = controller
+            s.scrcpy = scrcpy
 
             controller.attachDisplaySurface(surface)
 
-            val full = slot.full
+            val full = s.full
             val options = ClientOptions().apply {
-                displayId = slot.displayId
+                displayId = s.displayId
                 control = full
                 audio = false
                 maxSize = (if (full) fullMaxSize else thumbMaxSize).toUShort()
@@ -255,53 +312,51 @@ object SlotSessionManager {
             controller.ensureDecoder(info)
             scrcpy.session.attachVideoConsumer { packet -> controller.feed(packet) }
 
-            updateSlot(slot.index) {
-                it.running = true
-                it.error = null
-            }
+            s.running = true
+            s.error = null
+            publishUi()
             Log.i(
                 TAG,
-                "slot${slot.index}: 会话已启动 display=${slot.displayId} full=$full " +
+                "slot${s.index}: 会话已启动 display=${s.displayId} full=$full " +
                     "${info.width}x${info.height}",
             )
 
             // v4.0 协议下 start() 返回的宽高是 0，真正的尺寸来自首个视频包，所以解码器
             // 一定是在这里被创建出来的（rebuildDecoderForSize 在无解码器时会新建）。
             // 首次检查要快，否则每次附着都要黑屏一秒。
-            slot.sizeWatchJob = scope.launch {
+            s.sizeWatchJob = scope.launch {
                 var lastW = -1
                 var lastH = -1
                 var tick = 0
                 while (true) {
                     delay(if (tick++ == 0) 120 else 500)
-                    val cur = slot.scrcpy?.currentSessionState?.value ?: continue
+                    val cur = s.scrcpy?.currentSessionState?.value ?: continue
                     if (cur.width <= 0 || cur.height <= 0) continue
                     if (cur.width != lastW || cur.height != lastH) {
                         lastW = cur.width
                         lastH = cur.height
-                        runCatching { slot.controller?.rebuildDecoderForSize(cur) }
+                        runCatching { s.controller?.rebuildDecoderForSize(cur) }
                     }
                 }
             }
         } catch (t: Throwable) {
-            Log.e(TAG, "startSession(slot=${slot.index}) failed", t)
-            updateSlot(slot.index) {
-                it.running = false
-                it.error = t.message ?: "投屏失败"
-            }
+            Log.e(TAG, "startSession(slot=${s.index}) failed", t)
+            s.running = false
+            s.error = t.message ?: "投屏失败"
+            publishUi()
         }
     }
 
-    private suspend fun stopSession(slot: SlotSession) {
-        slot.sizeWatchJob?.cancel()
-        slot.sizeWatchJob = null
-        runCatching { slot.scrcpy?.session?.clearVideoConsumer() }
-        runCatching { slot.scrcpy?.stop() }
-        runCatching { slot.controller?.releaseAll() }
-        runCatching { slot.renderer?.release() }
-        slot.scrcpy = null
-        slot.controller = null
-        slot.renderer = null
-        slot.running = false
+    private suspend fun stopSession(s: SlotSession) {
+        s.sizeWatchJob?.cancel()
+        s.sizeWatchJob = null
+        runCatching { s.scrcpy?.session?.clearVideoConsumer() }
+        runCatching { s.scrcpy?.stop() }
+        runCatching { s.controller?.releaseAll() }
+        runCatching { s.renderer?.release() }
+        s.scrcpy = null
+        s.controller = null
+        s.renderer = null
+        s.running = false
     }
 }

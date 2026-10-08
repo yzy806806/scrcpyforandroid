@@ -2,6 +2,8 @@ package io.github.miuzarte.scrcpyforandroid.services
 
 import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.nativecore.NativeAdbService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.contentOrNull
@@ -48,40 +50,50 @@ object DisplayHolderClient {
     }
 
     /** 读取 holder 状态；holder 未运行时返回 null。 */
-    suspend fun readState(): State? = runCatching {
-        val raw = NativeAdbService.shell("cat $STATE_PATH")
-        val obj = json.parseToJsonElement(raw).jsonObject
-        val slots = (obj["slots"] as? JsonArray).orEmpty().mapNotNull { element ->
-            runCatching {
-                val o = element.jsonObject
-                Slot(
-                    slot = o["slot"]!!.jsonPrimitive.int,
-                    displayId = o["displayId"]!!.jsonPrimitive.int,
-                    packageName = o["package"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                    state = o["state"]?.jsonPrimitive?.contentOrNull.orEmpty(),
-                )
-            }.getOrNull()
-        }
-        State(
-            pid = obj["pid"]?.jsonPrimitive?.int ?: 0,
-            width = obj["width"]?.jsonPrimitive?.int ?: 0,
-            height = obj["height"]?.jsonPrimitive?.int ?: 0,
-            dpi = obj["dpi"]?.jsonPrimitive?.int ?: 0,
-            slots = slots,
-        )
-    }.onFailure {
-        Log.w(TAG, "readState() failed", it)
-    }.getOrNull()
+    suspend fun readState(): State? = withContext(Dispatchers.IO) {
+        runCatching {
+            val raw = NativeAdbService.shell("cat $STATE_PATH")
+            val obj = json.parseToJsonElement(raw).jsonObject
+            val slots = (obj["slots"] as? JsonArray).orEmpty().mapNotNull { element ->
+                runCatching {
+                    val o = element.jsonObject
+                    Slot(
+                        slot = o["slot"]!!.jsonPrimitive.int,
+                        displayId = o["displayId"]!!.jsonPrimitive.int,
+                        packageName = o["package"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                        state = o["state"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                    )
+                }.getOrNull()
+            }
+            State(
+                pid = obj["pid"]?.jsonPrimitive?.int ?: 0,
+                width = obj["width"]?.jsonPrimitive?.int ?: 0,
+                height = obj["height"]?.jsonPrimitive?.int ?: 0,
+                dpi = obj["dpi"]?.jsonPrimitive?.int ?: 0,
+                slots = slots,
+            )
+        }.onFailure {
+            Log.w(TAG, "readState() failed", it)
+        }.getOrNull()
+    }
 
     /** holder 是否可用（进程在跑且状态文件可读）。 */
     suspend fun isAvailable(): Boolean = readState() != null
 
-    private suspend fun send(command: String): Boolean = runCatching {
-        NativeAdbService.shell("echo ${quote(command)} >> $CMD_PATH")
-        true
-    }.onFailure {
-        Log.w(TAG, "send() failed: $command", it)
-    }.getOrDefault(false)
+    /**
+     * 追加一条命令。
+     *
+     * 两个前提：adb 是阻塞 socket 操作，必须在 IO 线程（否则 NetworkOnMainThreadException）；
+     * 命令文件被 holder 放开了权限（0666），shell 用户即可写。
+     */
+    private suspend fun send(command: String): Boolean = withContext(Dispatchers.IO) {
+        runCatching {
+            NativeAdbService.shell("echo ${quote(command)} >> $CMD_PATH")
+            true
+        }.onFailure {
+            Log.w(TAG, "send() failed: $command", it)
+        }.getOrDefault(false)
+    }
 
     suspend fun create(slot: Int): Boolean = send("create $slot")
 
