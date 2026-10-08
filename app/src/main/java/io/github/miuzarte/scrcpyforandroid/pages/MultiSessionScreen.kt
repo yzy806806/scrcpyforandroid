@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.R
 import androidx.compose.ui.res.stringResource
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import androidx.compose.runtime.key
@@ -104,7 +105,11 @@ import kotlinx.coroutines.launch
  *   - 双击某格 = 停掉缩略图会话、按高画质重连（被控端应用不重启，只换画面通道）
  */
 @Composable
-fun MultiSessionScreen(onBack: () -> Unit) {
+fun MultiSessionScreen(
+    onBack: () -> Unit,
+    /** 「直接连接」：复用设备页那套连接逻辑（含隧道/超时），由 MainScreen 注入。 */
+    onDirectConnect: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val activity = LocalActivity.current
@@ -172,8 +177,8 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 val used = slots.count { it.occupied }
                 Text("$used/${SlotSessionManager.MAX_SLOTS}", fontSize = 13.sp)
                 Spacer(Modifier.weight(1f))
-                TextButton(onClick = { showQuality = !showQuality }) { Text("画质") }
-                TextButton(onClick = onBack) { Text("返回") }
+                // 原来这里的「画质」「返回」已按要求移除：画质设置搬进设置页
+                // （QUIC 隧道配置下方），返回用手势/系统返回键。
             }
 
             if (showQuality) {
