@@ -485,8 +485,17 @@ private fun FullscreenSlot(
                 val maxY = (constraints.maxHeight - ballSizePx).coerceAtLeast(0)
                 val x = (maxX * asBundle.fullscreenFloatingButtonXFraction.coerceIn(0f, 1f)).toInt()
                 val y = (maxY * asBundle.fullscreenFloatingButtonYFraction.coerceIn(0f, 1f)).toInt()
-                LaunchedEffect(x, y, ballSizePx) {
-                    ballBounds = android.graphics.Rect(x, y, x + ballSizePx, y + ballSizePx)
+                // 外扩一圈：球的 offset 计算与真实布局之间可能存在少量系统差异
+                //（insets/状态栏），直接命中比精确边界重要 —— 豁免区域略大无害
+                //（那片区域本来就在游戏画面边缘）。
+                val pad = with(density) { 48.dp.roundToPx() }
+                LaunchedEffect(x, y, ballSizePx, pad) {
+                    ballBounds = android.graphics.Rect(
+                        (x - pad).coerceAtLeast(0),
+                        (y - pad).coerceAtLeast(0),
+                        (x + ballSizePx + pad).coerceAtMost(constraints.maxWidth),
+                        (y + ballSizePx + pad).coerceAtMost(constraints.maxHeight),
+                    )
                 }
             }
         }
