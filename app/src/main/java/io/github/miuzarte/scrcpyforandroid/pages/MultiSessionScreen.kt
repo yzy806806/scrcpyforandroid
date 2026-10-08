@@ -472,6 +472,14 @@ private fun FullscreenSlot(
         val sessionInfo = SlotSessionManager.sessionInfo(index)
         val scope2 = rememberCoroutineScope()
         val touchEventHandler = remember(sessionInfo, touchAreaSize) {
+            if (sessionInfo == null) {
+                android.util.Log.w("SlotFullscreen", "touchEventHandler=null sessionInfo=null（透传层未挂）slot=$index")
+            } else {
+                android.util.Log.i(
+                    "SlotFullscreen",
+                    "touchEventHandler 挂上 slot=$index session=${sessionInfo.width}x${sessionInfo.height}",
+                )
+            }
             sessionInfo?.let { info ->
                 TouchEventHandler(
                     coroutineScope = scope2,
