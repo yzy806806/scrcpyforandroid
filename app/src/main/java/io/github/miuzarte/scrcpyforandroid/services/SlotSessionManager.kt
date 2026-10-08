@@ -358,7 +358,11 @@ object SlotSessionManager {
                 // 缩略图也开 control：实测 control=false 时 Session 的视频读取会停在第 1 帧
                 // （原因未深究，疑似 server 在无控制连接时视频流的推送行为不同），黑屏
                 control = true
-                audio = false
+                // 音频只跟着**全屏**那一路：四格同时播音只会混成一团，听不出任何一路；
+                // 进全屏才开音频，等于"我现在操作的是这一路，就听这一路"。
+                // Scrcpy.start() 内部会为请求了音频流的会话自建 ScrcpyAudioPlayer 播放，
+                // 所以这里只要把流要过来即可。
+                audio = full
                 maxSize = (if (full) fullMaxSize else thumbMaxSize).toUShort()
                 maxFps = if (full) fullFps else thumbFps
                 videoBitRate = if (full) fullBitRate else thumbBitRate
