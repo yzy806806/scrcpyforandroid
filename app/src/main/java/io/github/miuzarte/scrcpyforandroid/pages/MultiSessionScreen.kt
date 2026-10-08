@@ -134,7 +134,6 @@ fun MultiSessionScreen(
     var selected by remember { mutableStateOf<Int?>(null) }
     var fullscreen by remember { mutableStateOf<Int?>(null) }
     var showPicker by remember { mutableStateOf(false) }
-    var showQuality by remember { mutableStateOf(false) }
     var installed by remember { mutableStateOf<List<Scrcpy.AppInfo>>(emptyList()) }
     var loadingApps by remember { mutableStateOf(false) }
 
@@ -185,15 +184,7 @@ fun MultiSessionScreen(
                 // （QUIC 隧道配置下方），返回用手势/系统返回键。
             }
 
-            if (showQuality) {
-                QualitySection(
-                    prefs = prefs,
-                    onChange = {
-                        prefs = it
-                        MultiSessionPrefs.save(context, it)
-                        MultiSessionPrefs.applyToSessionManager(it)
-                    },
-                )
+            // 画质设置已搬去设置页（QUIC 隧道配置下方）
             }
 
             // ── 收藏应用 ────────────────────────────────────────
@@ -688,49 +679,4 @@ private fun FullscreenSlot(
 }
 
 @Composable
-private fun QualitySection(
-    prefs: MultiSessionPrefs.Prefs,
-    onChange: (MultiSessionPrefs.Prefs) -> Unit,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(Color(0x11888888), RoundedCornerShape(8.dp))
-            .padding(10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        Text("缩略图（四宫格）", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Text("分辨率上限 ${prefs.thumbMaxSize} · 帧率 ${prefs.thumbFps} · 码率 ${prefs.thumbBitRate / 1000}kbps", fontSize = 12.sp)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(480, 720, 1080).forEach { size ->
-                OutlinedButton(
-                    onClick = { onChange(prefs.copy(thumbMaxSize = size)) },
-                    enabled = prefs.thumbMaxSize != size,
-                ) { Text("${size}p", fontSize = 12.sp) }
-            }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf("1", "5", "15").forEach { fps ->
-                OutlinedButton(
-                    onClick = { onChange(prefs.copy(thumbFps = fps)) },
-                    enabled = prefs.thumbFps != fps,
-                ) { Text("${fps}fps", fontSize = 12.sp) }
-            }
-        }
-        Text("全屏（打游戏）", fontSize = 12.sp, fontWeight = FontWeight.Medium)
-        Text(
-            "复用主屏参数：${if (prefs.fullMaxSize == 0) "原生" else "${prefs.fullMaxSize}p"} · " +
-                "${prefs.fullFps.ifEmpty { "不限" }}fps · ${prefs.fullBitRate / 1000}kbps",
-            fontSize = 12.sp,
-        )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            listOf(0, 1080, 720).forEach { size ->
-                OutlinedButton(
-                    onClick = { onChange(prefs.copy(fullMaxSize = size)) },
-                    enabled = prefs.fullMaxSize != size,
-                ) { Text(if (size == 0) "原生" else "${size}p", fontSize = 12.sp) }
-            }
-        }
-    }
-}
 

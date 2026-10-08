@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.storage.MultiSessionPrefs
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
@@ -179,6 +180,9 @@ fun SettingsPage(
             }
         }
     }
+
+    // 多应用挂机的画质参数：原来挂在挂机页顶部的「画质」按钮里，已按用户要求搬到这里
+    var slotPrefs by remember { mutableStateOf(MultiSessionPrefs.load(context)) }
 
     val tdBundleShared by tunnelDevices.bundleState.collectAsState()
     val tdBundleSharedLatest by rememberUpdatedState(tdBundleShared)
@@ -1217,6 +1221,20 @@ fun SettingsPage(
         }
 
         item {
+            SectionSmallTitle(stringResource(R.string.section_slot))
+            Card {
+                SlotQualitySection(
+                    prefs = slotPrefs,
+                    onChange = {
+                        slotPrefs = it
+                        MultiSessionPrefs.save(context, it)
+                        MultiSessionPrefs.applyToSessionManager(it)
+                    },
+                )
+            }
+        }
+
+        item {
             SectionSmallTitle(stringResource(R.string.section_terminal))
             Card {
                 ArrowSlider(
@@ -1661,6 +1679,58 @@ private fun TunnelDeviceEditorDialog(
                     colors = ButtonDefaults.textButtonColorsPrimary(),
                     enabled = isValid,
                 )
+            }
+        }
+    }
+}
+
+/** 多应用挂机的画质参数（原挂机页顶部的「画质」入口）。 */
+@Composable
+private fun SlotQualitySection(
+    prefs: MultiSessionPrefs.Prefs,
+    onChange: (MultiSessionPrefs.Prefs) -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(UiSpacing.Large),
+        verticalArrangement = Arrangement.spacedBy(UiSpacing.Small),
+    ) {
+        Text("缩略图（四宫格）", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            "分辨率上限 ${prefs.thumbMaxSize} · 帧率 ${prefs.thumbFps} · 码率 ${prefs.thumbBitRate / 1000}kbps",
+            fontSize = 12.sp,
+            color = colorScheme.onSurfaceVariantSummary,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)) {
+            listOf(480, 720, 1080).forEach { size ->
+                OutlinedButton(
+                    onClick = { onChange(prefs.copy(thumbMaxSize = size)) },
+                    enabled = prefs.thumbMaxSize != size,
+                ) { Text("${size}p", fontSize = 12.sp) }
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)) {
+            listOf("1", "5", "15").forEach { fps ->
+                OutlinedButton(
+                    onClick = { onChange(prefs.copy(thumbFps = fps)) },
+                    enabled = prefs.thumbFps != fps,
+                ) { Text("${fps}fps", fontSize = 12.sp) }
+            }
+        }
+        Text("全屏（打游戏）", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(
+            "复用主屏参数：${if (prefs.fullMaxSize == 0) "原生" else "${prefs.fullMaxSize}p"} · " +
+                "${prefs.fullFps.ifEmpty { "不限" }}fps · ${prefs.fullBitRate / 1000}kbps",
+            fontSize = 12.sp,
+            color = colorScheme.onSurfaceVariantSummary,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)) {
+            listOf(0, 1080, 720).forEach { size ->
+                OutlinedButton(
+                    onClick = { onChange(prefs.copy(fullMaxSize = size)) },
+                    enabled = prefs.fullMaxSize != size,
+                ) { Text(if (size == 0) "原生" else "${size}p", fontSize = 12.sp) }
             }
         }
     }

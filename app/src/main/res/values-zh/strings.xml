@@ -282,6 +282,7 @@
     <string name="pref_cannot_open_settings">无法打开设置</string>
 
     <!-- Settings - Terminal -->
+    <string name="section_slot">多应用挂机</string>
     <string name="section_terminal">终端</string>
     <string name="pref_title_terminal_font_size">终端字号</string>
     <string name="pref_summary_terminal_font_size">也可以在终端上双指缩放调整</string>
