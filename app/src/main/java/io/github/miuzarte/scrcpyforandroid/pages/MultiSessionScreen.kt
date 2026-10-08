@@ -492,9 +492,10 @@ private fun FullscreenSlot(
                     nextPointerLabel = 1,
                     mouseHoverEnabled = info.mouseHover,
                     onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
+                        // 尺寸由 SlotSessionManager 自己按会话取（必须与视频尺寸一致，
+                        // 否则 scrcpy server 会丢弃该触摸事件）
                         SlotSessionManager.injectTouch(
                             index, action, pointerId, x, y,
-                            touchAreaSize.width, touchAreaSize.height,
                             pressure, actionButton, buttons,
                         )
                     },
