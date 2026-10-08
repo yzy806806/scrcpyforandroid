@@ -3,6 +3,7 @@
     <string name="app_name">Scrcpy for Android</string>
 
     <!-- Main Tab Labels -->
+    <string name="main_tab_apps">Apps</string>
     <string name="main_tab_devices">Devices</string>
     <string name="main_tab_terminal">Terminal</string>
     <string name="main_tab_files">Files</string>

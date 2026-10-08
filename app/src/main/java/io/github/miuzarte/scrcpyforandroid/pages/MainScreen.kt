@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.material.icons.rounded.Apps
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -110,6 +111,9 @@ private enum class MainBottomTabDestination(
     @field:StringRes val labelResId: Int,
     val icon: ImageVector,
 ) {
+    // 多应用挂机：我们的功能独立成一个 tab，不去改设备页的内部布局，
+    // 这样以后同步上游时冲突面最小（只需在枚举/路由里各留一行）。
+    Apps(labelResId = R.string.main_tab_apps, icon = Icons.Rounded.Apps),
     Devices(labelResId = R.string.main_tab_devices, icon = Icons.Rounded.Devices),
     Terminal(labelResId = R.string.main_tab_terminal, icon = Icons.Rounded.Terminal),
     Files(labelResId = R.string.main_tab_files, icon = Icons.Rounded.Folder),
@@ -168,11 +172,11 @@ fun MainScreen() {
     val saveableStateHolder = rememberSaveableStateHolder()
     val tabs = remember { MainBottomTabDestination.entries }
     val pagerState = rememberPagerState(
-        initialPage = MainBottomTabDestination.Devices.ordinal,
+        initialPage = MainBottomTabDestination.Apps.ordinal,
         pageCount = { tabs.size },
     )
     var selectedTabIndex by rememberSaveable {
-        mutableIntStateOf(MainBottomTabDestination.Devices.ordinal)
+        mutableIntStateOf(MainBottomTabDestination.Apps.ordinal)
     }
     var pagerNavigationJob by remember { mutableStateOf<Job?>(null) }
     var isPagerNavigating by remember { mutableStateOf(false) }
@@ -593,6 +597,10 @@ fun MainScreen() {
                             val tab = tabs[page]
                             saveableStateHolder.SaveableStateProvider(tab.name) {
                                 when (tab) {
+                                    MainBottomTabDestination.Apps -> MultiSessionScreen(
+                                        onBack = {},
+                                    )
+
                                     MainBottomTabDestination.Devices -> DeviceTabScreen(
                                         viewModelFactory = deviceTabViewModelFactory,
                                         scrollBehavior = devicesPageScrollBehavior,

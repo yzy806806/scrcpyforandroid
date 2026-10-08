@@ -3,6 +3,7 @@
     <string name="app_name">Scrcpy for Android</string>
 
     <!-- Main Tab Labels -->
+    <string name="main_tab_apps">应用</string>
     <string name="main_tab_devices">设备</string>
     <string name="main_tab_terminal">终端</string>
     <string name="main_tab_files">文件</string>
