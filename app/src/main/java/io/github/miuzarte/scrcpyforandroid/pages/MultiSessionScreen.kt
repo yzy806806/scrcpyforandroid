@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import top.yukonga.miuix.kmp.basic.Scaffold
 import android.view.MotionEvent
 import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import android.view.SurfaceHolder
@@ -279,7 +280,13 @@ fun MultiSessionScreen(onBack: () -> Unit) {
         }
 
         // ── 全屏 ───────────────────────────────────────────────
+        //
+        // 外面这层 Scaffold 不是为了布局，而是为了**弹层宿主**：miuix 的悬浮球菜单是通过
+        // Scaffold 提供的 LocalPopupStates 集中渲染的。本页原先没有 Scaffold，菜单被
+        // trigger 打开后只是塞进了一个没人渲染的状态列表 —— 表现就是「点球没反应」
+        // （日志里 show=true、条目 20 个，但屏幕上什么都没有）。
         fullscreen?.let { index ->
+          Scaffold(containerColor = Color.Black) {
             FullscreenSlot(
                 index = index,
                 onNextApp = {
@@ -291,6 +298,7 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 },
                 onBackToGrid = { fullscreen = null },
             )
+          }
         }
 
         // ── 应用选择 ───────────────────────────────────────────
@@ -598,8 +606,6 @@ private fun FullscreenSlot(
                 }
             },
             modifier = Modifier.fillMaxSize(),
-            // 多会话全屏页拿不到根 Scaffold 的弹层宿主（菜单不会显示），改用局部宿主
-            renderInRootScaffold = false,
         )
     }
 }
