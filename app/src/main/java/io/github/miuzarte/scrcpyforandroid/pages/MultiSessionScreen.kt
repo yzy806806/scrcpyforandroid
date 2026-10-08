@@ -608,11 +608,12 @@ private fun PassthroughFloatingBall(
     var offsetY by remember { mutableStateOf(prefs.ballYFraction) }
     var menuExpanded by remember { mutableStateOf(false) }
 
+    val density = LocalDensity.current
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val ballSize = 72.dp
-        val ballPx = with(LocalDensity.current) { ballSize.toPx() }
-        val maxXPx = (constraints.maxWidth.toPx() - ballPx).coerceAtLeast(0f)
-        val maxYPx = (constraints.maxHeight.toPx() - ballPx).coerceAtLeast(0f)
+        val ballPx = ballSize.value * density.density
+        val maxXPx = (constraints.maxWidth.value * density.density - ballPx).coerceAtLeast(0f)
+        val maxYPx = (constraints.maxHeight.value * density.density - ballPx).coerceAtLeast(0f)
         val xPx = maxXPx * offsetX.coerceIn(0f, 1f)
         val yPx = maxYPx * offsetY.coerceIn(0f, 1f)
 
