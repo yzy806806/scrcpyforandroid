@@ -501,6 +501,7 @@ private fun FullscreenSlot(
             }
         }
 
+        // 视频区（透传层：把 MotionEvent 实时注入被控端）
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -514,36 +515,37 @@ private fun FullscreenSlot(
                     },
                 ),
         ) {
-            // 视频区
-            Box(modifier = Modifier.fillMaxSize()) {
-                SlotSurface(index = index, full = true)
-            }
-
-            // 悬浮球: 原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化、外观一致），
-            // 菜单里带原版动作(退出全屏) + 多会话新动作(下一个应用/回应用列表)。
-            val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
-            val ballBar = VirtualButtonBar(
-                outside = emptyList(),
-                more = VirtualButtonActions.mergedOrder(
-                    items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
-                    excluded = setOf(VirtualButtonAction.MORE),
-                ) + listOf(
-                    VirtualButtonAction.SLOT_NEXT_APP,
-                    VirtualButtonAction.SLOT_BACK_TO_GRID,
-                ),
-            )
-            ballBar.FloatingBall(
-                onAction = { action ->
-                    when (action) {
-                        VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
-                        VirtualButtonAction.SLOT_NEXT_APP -> onNextApp()
-                        VirtualButtonAction.SLOT_BACK_TO_GRID -> onBackToGrid()
-                        else -> Unit
-                    }
-                },
-                modifier = Modifier.fillMaxSize(),
-            )
+            SlotSurface(index = index, full = true)
         }
+
+        // 悬浮球：原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化、外观一致）。
+        // 菜单 = 用户配置的动作 + 多会话新增两项（退出全屏 / 切换下一个 / 回应用列表）。
+        //
+        // **结构要点（照原版 FullscreenControlPage）**：球必须在透传层**之外**的
+        // 兄弟层。若放进透传层内，点球会被注入到被控端 —— 原版正是这样摆放的
+        // （FullscreenControlScreen 里球在 Page 外、透传层在 Page 根）。
+        val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
+        val ballBar = VirtualButtonBar(
+            outside = emptyList(),
+            more = VirtualButtonActions.mergedOrder(
+                items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
+                excluded = setOf(VirtualButtonAction.MORE),
+            ) + listOf(
+                VirtualButtonAction.SLOT_NEXT_APP,
+                VirtualButtonAction.SLOT_BACK_TO_GRID,
+            ),
+        )
+        ballBar.FloatingBall(
+            onAction = { action ->
+                when (action) {
+                    VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
+                    VirtualButtonAction.SLOT_NEXT_APP -> onNextApp()
+                    VirtualButtonAction.SLOT_BACK_TO_GRID -> onBackToGrid()
+                    else -> Unit
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
     }
 }
 
