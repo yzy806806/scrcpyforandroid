@@ -707,13 +707,17 @@ fun MainScreen() {
             )
         }
 
-        entry<RootScreen.MultiSession>(swipeDismiss = swipeBackDirection) {
+        // 多应用挂机页里包含「全屏操作」形态：横屏玩游戏时从边缘往回滑极易误触。
+        // 而滑动返回是 nav 自己的手势，不走返回键，全屏页里"返回注入被控端"拦不住它，
+        // 所以这里整体关掉（系统返回键仍然可用）。
+        entry<RootScreen.MultiSession>(swipeDismiss = NavSwipeDirection.None) {
             MultiSessionScreen(
                 onBack = { rootNavigator.pop() },
             )
         }
 
-        entry<RootScreen.FullscreenControl>(swipeDismiss = swipeBackDirection) {
+        // 同上：真实投屏的全屏页同样不该被边缘滑动误退
+        entry<RootScreen.FullscreenControl>(swipeDismiss = NavSwipeDirection.None) {
             FullscreenControlRoute(
                 scrcpy = scrcpy,
                 onBack = rootNavigator.pop,
