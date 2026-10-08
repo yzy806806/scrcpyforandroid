@@ -337,6 +337,8 @@
     <string name="vb_toggle_ime">Toggle IME</string>
     <string name="vb_paste_clipboard">Paste local clipboard</string>
     <string name="vb_exit_fullscreen">Exit fullscreen</string>
+    <string name="vb_slot_next_app">Next app</string>
+    <string name="vb_slot_back_to_grid">Back to app list</string>
 
     <!-- Dock Positions -->
     <string name="dock_follow">Follow</string>

@@ -336,6 +336,8 @@
     <string name="vb_toggle_ime">拉起输入法</string>
     <string name="vb_paste_clipboard">粘贴本机剪贴板</string>
     <string name="vb_exit_fullscreen">退出全屏</string>
+    <string name="vb_slot_next_app">切换下一个应用</string>
+    <string name="vb_slot_back_to_grid">回应用列表</string>
 
     <!-- Dock Positions -->
     <string name="dock_follow">跟随</string>

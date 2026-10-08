@@ -190,6 +190,24 @@ enum class VirtualButtonAction(
         keycode = null,
         behavior = VirtualButtonBehavior.HOST_ACTION,
         fullscreenOnly = true,
+    ),
+    // 多应用会话全屏页专用: 切到下一个挂机位 / 回到应用列表。
+    // 只在多会话界面注册(visibleOn 过滤 + 宿主分发), 不进用户排序页的默认布局。
+    SLOT_NEXT_APP(
+        id = "slot_next_app",
+        titleResId = R.string.vb_slot_next_app,
+        icon = Icons.Rounded.SkipNext,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
+    ),
+    SLOT_BACK_TO_GRID(
+        id = "slot_back_to_grid",
+        titleResId = R.string.vb_slot_back_to_grid,
+        icon = Icons.Rounded.Apps,
+        keycode = null,
+        behavior = VirtualButtonBehavior.HOST_ACTION,
+        fullscreenOnly = true,
     );
 }
 
@@ -221,6 +239,12 @@ interface VirtualButtonHost {
 
     // 把本机剪贴板内容粘贴到设备
     fun handlePasteLocalClipboard() = Unit
+
+    // 多应用会话全屏页: 切到下一个挂机位
+    fun handleSlotNextApp() = Unit
+
+    // 多应用会话全屏页: 回到应用列表
+    fun handleSlotBackToGrid() = Unit
 }
 
 object VirtualButtonActions {
@@ -334,6 +358,8 @@ object VirtualButtonActions {
                 VirtualButtonAction.ALL_APPS -> host.handleShowAllApps()
                 VirtualButtonAction.TOGGLE_IME -> host.handleToggleIme()
                 VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> host.handlePasteLocalClipboard()
+                VirtualButtonAction.SLOT_NEXT_APP -> host.handleSlotNextApp()
+                VirtualButtonAction.SLOT_BACK_TO_GRID -> host.handleSlotBackToGrid()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")
             }

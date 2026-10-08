@@ -69,6 +69,9 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonActions
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
@@ -455,91 +458,94 @@ private fun FullscreenSlot(
         scope.launch { SlotSessionManager.injectBack(index) }
     }
 
-    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
-        // 视频区：可交互（触摸透传到被控端）
-        Box(modifier = Modifier.fillMaxSize()) {
-            InteractiveSlotSurface(index = index, full = true)
+    // 结构与原版 FullscreenControlPage 同构：透传层挂在**根容器**上，悬浮球是它的
+    // 子节点 —— 这样球自己收事件（父层的透传只在子节点不消费后才看到），球可点可拖。
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black),
+    ) {
+        val rootWidth = constraints.maxWidth
+        val rootHeight = constraints.maxHeight
+        var touchAreaSize by remember { mutableStateOf(IntSize(rootWidth, rootHeight)) }
+
+        val sessionInfo = SlotSessionManager.sessionInfo(index)
+        val scope2 = rememberCoroutineScope()
+        val touchEventHandler = remember(sessionInfo, touchAreaSize) {
+            sessionInfo?.let { info ->
+                TouchEventHandler(
+                    coroutineScope = scope2,
+                    session = info,
+                    touchAreaSize = touchAreaSize,
+                    activePointerIds = linkedSetOf(),
+                    activePointerPositions = linkedMapOf(),
+                    activePointerDevicePositions = linkedMapOf(),
+                    pointerLabels = linkedMapOf(),
+                    nextPointerLabel = 1,
+                    mouseHoverEnabled = info.mouseHover,
+                    onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
+                        SlotSessionManager.injectTouch(
+                            index, action, pointerId, x, y,
+                            touchAreaSize.width, touchAreaSize.height,
+                            pressure, actionButton, buttons,
+                        )
+                    },
+                    onBackOrScreenOn = { action ->
+                        SlotSessionManager.injectBackAction(index, action)
+                        Unit
+                    },
+                    onActiveTouchCountChanged = {},
+                    onActiveTouchDebugChanged = {},
+                    onNextPointerLabelChanged = {},
+                )
+            }
         }
 
-        // 悬浮球：这里是本页自带的实现（视觉向原版球对齐：黑底半透明圆 + 白环）。
-        // 不用原版 VirtualButtonBar.FloatingBall 的原因：它的点击在带触摸透传的
-        // 全屏页里点不到（实测：球上的点击被 kiosk 透传层截走，onClick 从不触发）。
-        // 自己的球自己管理事件，100% 可点 + 可拖动。
-        PassthroughFloatingBall(
-            onNextApp = onNextApp,
-            onBackToGrid = onBackToGrid,
-        )
-    }
-}
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(
+                    if (touchEventHandler != null) {
+                        Modifier.pointerInteropFilter { event ->
+                            touchEventHandler.handleMotionEvent(event)
+                        }
+                    } else {
+                        Modifier
+                    },
+                ),
+        ) {
+            // 视频区
+            Box(modifier = Modifier.fillMaxSize()) {
+                SlotSurface(index = index, full = true)
+            }
 
-/**
- * 可交互的槽位画面：触摸/多指/鼠标直接透传到被控端对应位置。
- *
- * 透传方式与原版预览卡（DeviceWidgets PreviewCard）和全屏页完全一致：
- * SurfaceView 上叠 `pointerInteropFilter`，把 MotionEvent 原样交给
- * [TouchEventHandler]，由它按会话分辨率换算坐标后走 scrcpy 控制通道注入。
- */
-@Composable
-private fun InteractiveSlotSurface(
-    index: Int,
-    full: Boolean,
-) {
-    val slot = SlotSessionManager.slot(index)
-    val scope = rememberCoroutineScope()
-    var touchAreaSize by remember { mutableStateOf(IntSize.Zero) }
-
-    // 该槽位对应的 scrcpy 会话信息（宽高/鼠标悬停支持等）
-    val sessionInfo = SlotSessionManager.sessionInfo(index)
-
-    val touchEventHandler = remember(sessionInfo, touchAreaSize) {
-        sessionInfo?.let { info ->
-            TouchEventHandler(
-                coroutineScope = scope,
-                session = info,
-                touchAreaSize = touchAreaSize,
-                activePointerIds = linkedSetOf(),
-                activePointerPositions = linkedMapOf(),
-                activePointerDevicePositions = linkedMapOf(),
-                pointerLabels = linkedMapOf(),
-                nextPointerLabel = 1,
-                mouseHoverEnabled = info.mouseHover,
-                onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
-                    SlotSessionManager.injectTouch(
-                        index, action, pointerId, x, y,
-                        touchAreaSize.width, touchAreaSize.height,
-                        pressure, actionButton, buttons,
-                    )
+            // 悬浮球: 原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化、外观一致），
+            // 菜单里带原版动作(退出全屏) + 多会话新动作(下一个应用/回应用列表)。
+            val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
+            val ballBar = VirtualButtonBar(
+                outside = emptyList(),
+                more = VirtualButtonActions.mergedOrder(
+                    items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
+                    excluded = setOf(VirtualButtonAction.MORE),
+                ) + listOf(
+                    VirtualButtonAction.SLOT_NEXT_APP,
+                    VirtualButtonAction.SLOT_BACK_TO_GRID,
+                ),
+            )
+            ballBar.FloatingBall(
+                onAction = { action ->
+                    when (action) {
+                        VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
+                        VirtualButtonAction.SLOT_NEXT_APP -> onNextApp()
+                        VirtualButtonAction.SLOT_BACK_TO_GRID -> onBackToGrid()
+                        else -> Unit
+                    }
                 },
-                onBackOrScreenOn = { action ->
-                    SlotSessionManager.injectBackAction(index, action)
-                    Unit
-                },
-                onActiveTouchCountChanged = {},
-                onActiveTouchDebugChanged = {},
-                onNextPointerLabelChanged = {},
+                modifier = Modifier.fillMaxSize(),
             )
         }
     }
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .onSizeChanged { touchAreaSize = it }
-            .then(
-                if (touchEventHandler != null) {
-                    Modifier.pointerInteropFilter { event ->
-                        touchEventHandler.handleMotionEvent(event)
-                    }
-                } else {
-                    Modifier
-                },
-            ),
-    ) {
-        SlotSurface(index = index, full = full)
-    }
 }
-
-
 
 @Composable
 private fun QualitySection(
@@ -588,132 +594,3 @@ private fun QualitySection(
     }
 }
 
-/**
- * 全屏页自带的悬浮球：黑底半透明圆 + 白环（对齐原版口径），单击弹菜单、可拖动。
- *
- * 为什么不用原版 `VirtualButtonBar.FloatingBall`：原版的球点击依赖
- * `detectDragGestures` 外层 + miuix `Button` 的组合，在铺了触摸透传的全屏页上
- * 实测点击会被透传层截走、`onClick` 从不触发。这里球自己 `pointerInput` 收事件，
- * 触摸/拖动完全可控（不拖动 = 单击弹菜单；拖动 = 移动球；拖动超过阈值不算单击）。
- * 位置持久化到多会话自己的配置里（不进原版 AppSettings，免得污染原有语义）。
- */
-@Composable
-private fun PassthroughFloatingBall(
-    onNextApp: () -> Unit,
-    onBackToGrid: () -> Unit,
-) {
-    val context = LocalContext.current
-    var prefs by remember { mutableStateOf(MultiSessionPrefs.load(context)) }
-    // 首次启动默认右下（0.5 会落在正中间）。旧配置存了 0.5 的也当作「未拖过」。
-    val initialX = if (prefs.ballXFraction == 0.5f) 0.9f else prefs.ballXFraction
-    val initialY = if (prefs.ballYFraction == 0.5f) 0.9f else prefs.ballYFraction
-    var offsetX by remember { mutableStateOf(initialX) }
-    var offsetY by remember { mutableStateOf(initialY) }
-    var menuExpanded by remember { mutableStateOf(false) }
-
-    // BoxWithConstraints 的 constraints 是 px(Int)，直接用
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val ballSizeDp = 72.dp
-        val ballPx = with(LocalDensity.current) { ballSizeDp.toPx() }
-        val maxXPx = (constraints.maxWidth - ballPx).coerceAtLeast(0f)
-        val maxYPx = (constraints.maxHeight - ballPx).coerceAtLeast(0f)
-        val xPx = maxXPx * offsetX.coerceIn(0f, 1f)
-        val yPx = maxYPx * offsetY.coerceIn(0f, 1f)
-
-        Box(
-            modifier = Modifier
-                .offset { IntOffset(xPx.roundToInt(), yPx.roundToInt()) }
-                .size(ballSizeDp)
-                .pointerInput(Unit) {
-                    var dragging = false
-                    var startX = 0f
-                    var startY = 0f
-                    detectTapAndDrag(
-                        onTap = { menuExpanded = true },
-                        onDragStart = { offsetX0, offsetY0 ->
-                            dragging = true
-                            startX = offsetX0
-                            startY = offsetY0
-                        },
-                        onDrag = { dx, dy ->
-                            if (dragging) {
-                                val nx = (startX + dx).coerceIn(0f, maxXPx)
-                                val ny = (startY + dy).coerceIn(0f, maxYPx)
-                                offsetX = if (maxXPx > 0f) nx / maxXPx else 0f
-                                offsetY = if (maxYPx > 0f) ny / maxYPx else 0f
-                                startX = nx
-                                startY = ny
-                            }
-                        },
-                        onDragEnd = {
-                            dragging = false
-                            prefs = MultiSessionPrefs.saveBallPosition(context, offsetX, offsetY)
-                        },
-                    )
-                },
-        ) {
-            // 球体外观
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0x99000000), CircleShape)
-                    .border(1.5.dp, Color(0x66FFFFFF), CircleShape),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("≡", color = Color.White, fontSize = 18.sp)
-            }
-
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                DropdownMenuItem(
-                    text = { Text("切换下一个") },
-                    onClick = { menuExpanded = false; onNextApp() },
-                )
-                DropdownMenuItem(
-                    text = { Text("回应用列表") },
-                    onClick = { menuExpanded = false; onBackToGrid() },
-                )
-            }
-        }
-    }
-}
-
-/** 简易 单击/拖动 识别：拖动累计超过 touch slop 就不算单击。 */
-private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectTapAndDrag(
-    onTap: () -> Unit,
-    onDragStart: (Float, Float) -> Unit,
-    onDrag: (Float, Float) -> Unit,
-    onDragEnd: () -> Unit,
-) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        down.consume()
-        var dragging = false
-        var total = 0f
-        var lastX = down.position.x
-        var lastY = down.position.y
-        while (true) {
-            val event = awaitPointerEvent()
-            val change = event.changes.firstOrNull { it.id == down.id } ?: break
-            if (change.pressed) {
-                val dx = change.position.x - lastX
-                val dy = change.position.y - lastY
-                lastX = change.position.x
-                lastY = change.position.y
-                total += kotlin.math.abs(dx) + kotlin.math.abs(dy)
-                if (total > 12f) {
-                    if (!dragging) {
-                        dragging = true
-                        onDragStart(down.position.x, down.position.y)
-                    }
-                    onDrag(dx, dy)
-                }
-            } else {
-                if (dragging) onDragEnd() else onTap()
-                break
-            }
-        }
-    }
-}
