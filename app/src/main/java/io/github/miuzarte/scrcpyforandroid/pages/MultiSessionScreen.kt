@@ -608,12 +608,11 @@ private fun PassthroughFloatingBall(
     var offsetY by remember { mutableStateOf(prefs.ballYFraction) }
     var menuExpanded by remember { mutableStateOf(false) }
 
-    val density = LocalDensity.current
+    // BoxWithConstraints 的 constraints 是 px(Int)，直接用
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val ballSize = 72.dp
-        val ballPx = ballSize.value * density.density
-        val maxXPx = (constraints.maxWidth.value * density.density - ballPx).coerceAtLeast(0f)
-        val maxYPx = (constraints.maxHeight.value * density.density - ballPx).coerceAtLeast(0f)
+        val ballPx = with(LocalDensity.current) { 72.dp.toPx() }
+        val maxXPx = (constraints.maxWidth - ballPx).coerceAtLeast(0f)
+        val maxYPx = (constraints.maxHeight - ballPx).coerceAtLeast(0f)
         val xPx = maxXPx * offsetX.coerceIn(0f, 1f)
         val yPx = maxYPx * offsetY.coerceIn(0f, 1f)
 
