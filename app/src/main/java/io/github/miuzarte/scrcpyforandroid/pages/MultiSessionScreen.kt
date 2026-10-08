@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -111,10 +112,8 @@ fun MultiSessionScreen(onBack: () -> Unit) {
     // 全屏覆盖、所有触摸都透传给被控端，画中画窗口因此**收不到任何触摸** —— 用户看到
     // 的就是「有个浮窗关不掉」。进到挂机/全屏这一页就退出画中画。
     DisposableEffect(activity) {
-        val act = activity
-        if (act != null && act.isInPictureInPictureMode) {
-            runCatching { act.exitPictureInPictureMode() }
-        }
+        // 项目里画中画归 StreamActivity 管，用它自己的入口（内部会检查状态）
+        runCatching { StreamActivity.dismissActivePictureInPicture() }
         onDispose { }
     }
 
