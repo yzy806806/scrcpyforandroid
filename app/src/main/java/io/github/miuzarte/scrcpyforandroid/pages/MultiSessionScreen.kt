@@ -2,6 +2,9 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
+import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
+import top.yukonga.miuix.kmp.theme.MiuixTheme.colorScheme
 import androidx.compose.foundation.layout.fillMaxHeight
 import io.github.miuzarte.scrcpyforandroid.R
 import androidx.compose.ui.res.stringResource
@@ -173,12 +176,16 @@ fun MultiSessionScreen(
             ) {
                 Text(
                     text = if (holderAlive) "挂机服务在线" else "挂机服务未运行",
-                    color = if (holderAlive) Color(0xFF2E7D32) else Color(0xFFC62828),
-                    fontSize = 13.sp,
+                    color = if (holderAlive) colorScheme.primary else colorScheme.error,
+                    fontSize = textStyles.body2.fontSize,
                 )
-                Spacer(Modifier.width(8.dp))
+                Spacer(Modifier.width(UiSpacing.Medium))
                 val used = slots.count { it.occupied }
-                Text("$used/${SlotSessionManager.MAX_SLOTS}", fontSize = 13.sp)
+                Text(
+                    "$used/${SlotSessionManager.MAX_SLOTS}",
+                    fontSize = textStyles.body2.fontSize,
+                    color = colorScheme.onSurfaceVariantSummary,
+                )
                 Spacer(Modifier.weight(1f))
                 // 原来这里的「画质」「返回」已按要求移除：画质设置搬进设置页
                 // （QUIC 隧道配置下方），返回用手势/系统返回键。
@@ -189,7 +196,7 @@ fun MultiSessionScreen(
 
             // ── 收藏应用 ────────────────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("我的应用", fontWeight = FontWeight.Medium, fontSize = 15.sp)
+                Text("我的应用", fontWeight = FontWeight.Medium, fontSize = textStyles.body1.fontSize)
                 Spacer(Modifier.weight(1f))
                 TextButton(
                     onClick = {
