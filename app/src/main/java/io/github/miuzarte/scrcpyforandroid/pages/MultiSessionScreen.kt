@@ -192,9 +192,6 @@ fun MultiSessionScreen(
                 // （QUIC 隧道配置下方），返回用手势/系统返回键。
             }
 
-            // 画质设置已搬去设置页（QUIC 隧道配置下方）
-            }
-
             // ── 收藏应用 ────────────────────────────────────────
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("我的应用", fontWeight = FontWeight.Medium, fontSize = textStyles.body1.fontSize)
