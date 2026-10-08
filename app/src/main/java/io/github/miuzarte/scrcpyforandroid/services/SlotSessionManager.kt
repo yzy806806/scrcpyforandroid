@@ -331,7 +331,9 @@ object SlotSessionManager {
             val full = s.full
             val options = ClientOptions().apply {
                 displayId = s.displayId
-                control = full
+                // 缩略图也开 control：实测 control=false 时 Session 的视频读取会停在第 1 帧
+                // （原因未深究，疑似 server 在无控制连接时视频流的推送行为不同），黑屏
+                control = true
                 audio = false
                 maxSize = (if (full) fullMaxSize else thumbMaxSize).toUShort()
                 maxFps = if (full) fullFps else thumbFps
