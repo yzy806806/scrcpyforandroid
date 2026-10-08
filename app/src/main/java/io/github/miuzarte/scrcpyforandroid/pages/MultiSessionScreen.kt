@@ -597,6 +597,7 @@ private fun FullscreenSlot(
         ballBar.FloatingBall(
             onBoundsChanged = { ballBounds = it },
             onAction = { action ->
+                android.util.Log.i("SlotFullscreen", "ball menu action=$action")
                 when (action) {
                     VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
                     VirtualButtonAction.SLOT_NEXT_APP -> onNextApp()

@@ -518,6 +518,7 @@ class VirtualButtonBar(
         // 只有槽位状态跨组合保留, 其余数据每次组合重新构造
         val slots = remember(this) { PopupSlots<PopupSlot>() }
         fun dispatch(action: VirtualButtonAction) {
+            android.util.Log.i("VirtualButtons", "dispatch action=$action")
             scope.launch { onAction(action) }
         }
         // 条目回调经 rememberUpdatedState 转发, 点下去时读到的总是当次组合的分发
