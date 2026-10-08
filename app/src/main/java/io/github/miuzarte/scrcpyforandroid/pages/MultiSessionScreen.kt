@@ -236,9 +236,17 @@ fun MultiSessionScreen(onBack: () -> Unit) {
             }
 
             // ── 四宫格 ─────────────────────────────────────────
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // 2×2 撑满页面剩余高度：格子因此是竖的（微信这类竖屏应用一眼能看清，
+            // 横屏游戏歪头看个状态足够，需要操作就点进全屏）。
+            Column(
+                modifier = Modifier.fillMaxWidth().weight(1f),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
                 for (row in 0 until 2) {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().weight(1f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
                         for (col in 0 until 2) {
                             val index = row * 2 + col
                             SlotCell(
@@ -403,7 +411,7 @@ private fun SlotCell(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .aspectRatio(1f)
+                .weight(1f)
                 .background(Color(0xFF101010), RoundedCornerShape(8.dp))
                 .combinedClickable(
                     onClick = onSelect,
