@@ -49,8 +49,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import android.content.pm.ActivityInfo
@@ -609,14 +611,14 @@ private fun PassthroughFloatingBall(
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val ballSize = 72.dp
         val ballPx = with(LocalDensity.current) { ballSize.toPx() }
-        val maxX = (constraints.maxWidth - ballSize).coerceAtLeast(0.dp)
-        val maxY = (constraints.maxHeight - ballSize).coerceAtLeast(0.dp)
-        val xDp = maxX * offsetX.coerceIn(0f, 1f)
-        val yDp = maxY * offsetY.coerceIn(0f, 1f)
+        val maxXPx = (constraints.maxWidth.toPx() - ballPx).coerceAtLeast(0f)
+        val maxYPx = (constraints.maxHeight.toPx() - ballPx).coerceAtLeast(0f)
+        val xPx = maxXPx * offsetX.coerceIn(0f, 1f)
+        val yPx = maxYPx * offsetY.coerceIn(0f, 1f)
 
         Box(
             modifier = Modifier
-                .offset(x = xDp, y = yDp)
+                .offset { IntOffset(xPx.roundToInt(), yPx.roundToInt()) }
                 .size(ballSize)
                 .pointerInput(Unit) {
                     var dragging = false
@@ -631,10 +633,10 @@ private fun PassthroughFloatingBall(
                         },
                         onDrag = { dx, dy ->
                             if (dragging) {
-                                val nx = (startX + dx).coerceIn(0f, maxX.toPx())
-                                val ny = (startY + dy).coerceIn(0f, maxY.toPx())
-                                offsetX = if (maxX > 0.dp) nx / maxX.toPx() else 0f
-                                offsetY = if (maxY > 0.dp) ny / maxY.toPx() else 0f
+                                val nx = (startX + dx).coerceIn(0f, maxXPx)
+                                val ny = (startY + dy).coerceIn(0f, maxYPx)
+                                offsetX = if (maxXPx > 0f) nx / maxXPx else 0f
+                                offsetY = if (maxYPx > 0f) ny / maxYPx else 0f
                                 startX = nx
                                 startY = ny
                             }
@@ -691,7 +693,7 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectTa
             val change = event.changes.firstOrNull { it.id == down.id } ?: break
             if (change.pressed) {
                 val d = change.positionChange()
-                total += d.getDistance()
+                total += androidx.compose.ui.geometry.Offset(d.x, d.y).getDistance()
                 if (total > 12f) {
                     if (!dragging) {
                         dragging = true
