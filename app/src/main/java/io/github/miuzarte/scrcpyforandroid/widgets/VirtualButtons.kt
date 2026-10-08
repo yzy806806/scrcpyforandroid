@@ -857,20 +857,11 @@ class VirtualButtonBar(
                         (asBundleShared.fullscreenFloatingButtonRingAlphaPercent / 100f)
                             .coerceIn(0f, 1f),
                     // 「更多」不在球的条目里, 用它当"打开菜单"的触发动作
-                    onClick = {
-                        android.util.Log.i("FloatingBall", "ball onClick")
-                        popups.trigger(VirtualButtonAction.MORE)
-                    },
+                    onClick = { popups.trigger(VirtualButtonAction.MORE) },
                 )
 
-                val ballMenuOpen = popups.isOpen(popups.menuSlot)
-                android.util.Log.i(
-                    "FloatingBall",
-                    "render: show=$ballMenuOpen entries=${popups.entries.size} " +
-                        "items=${popups.entries.firstOrNull()?.items?.size} rootScaffold=$renderInRootScaffold",
-                )
                 ActionCascadingPopup(
-                    show = ballMenuOpen,
+                    show = popups.isOpen(popups.menuSlot),
                     entries = popups.entries,
                     onDismissRequest = popups::close,
                     alignment = popupAlignment,

@@ -579,13 +579,12 @@ private fun FullscreenSlot(
         // 兄弟层。若放进透传层内，点球会被注入到被控端 —— 原版正是这样摆放的
         // （FullscreenControlScreen 里球在 Page 外、透传层在 Page 根）。
         val asBundle by Storage.appSettings.bundleState.collectAsState()
+        // 不用手动加多会话的两个动作: parseStoredLayout 会把「未出现在已存布局里的动作」
+        // 统一追加到末尾（新增动作本来就不需要迁移存储）。手动再加一遍会让菜单里出现两份。
         val ballActions = remember(asBundle.virtualButtonsLayout) {
             VirtualButtonActions.mergedOrder(
                 items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
                 excluded = setOf(VirtualButtonAction.MORE),
-            ) + listOf(
-                VirtualButtonAction.SLOT_NEXT_APP,
-                VirtualButtonAction.SLOT_BACK_TO_GRID,
             )
         }
         // **必须 remember**：球内部的弹层状态槽是 `remember(this) { PopupSlots() }`，
