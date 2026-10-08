@@ -604,8 +604,11 @@ private fun PassthroughFloatingBall(
 ) {
     val context = LocalContext.current
     var prefs by remember { mutableStateOf(MultiSessionPrefs.load(context)) }
-    var offsetX by remember { mutableStateOf(prefs.ballXFraction) }
-    var offsetY by remember { mutableStateOf(prefs.ballYFraction) }
+    // 首次启动默认右下（0.5 会落在正中间）。旧配置存了 0.5 的也当作「未拖过」。
+    val initialX = if (prefs.ballXFraction == 0.5f) 0.9f else prefs.ballXFraction
+    val initialY = if (prefs.ballYFraction == 0.5f) 0.9f else prefs.ballYFraction
+    var offsetX by remember { mutableStateOf(initialX) }
+    var offsetY by remember { mutableStateOf(initialY) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     // BoxWithConstraints 的 constraints 是 px(Int)，直接用
