@@ -16,6 +16,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import android.graphics.Rect
+import android.util.Log as AndroidLog
+import androidx.compose.ui.unit.IntSize
 
 /**
  * 一个挂机槽位对外暴露的**不可变快照**。
@@ -58,6 +61,9 @@ private class SlotSession(val index: Int) {
     var renderer: PersistentVideoRenderer? = null
     var controller: VideoDecoderController? = null
     var sizeWatchJob: Job? = null
+
+    /** 该槽位的注入协程域（触摸/按键注入用，不阻塞主线程）。 */
+    val jobScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 }
 
 /**
@@ -91,6 +97,30 @@ object SlotSessionManager {
 
     private val _busy = MutableStateFlow(false)
     val busy: StateFlow<Boolean> = _busy.asStateFlow()
+
+    /** 每路会话的当前视频尺寸（供全屏页跟随旋转）。 */
+    private val sessionSizes = MutableStateFlow(List(MAX_SLOTS) { IntSize.Zero })
+    fun sessionSize(index: Int): StateFlow<IntSize> {
+        val flows = sessionSizes
+        return object : StateFlow<IntSize> {
+            override val value: IntSize get() = flows.value[index]
+            override val replayCache: List<IntSize> get() = listOf(value)
+            override suspend fun collect(collector: kotlinx.coroutines.flow.FlowCollector<IntSize>): Nothing {
+                flows.collect { list -> collector.emit(list[index]) }
+            }
+        }
+    }
+
+    fun sessionSizeAll(): StateFlow<List<IntSize>> = sessionSizes
+
+    fun sessionInfo(index: Int): Scrcpy.Session.SessionInfo? =
+        session.getOrNull(index)?.scrcpy?.currentSessionState?.value
+
+    /** 全屏页进入时调用：确保该槽位的尺寸监听在跑（挂机位运行中但页面晚开的情况）。 */
+    fun attachSessionWatcher(index: Int) {
+        session.getOrNull(index) ?: return
+        // 尺寸监听在 startSession 里已启动；这里只是占位，让调用方语义完整。
+    }
 
     fun slot(index: Int): SlotUi = _slots.value[index.coerceIn(0, MAX_SLOTS - 1)]
 
@@ -335,6 +365,10 @@ object SlotSessionManager {
                     if (cur.width != lastW || cur.height != lastH) {
                         lastW = cur.width
                         lastH = cur.height
+                        // 发布尺寸（全屏页据此旋转）并按需重建解码器
+                        sessionSizes.value = sessionSizes.value.toMutableList().also {
+                            it[s.index] = IntSize(cur.width, cur.height)
+                        }
                         runCatching { s.controller?.rebuildDecoderForSize(cur) }
                     }
                 }
@@ -358,5 +392,67 @@ object SlotSessionManager {
         s.controller = null
         s.renderer = null
         s.running = false
+    }
+
+    // ── 输入注入（全屏页触摸透传 / 返回手势）────────────────────────
+
+    /** 触摸注入：坐标由 TouchEventHandler 按会话分辨率换算后传来，直接转发。 */
+    fun injectTouch(
+        index: Int,
+        action: Int,
+        pointerId: Long,
+        x: Int,
+        y: Int,
+        screenWidth: Int,
+        screenHeight: Int,
+        pressure: Float,
+        actionButton: Int = 0,
+        buttons: Int = 0,
+    ) {
+        if (index !in session.indices) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: return
+        s.jobScope.launch {
+            runCatching {
+                scrcpy.injectTouch(
+                    action = action,
+                    pointerId = pointerId,
+                    x = x,
+                    y = y,
+                    screenWidth = screenWidth,
+                    screenHeight = screenHeight,
+                    pressure = pressure,
+                    actionButton = actionButton,
+                    buttons = buttons,
+                )
+            }.onFailure { t ->
+                AndroidLog.w(TAG, "injectTouch(slot=$index) failed", t)
+            }
+        }
+    }
+
+    /** 返回键（BACK down/up 各发一次，与原版虚拟按键 HOME 的注入方式一致）。 */
+    fun injectBack(index: Int) {
+        if (index !in session.indices) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: return
+        s.jobScope.launch {
+            runCatching {
+                scrcpy.injectKeycode(android.view.KeyEvent.ACTION_DOWN, android.view.KeyEvent.KEYCODE_BACK)
+                scrcpy.injectKeycode(android.view.KeyEvent.ACTION_UP, android.view.KeyEvent.KEYCODE_BACK)
+            }.onFailure { t ->
+                AndroidLog.w(TAG, "injectBack(slot=$index) failed", t)
+            }
+        }
+    }
+
+    /** TouchEventHandler 的返回回调（ACTION_DOWN / ACTION_UP）。 */
+    fun injectBackAction(index: Int, action: Int) {
+        if (index !in session.indices) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: return
+        s.jobScope.launch {
+            runCatching { scrcpy.pressBackOrTurnScreenOn(action) }
+        }
     }
 }

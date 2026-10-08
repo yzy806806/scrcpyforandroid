@@ -48,6 +48,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import android.content.pm.ActivityInfo
+import androidx.compose.ui.input.pointer.pointerInteropFilter
+import androidx.activity.compose.LocalActivity
+import androidx.activity.compose.BackHandler
+import androidx.compose.ui.layout.onSizeChanged
+import io.github.miuzarte.scrcpyforandroid.scrcpy.TouchEventHandler
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonAction
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonBar
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Scrcpy
 import io.github.miuzarte.scrcpyforandroid.services.AppRuntime
 import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
@@ -406,23 +414,124 @@ private fun FullscreenSlot(
     onNextApp: () -> Unit,
     onBackToGrid: () -> Unit,
 ) {
-    Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(label.ifEmpty { "格 ${index + 1}" }, color = Color.White, fontSize = 14.sp)
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onNextApp) { Text("下一个") }
-                TextButton(onClick = onBackToGrid) { Text("回列表") }
-            }
-            Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
-                SlotSurface(index = index, full = true)
+    val slot = SlotSessionManager.slot(index)
+    val scope = rememberCoroutineScope()
+
+    // ── 方向跟随：游戏横屏 → 本页横屏（照抄 StreamScreen 的做法）──
+    val activity = LocalActivity.current
+    LaunchedEffect(slot.displayId) {
+        if (slot.displayId >= 0) {
+            SlotSessionManager.attachSessionWatcher(index)
+        }
+    }
+    val sessionSize by SlotSessionManager.sessionSize(index).collectAsState()
+    DisposableEffect(activity) {
+        onDispose { activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED }
+    }
+    LaunchedEffect(sessionSize) {
+        val (w, h) = sessionSize
+        if (w > 0 && h > 0 && activity != null) {
+            activity.requestedOrientation = if (w >= h) {
+                ActivityInfo.SCREEN_ORIENTATION_USER_LANDSCAPE
+            } else {
+                ActivityInfo.SCREEN_ORIENTATION_USER_PORTRAIT
             }
         }
+    }
+
+    // ── 返回手势/返回键：注入被控端（不退出全屏）──
+    BackHandler {
+        scope.launch { SlotSessionManager.injectBack(index) }
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // 视频区：可交互（触摸透传到被控端）
+        Box(modifier = Modifier.fillMaxSize()) {
+            InteractiveSlotSurface(index = index, full = true)
+        }
+
+        // 悬浮球：复用原版 VirtualButtonBar.FloatingBall
+        val ballBar = VirtualButtonBar(
+            outside = emptyList(),
+            more = listOf(
+                VirtualButtonAction.EXIT_FULLSCREEN,
+                VirtualButtonAction.RECENT_TASKS,
+            ),
+        )
+        ballBar.FloatingBall(
+            onAction = { action ->
+                when (action) {
+                    VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
+                    VirtualButtonAction.RECENT_TASKS -> onNextApp()
+                    else -> Unit
+                }
+            },
+            modifier = Modifier.fillMaxSize(),
+        )
+    }
+}
+
+/**
+ * 可交互的槽位画面：触摸/多指/鼠标直接透传到被控端对应位置。
+ *
+ * 透传方式与原版预览卡（DeviceWidgets PreviewCard）和全屏页完全一致：
+ * SurfaceView 上叠 `pointerInteropFilter`，把 MotionEvent 原样交给
+ * [TouchEventHandler]，由它按会话分辨率换算坐标后走 scrcpy 控制通道注入。
+ */
+@Composable
+private fun InteractiveSlotSurface(index: Int, full: Boolean) {
+    val slot = SlotSessionManager.slot(index)
+    val scope = rememberCoroutineScope()
+    var touchAreaSize by remember { mutableStateOf(android.util.Size(0, 0)) }
+
+    // 该槽位对应的 scrcpy 会话信息（宽高/鼠标悬停支持等）
+    val sessionInfo = SlotSessionManager.sessionInfo(index)
+
+    val touchEventHandler = remember(sessionInfo, touchAreaSize) {
+        sessionInfo?.let { info ->
+            TouchEventHandler(
+                coroutineScope = scope,
+                session = info,
+                touchAreaSize = touchAreaSize,
+                activePointerIds = linkedSetOf(),
+                activePointerPositions = linkedMapOf(),
+                activePointerDevicePositions = linkedMapOf(),
+                pointerLabels = linkedMapOf(),
+                nextPointerLabel = 1,
+                mouseHoverEnabled = info.mouseHover,
+                onInjectTouch = { action, pointerId, x, y, pressure, actionButton, buttons ->
+                    SlotSessionManager.injectTouch(
+                        index, action, pointerId, x, y,
+                        touchAreaSize.width, touchAreaSize.height,
+                        pressure, actionButton, buttons,
+                    )
+                },
+                onBackOrScreenOn = { action ->
+                    SlotSessionManager.injectBackAction(index, action)
+                    Unit
+                },
+                onActiveTouchCountChanged = {},
+                onActiveTouchDebugChanged = {},
+                onNextPointerLabelChanged = {},
+            )
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .onSizeChanged { touchAreaSize = android.util.Size(it.width, it.height) }
+            .then(
+                if (touchEventHandler != null) {
+                    Modifier.pointerInteropFilter { event ->
+                        touchEventHandler.handleMotionEvent(event)
+                    }
+                } else {
+                    Modifier
+                },
+            ),
+    ) {
+        SlotSurface(index = index, full = full)
     }
 }
 
