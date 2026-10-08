@@ -688,19 +688,23 @@ private suspend fun androidx.compose.ui.input.pointer.PointerInputScope.detectTa
         down.consume()
         var dragging = false
         var total = 0f
+        var lastX = down.position.x
+        var lastY = down.position.y
         while (true) {
             val event = awaitPointerEvent()
             val change = event.changes.firstOrNull { it.id == down.id } ?: break
             if (change.pressed) {
-                val d = change.positionChange()
-                total += androidx.compose.ui.geometry.Offset(d.x, d.y).getDistance()
+                val dx = change.position.x - lastX
+                val dy = change.position.y - lastY
+                lastX = change.position.x
+                lastY = change.position.y
+                total += kotlin.math.abs(dx) + kotlin.math.abs(dy)
                 if (total > 12f) {
                     if (!dragging) {
                         dragging = true
-                        onDragStart(change.position.x - d.x, change.position.y - d.y)
+                        onDragStart(down.position.x, down.position.y)
                     }
-                    onDrag(d.x, d.y)
-                    change.consume()
+                    onDrag(dx, dy)
                 }
             } else {
                 if (dragging) onDragEnd() else onTap()
