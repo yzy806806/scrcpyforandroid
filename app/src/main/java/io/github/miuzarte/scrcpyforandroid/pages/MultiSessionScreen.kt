@@ -574,6 +574,7 @@ private fun FullscreenSlot(
         // **结构要点（照原版 FullscreenControlPage）**：球必须在透传层**之外**的
         // 兄弟层。若放进透传层内，点球会被注入到被控端 —— 原版正是这样摆放的
         // （FullscreenControlScreen 里球在 Page 外、透传层在 Page 根）。
+        val asBundle by Storage.appSettings.bundleState.collectAsState()
         val ballBar = VirtualButtonBar(
             outside = emptyList(),
             more = VirtualButtonActions.mergedOrder(
