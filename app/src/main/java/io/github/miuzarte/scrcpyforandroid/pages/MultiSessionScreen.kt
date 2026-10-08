@@ -1,5 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import android.view.MotionEvent
+import io.github.miuzarte.scrcpyforandroid.storage.Storage
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -50,6 +52,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import kotlin.math.roundToInt
@@ -471,6 +475,36 @@ private fun FullscreenSlot(
         val rootHeight = constraints.maxHeight
         var touchAreaSize by remember { mutableStateOf(IntSize(rootWidth, rootHeight)) }
 
+        // 悬浮球占用的屏幕区域。
+        //
+        // 透传层用 pointerInteropFilter（View 层拦截）：它返回 true 时 Compose 的
+        // pointerInput 派发整轮被跳过，于是**球永远收不到点击**，事件反而被注入到被控端
+        // （实测：点球 = 被控端右下角的一次点击）。所以 down 落在球上时必须返回 false，
+        // 把这一轮事件让给 Compose，由球自己处理（点击开菜单 / 拖动）。
+        val asBundle by Storage.appSettings.bundleState.collectAsState()
+        val ballSizeDp = asBundle.fullscreenFloatingButtonSizeDp.dp
+        val density = LocalDensity.current
+        val ballRect = remember(
+            asBundle.fullscreenFloatingButtonXFraction,
+            asBundle.fullscreenFloatingButtonYFraction,
+            ballSizeDp,
+            density,
+            rootWidth,
+            rootHeight,
+        ) {
+            with(density) {
+                val sizePx = ballSizeDp.toPx()
+                val pad = 8.dp.toPx()
+                val spanX = (rootWidth - sizePx).coerceAtLeast(0f)
+                val spanY = (rootHeight - sizePx).coerceAtLeast(0f)
+                val left = spanX * asBundle.fullscreenFloatingButtonXFraction.coerceIn(0f, 1f)
+                val top = spanY * asBundle.fullscreenFloatingButtonYFraction.coerceIn(0f, 1f)
+                Rect(left - pad, top - pad, left + sizePx + pad, top + sizePx + pad)
+            }
+        }
+        // 一旦这一轮触摸被判给球，后续 move/up 也要一直让路，拖动才不会被中途透传
+        var ballOwnsPointer by remember { mutableStateOf(false) }
+
         val sessionInfo = SlotSessionManager.sessionInfo(index)
         val scope2 = rememberCoroutineScope()
         val touchEventHandler = remember(sessionInfo, touchAreaSize) {
@@ -519,7 +553,23 @@ private fun FullscreenSlot(
                 .then(
                     if (touchEventHandler != null) {
                         Modifier.pointerInteropFilter { event ->
-                            touchEventHandler.handleMotionEvent(event)
+                            when (event.actionMasked) {
+                                MotionEvent.ACTION_DOWN -> {
+                                    ballOwnsPointer = ballRect.contains(Offset(event.x, event.y))
+                                    if (ballOwnsPointer) false
+                                    else touchEventHandler.handleMotionEvent(event)
+                                }
+
+                                MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
+                                    val wasBall = ballOwnsPointer
+                                    ballOwnsPointer = false
+                                    if (wasBall) false
+                                    else touchEventHandler.handleMotionEvent(event)
+                                }
+
+                                else -> if (ballOwnsPointer) false
+                                else touchEventHandler.handleMotionEvent(event)
+                            }
                         }
                     } else {
                         Modifier
@@ -535,7 +585,6 @@ private fun FullscreenSlot(
         // **结构要点（照原版 FullscreenControlPage）**：球必须在透传层**之外**的
         // 兄弟层。若放进透传层内，点球会被注入到被控端 —— 原版正是这样摆放的
         // （FullscreenControlScreen 里球在 Page 外、透传层在 Page 根）。
-        val asBundle by io.github.miuzarte.scrcpyforandroid.storage.Storage.appSettings.bundleState.collectAsState()
         val ballBar = VirtualButtonBar(
             outside = emptyList(),
             more = VirtualButtonActions.mergedOrder(
