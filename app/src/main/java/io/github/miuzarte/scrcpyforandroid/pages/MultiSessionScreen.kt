@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.Dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
 import top.yukonga.miuix.kmp.theme.MiuixTheme.textStyles
@@ -166,6 +167,7 @@ fun MultiSessionScreen(
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .statusBarsPadding()
                 .padding(12.dp)
                 .padding(bottom = bottomPadding),
             verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -283,8 +285,6 @@ fun MultiSessionScreen(
                     Text("处理中…", fontSize = 12.sp)
                 }
             }
-
-            Spacer(Modifier.weight(1f))
 
             // ── 操作栏 ─────────────────────────────────────────
             Row(
