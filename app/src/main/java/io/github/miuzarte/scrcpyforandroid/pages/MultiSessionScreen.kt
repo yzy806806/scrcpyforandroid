@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.ui.res.stringResource
 import io.github.miuzarte.scrcpyforandroid.StreamActivity
 import androidx.compose.runtime.key
 import androidx.compose.foundation.layout.FlowRow
@@ -277,22 +278,13 @@ fun MultiSessionScreen(onBack: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedButton(
-                    onClick = onBack,
-                    modifier = Modifier.weight(1f),
-                ) { Text("手机主页") }
-
+                // 「手机主页」与「关闭选中」都按要求去掉了：
+                //   手机主页 → 换成「直接连接」（复用设备页的连接逻辑）
+                //   关闭选中 → 不需要，每格右上角的 ✕ 就够
                 Button(
-                    onClick = {
-                        val index = selected
-                        if (index != null) {
-                            scope.launch { SlotSessionManager.stopSlot(index) }
-                            selected = null
-                        }
-                    },
-                    enabled = selected != null && slots.getOrNull(selected ?: -1)?.occupied == true,
+                    onClick = onDirectConnect,
                     modifier = Modifier.weight(1f),
-                ) { Text("关闭选中") }
+                ) { Text(stringResource(R.string.button_direct_connect)) }
 
                 OutlinedButton(
                     onClick = { scope.launch { SlotSessionManager.stopAllSessions() } },

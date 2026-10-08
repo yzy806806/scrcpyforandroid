@@ -1,5 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
+import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.rounded.Apps
 import android.app.Activity
 import android.content.Context
@@ -597,9 +599,22 @@ fun MainScreen() {
                             val tab = tabs[page]
                             saveableStateHolder.SaveableStateProvider(tab.name) {
                                 when (tab) {
-                                    MainBottomTabDestination.Apps -> MultiSessionScreen(
-                                        onBack = {},
-                                    )
+                                    MainBottomTabDestination.Apps -> {
+                                        // 复用设备页的 ViewModel 实例（同一 Activity 下 viewModel()
+                                        // 返回同一个实例），这样挂机页的「直接连接」用的就是设备页
+                                        // 那套连接逻辑（含隧道/超时/状态），不必另写一份。
+                                        val slotDeviceViewModel: DeviceTabViewModel =
+                                            viewModel(factory = deviceTabViewModelFactory)
+                                        val quickInput by slotDeviceViewModel.quickConnectInput
+                                            .collectAsState()
+                                        MultiSessionScreen(
+                                            onBack = {},
+                                            onDirectConnect = {
+                                                ConnectionTarget.unmarshalFrom(quickInput)
+                                                    ?.let(slotDeviceViewModel::onQuickConnect)
+                                            },
+                                        )
+                                    }
 
                                     MainBottomTabDestination.Devices -> DeviceTabScreen(
                                         viewModelFactory = deviceTabViewModelFactory,
