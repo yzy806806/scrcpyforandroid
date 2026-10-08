@@ -610,7 +610,8 @@ private fun PassthroughFloatingBall(
 
     // BoxWithConstraints 的 constraints 是 px(Int)，直接用
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val ballPx = with(LocalDensity.current) { 72.dp.toPx() }
+        val ballSizeDp = 72.dp
+        val ballPx = with(LocalDensity.current) { ballSizeDp.toPx() }
         val maxXPx = (constraints.maxWidth - ballPx).coerceAtLeast(0f)
         val maxYPx = (constraints.maxHeight - ballPx).coerceAtLeast(0f)
         val xPx = maxXPx * offsetX.coerceIn(0f, 1f)
@@ -619,7 +620,7 @@ private fun PassthroughFloatingBall(
         Box(
             modifier = Modifier
                 .offset { IntOffset(xPx.roundToInt(), yPx.roundToInt()) }
-                .size(ballSize)
+                .size(ballSizeDp)
                 .pointerInput(Unit) {
                     var dragging = false
                     var startX = 0f
