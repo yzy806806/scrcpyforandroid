@@ -404,15 +404,20 @@ object SlotSessionManager {
 
     // ── 输入注入（全屏页触摸透传 / 返回手势）────────────────────────
 
-    /** 触摸注入：坐标由 TouchEventHandler 按会话分辨率换算后传来，直接转发。 */
+    /**
+     * 触摸注入。坐标 (x, y) 已是视频坐标系（TouchEventHandler 换算过）。
+     *
+     * **尺寸必须用会话的视频尺寸**：scrcpy server 的 Controller 会用事件里声明的尺寸做
+     * `positionMapper.map()`，与当前视频尺寸不一致时**直接丢弃事件**（源码里那条
+     * "Ignore positional event generated for size ..."）。曾经误传触摸区尺寸，表现就是
+     * 「按键注入正常、触摸完全无反应」。这里由管理器自己取真实尺寸，调用方不再传。
+     */
     fun injectTouch(
         index: Int,
         action: Int,
         pointerId: Long,
         x: Int,
         y: Int,
-        screenWidth: Int,
-        screenHeight: Int,
         pressure: Float,
         actionButton: Int = 0,
         buttons: Int = 0,
@@ -423,16 +428,22 @@ object SlotSessionManager {
             AndroidLog.e(TAG, "injectTouch(slot=$index): 该槽位没有会话，丢弃")
             return
         }
+        val info = scrcpy.currentSessionState.value ?: run {
+            AndroidLog.e(TAG, "injectTouch(slot=$index): 会话信息未就绪，丢弃")
+            return
+        }
+        val w = info.width
+        val h = info.height
+        if (w <= 0 || h <= 0) return
         s.jobScope.launch {
             runCatching {
-                AndroidLog.i(TAG, "injectTouch(slot=$index) action=$action x=$x y=$y -> 会话 ${screenWidth}x$screenHeight")
                 scrcpy.injectTouch(
                     action = action,
                     pointerId = pointerId,
                     x = x,
                     y = y,
-                    screenWidth = screenWidth,
-                    screenHeight = screenHeight,
+                    screenWidth = w,
+                    screenHeight = h,
                     pressure = pressure,
                     actionButton = actionButton,
                     buttons = buttons,
