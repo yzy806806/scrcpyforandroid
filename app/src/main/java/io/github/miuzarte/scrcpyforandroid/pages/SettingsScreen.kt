@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import top.yukonga.miuix.kmp.basic.Switch
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.ui.unit.sp
 import io.github.miuzarte.scrcpyforandroid.storage.MultiSessionPrefs
@@ -1719,6 +1720,20 @@ private fun SlotQualitySection(
                     enabled = prefs.thumbFps != fps,
                 ) { Text("${fps}fps", fontSize = 12.sp) }
             }
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("H.265 编码", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                Text(
+                    "同码率画质更好、更省带宽；个别设备解码延迟反而更高时可关掉",
+                    fontSize = 11.sp,
+                    color = colorScheme.onSurfaceVariantSummary,
+                )
+            }
+            Switch(
+                checked = prefs.useHevc,
+                onCheckedChange = { onChange(prefs.copy(useHevc = it)) },
+            )
         }
         Text("全屏（打游戏）", fontSize = 13.sp, fontWeight = FontWeight.Medium)
         Text(

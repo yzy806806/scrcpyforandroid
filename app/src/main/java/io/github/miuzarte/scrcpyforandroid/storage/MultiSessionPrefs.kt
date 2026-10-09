@@ -21,10 +21,18 @@ object MultiSessionPrefs {
         val favorites: List<FavoriteApp> = emptyList(),
         val thumbMaxSize: Int = 720,
         val thumbFps: String = "1",
-        val thumbBitRate: Int = 1_000_000,
+        // 1fps 的缩略图用不到 1Mbps，省下来的带宽留给全屏那一路
+        val thumbBitRate: Int = 500_000,
         val fullMaxSize: Int = 0,
-        val fullFps: String = "",
+        // 固定 60 而不是"不限"：不限时遇到大动态画面码率会突发，挤掉其它路
+        val fullFps: String = "60",
         val fullBitRate: Int = 8_000_000,
+        /**
+         * 用 H.265 编码。同码率下画质明显更好（或者说同画质省三到五成带宽），
+         * 被控端 Android 16 + MTK 有硬件 HEVC 编码器。个别设备解码延迟反而更高，
+         * 所以留成开关。
+         */
+        val useHevc: Boolean = true,
         val ballXFraction: Float = 0.5f,
         val ballYFraction: Float = 0.5f,
     )
@@ -86,5 +94,6 @@ object MultiSessionPrefs {
         SlotSessionManager.fullMaxSize = prefs.fullMaxSize
         SlotSessionManager.fullFps = prefs.fullFps
         SlotSessionManager.fullBitRate = prefs.fullBitRate
+        SlotSessionManager.useHevc = prefs.useHevc
     }
 }

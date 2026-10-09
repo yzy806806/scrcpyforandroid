@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
 import android.util.Log
 import android.view.Surface
 import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
@@ -80,10 +81,11 @@ object SlotSessionManager {
     // 缩略图 / 全屏参数（设置项，默认值见设计文档 §5.4）
     var thumbMaxSize: Int = 720
     var thumbFps: String = "1"
-    var thumbBitRate: Int = 1_000_000
+    var thumbBitRate: Int = 500_000
     var fullMaxSize: Int = 0
-    var fullFps: String = ""
+    var fullFps: String = "60"
     var fullBitRate: Int = 8_000_000
+    var useHevc: Boolean = true
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
 
@@ -377,6 +379,11 @@ object SlotSessionManager {
                 maxSize = (if (full) fullMaxSize else thumbMaxSize).toUShort()
                 maxFps = if (full) fullFps else thumbFps
                 videoBitRate = if (full) fullBitRate else thumbBitRate
+                // H.265：同码率画质明显更好（被控端有硬件 HEVC 编码器）
+                videoCodec = if (useHevc) Codec.H265 else Codec.H264
+                // 关键帧间隔从默认 10s 缩短到 2s：进全屏／切那一路时要等下一个 I 帧
+                // 才能出画，缩短它能明显减少"点进去黑一下"的时间。
+                videoCodecOptions = "i-frame-interval=2"
             }
 
             val info = scrcpy.start(options)
