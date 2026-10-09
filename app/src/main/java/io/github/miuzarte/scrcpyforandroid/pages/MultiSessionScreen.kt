@@ -780,10 +780,17 @@ private fun FullscreenSlot(
             )
         }
         val ballActions = remember(asBundle.virtualButtonsLayout, slotUnsupportedActions) {
-            VirtualButtonActions.mergedOrder(
+            val base = VirtualButtonActions.mergedOrder(
                 items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
                 excluded = setOf(VirtualButtonAction.MORE) + slotUnsupportedActions,
-            )
+            ).toMutableList()
+
+            // 「回应用列表」放到「填充锁屏密码」所在的位置（菜单第二位），而不是像新动作那样
+            // 默认被追加到末尾 —— 它是这一页最常用的动作之一，放末尾够不着。
+            base.remove(VirtualButtonAction.SLOT_BACK_TO_GRID)
+            val anchor = base.indexOf(VirtualButtonAction.PASSWORD_INPUT)
+            base.add(if (anchor >= 0) anchor else base.size, VirtualButtonAction.SLOT_BACK_TO_GRID)
+            base
         }
         // **必须 remember**：球内部的弹层状态槽是 `remember(this) { PopupSlots() }`，
         // this 就是 VirtualButtonBar 实例。每次重组重建实例 → 状态槽被换成新的（关闭的）
