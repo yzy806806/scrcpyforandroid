@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import top.yukonga.miuix.kmp.basic.Card
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.Dp
 import io.github.miuzarte.scrcpyforandroid.constants.UiSpacing
@@ -181,8 +182,11 @@ fun MultiSessionScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
             // ── 状态条 ──────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = UiSpacing.Large, vertical = UiSpacing.MediumLarge),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -201,8 +205,16 @@ fun MultiSessionScreen(
                 // 原来这里的「画质」「返回」已按要求移除：画质设置搬进设置页
                 // （QUIC 隧道配置下方），返回用手势/系统返回键。
             }
+            }
 
             // ── 收藏应用 ────────────────────────────────────────
+            Card(modifier = Modifier.fillMaxWidth()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(UiSpacing.Large),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+            ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("我的应用", fontWeight = FontWeight.Medium, fontSize = textStyles.body1.fontSize)
                 Spacer(Modifier.weight(1f))
@@ -248,6 +260,9 @@ fun MultiSessionScreen(
                         Text(if (running) "● ${fav.label}" else fav.label, fontSize = 13.sp)
                     }
                 }
+            }
+
+            }
             }
 
             // ── 四宫格 ─────────────────────────────────────────
