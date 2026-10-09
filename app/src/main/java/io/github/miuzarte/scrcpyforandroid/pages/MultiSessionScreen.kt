@@ -558,9 +558,18 @@ private fun SlotSurface(index: Int, full: Boolean) {
     } else {
         0f
     }
-    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+    // 按宽高比"装进去"：只写 aspectRatio 的话，横屏视频的宽度会超出格子（实测表现为画面
+    // 靠左溢出、右边被裁掉），所以要么限宽、要么限高 —— 跟原版全屏页同一个做法。
+    BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        val containerRatio =
+            if (maxHeight > 0.dp) maxWidth.value / maxHeight.value else 1f
+        val videoModifier = when {
+            ratio <= 0f -> Modifier.fillMaxSize()
+            ratio > containerRatio -> Modifier.fillMaxWidth().aspectRatio(ratio)
+            else -> Modifier.fillMaxHeight().aspectRatio(ratio)
+        }
     AndroidView(
-        modifier = if (ratio > 0f) Modifier.aspectRatio(ratio) else Modifier.fillMaxSize(),
+        modifier = videoModifier,
         factory = { ctx ->
             SurfaceView(ctx).apply {
                 holder.addCallback(object : SurfaceHolder.Callback {
