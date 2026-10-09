@@ -594,16 +594,13 @@ private fun SlotSurface(
 ) {
     val scope = rememberCoroutineScope()
     val imeTarget = remember { mutableStateOf<ScrcpyInputSurfaceView?>(null) }
-    // 一拿到 view 就打开输入通道 —— 原版全屏页也是这样（不依赖任何触发条件）。
-    // 晚开的后果：键盘虽然能弹出来，但 View 还不是"文本编辑器"，
-    // InputConnection 不会把 commitText 转给我们 → 输入的文字全丢，表现为"点不了输入框"。
-    LaunchedEffect(imeTarget.value) {
-        imeTarget.value?.setCommitTextEnabled(true)
-    }
-    // token > 0 时才是"主动弹键盘"
+    // 时序照原版 DeviceWidgets（官方方案）：token > 0 时才 setCommitTextEnabled +
+    // showSoftKeyboard 一起做。提前到 view 出现时调会闪退 —— setCommitTextEnabled
+    // 内部 requestFocus()，view 还没 attach 到 window 就调会抛异常。
     LaunchedEffect(imeRequestToken, imeTarget.value) {
         if (imeRequestToken == 0) return@LaunchedEffect
         val sv = imeTarget.value ?: return@LaunchedEffect
+        sv.setCommitTextEnabled(true)
         LocalInputService.showSoftKeyboard(sv)
     }
     // 按会话的宽高比显示：之前直接 fillMaxSize()，横屏应用会被拉成方格、竖屏应用被压扁，
