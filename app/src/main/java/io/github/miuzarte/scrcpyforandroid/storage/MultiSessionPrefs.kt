@@ -92,7 +92,9 @@ object MultiSessionPrefs {
         SlotSessionManager.thumbFps = prefs.thumbFps
         SlotSessionManager.thumbBitRate = prefs.thumbBitRate
         SlotSessionManager.fullMaxSize = prefs.fullMaxSize
-        SlotSessionManager.fullFps = prefs.fullFps
+        // 空字符串是历史默认值（当时含义是"不限帧率"）。不限会让大动态画面突发码率、
+        // 把同时跑的其它几路挤掉，所以这里统一规整成 60 —— 老配置里的空值也被这一行覆盖。
+        SlotSessionManager.fullFps = prefs.fullFps.ifBlank { "60" }
         SlotSessionManager.fullBitRate = prefs.fullBitRate
         SlotSessionManager.useHevc = prefs.useHevc
     }

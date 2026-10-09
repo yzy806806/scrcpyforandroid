@@ -1736,9 +1736,17 @@ private fun SlotQualitySection(
             )
         }
         Text("全屏（打游戏）", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Row(horizontalArrangement = Arrangement.spacedBy(UiSpacing.Small)) {
+            listOf("30", "60", "90").forEach { fps ->
+                OutlinedButton(
+                    onClick = { onChange(prefs.copy(fullFps = fps)) },
+                    enabled = prefs.fullFps.ifBlank { "60" } != fps,
+                ) { Text("${fps}fps", fontSize = 12.sp) }
+            }
+        }
         Text(
             "复用主屏参数：${if (prefs.fullMaxSize == 0) "原生" else "${prefs.fullMaxSize}p"} · " +
-                "${prefs.fullFps.ifEmpty { "不限" }}fps · ${prefs.fullBitRate / 1000}kbps",
+                "${prefs.fullFps.ifBlank { "60" }}fps · ${prefs.fullBitRate / 1000}kbps",
             fontSize = 12.sp,
             color = colorScheme.onSurfaceVariantSummary,
         )
