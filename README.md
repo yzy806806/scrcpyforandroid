@@ -15,7 +15,7 @@
 
 ```
 主控手机 ScrcpyForAndroid                        被控端
-本地 TCP listener (127.0.0.1)  →   QUIC stream  →  tunnel-server (22289/udp)
+本地 TCP listener (127.0.0.1)  →   QUIC stream  →  tunnel-server (UDP，默认 22289，可自定义)
      ↑ adb 连接                     TLS 1.3 加密       ↓ PSK 认证后转发
                                                        127.0.0.1:5555 (adbd)
 ```

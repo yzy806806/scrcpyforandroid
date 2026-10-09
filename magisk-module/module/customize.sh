@@ -23,4 +23,7 @@ else
     ui_print "- 复用已有 PSK: $TUNNEL_DIR/tunnel-key"
 fi
 
+ui_print "- 隧道端口默认 22289"
+ui_print "- 如需自定义: 在模块目录建 port 文件写端口号"
+
 ui_print "- 安装完成，重启生效"

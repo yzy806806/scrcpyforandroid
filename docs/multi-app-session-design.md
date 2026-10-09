@@ -56,7 +56,7 @@
 │                                                                    │
 │  Magisk 模块                                                       │
 │   ├── tunnel-server (quic-go, 已有)                                │
-│   │     22289/udp · PSK 认证 → 转发 127.0.0.1:5555 (adbd)          │
+│   │     UDP(默认 22289) · PSK 认证 → 转发 127.0.0.1:5555 (adbd)     │
 │   ├── display-holder (新增, app_process + Java)                    │
 │   │     ├── 创建 / 持有 N 个虚拟显示（原生分辨率）                  │
 │   │     ├── 状态写入 state.json（供主控端读取）                     │

@@ -9,7 +9,7 @@ running on the controlled device after the controller disconnects.
 ```
 Controller (Android app)                 Controlled device (root + Magisk)
 ────────────────────────                 ──────────────────────────────────
-local TCP listener (127.0.0.1)           tunnel-server  (UDP :22289, PSK auth)
+local TCP listener (127.0.0.1)           tunnel-server  (UDP, default port 22289, PSK auth)
       ↓ adb                                   ↓ forwards to 127.0.0.1:5555 (adbd)
 QUIC stream (TLS 1.3)  ←──────────→      display-holder (app_process, resident)
                                               ↓ owns up to 4 virtual displays
@@ -42,6 +42,16 @@ cd tunnel && gomobile bind -target=android/arm64 -o ../build/libquictunnel.aar .
 # whole Magisk module (server + holder + packaging) -> flashable zip
 ANDROID_SDK_ROOT=/path/to/android-sdk bash module/build.sh
 ```
+
+## Configuration
+
+- **Tunnel port**: `22289` by default. To change it, create a `port` file in the
+  installed module directory (`/data/adb/modules/tunnel_server/port`) containing
+  just the port number and reboot. The controller's tunnel entry must use the
+  same port.
+- **PSK**: generated on install (`/data/local/tmp/tunnel-key`, mode `0600`).
+  Replace it with your own value if desired; the controller must be configured
+  with the same key.
 
 ## Runtime files on the device
 

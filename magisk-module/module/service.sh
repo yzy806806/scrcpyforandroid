@@ -8,7 +8,10 @@ RUN=/data/local/tmp
 HOLDER_DIR=$RUN/display-holder
 LOG=$RUN/tunnel-server.log
 HOLDER_LOG=$HOLDER_DIR/holder.log
+# 隧道监听端口：默认 22289，可在模块目录放一个 port 文件覆盖（内容就是端口号）
 PORT=22289
+[ -f "$MODDIR/port" ] && PORT=$(head -c 32 "$MODDIR/port" | tr -cd '0-9')
+[ -n "$PORT" ] || PORT=22289
 TARGET=127.0.0.1:5555
 
 # app_process 需要 Android 运行时环境（init 里有，但显式导出更稳）

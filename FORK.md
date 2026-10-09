@@ -54,7 +54,7 @@ fork 相对上游新增/改动的文件：
 
 ```
 主控 App                           被控端 (root + Magisk)
-本地 TCP listener (127.0.0.1)     tunnel-server (Go, 监听 22289/udp)
+本地 TCP listener (127.0.0.1)     tunnel-server (Go, 监听 UDP，默认 22289)
     ↓ adb 连接                     ↓ PSK 认证
 QUIC stream (TLS 1.3 加密)  ←→   转发到 127.0.0.1:5555 (adbd)
 ```
@@ -63,7 +63,7 @@ QUIC stream (TLS 1.3 加密)  ←→   转发到 127.0.0.1:5555 (adbd)
 
 被控端需要本仓库自带的 Magisk 模块（[magisk-module/](magisk-module/)），它包含两个常驻组件：
 
-- `tunnel-server`：QUIC 隧道服务端，监听 `22289/udp`，PSK 认证后转发 `127.0.0.1:5555`（adbd）
+- `tunnel-server`：QUIC 隧道服务端，监听 UDP（默认 `22289`，可在模块目录放 `port` 文件自定义），PSK 认证后转发 `127.0.0.1:5555`（adbd）
 - `display-holder`：常驻 `app_process`，持有最多 4 个虚拟显示——多应用挂机的核心
 
 ### 安装（被控端，需 root + Magisk）
@@ -83,16 +83,17 @@ bash module/build.sh          # 产出 tunnel_server_vX.Y.zip
 ### 首次使用
 
 1. **生成预共享密钥**（模块安装时若 `/data/local/tmp/tunnel-key` 不存在会自动生成，
-   也可手动生成：`head -c 32 /dev/urandom | xxd -p -c 64 > /data/local/tmp/tunnel-key`）
+   也可手动生成：`head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n' > /data/local/tmp/tunnel-key && chmod 600 /data/local/tmp/tunnel-key`）
 2. **主控端**：设置 → TCP 隧道 → 开启 → 添加设备
-   （设备名任意 / 对端地址 = 被控端的公网可达地址 / 端口 `22289` / 密钥 = 上一步的值）
+   （设备名任意 / 对端地址 = 被控端的公网可达地址 / 端口 = 上一步的隧道端口，默认 `22289` / 密钥 = PSK）
 3. 主控端连接时 App 会自动先建 QUIC 隧道再连 adb，无需手动 `adb connect`
 4. 多应用挂机：打开 App 的「应用」tab，点收藏或「+ 添加」把应用放进挂机位
 
 ### 安全模型
 
 - adbd 只监听 `127.0.0.1`，模块用 iptables 保证 `5555` 不暴露公网
-- 公网上只暴露 `22289/udp`，且每个连接必须先通过 PSK 认证
+- 公网上只暴露隧道端口（默认 `22289`/udp，可自定义），且每个连接必须先通过 PSK 认证
+- 换端口后记得同步调整端口映射/防火墙放行，并更新主控端的隧道设备配置
 - 密钥泄露 = 被控端 adbd 完全暴露，请当作密码对待
 
 ### 卸载
