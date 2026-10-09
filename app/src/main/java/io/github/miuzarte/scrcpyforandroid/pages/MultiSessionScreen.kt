@@ -137,7 +137,6 @@ fun MultiSessionScreen(
     val holderAlive by SlotSessionManager.holderAlive.collectAsState()
     val busy by SlotSessionManager.busy.collectAsState()
 
-    var selected by remember { mutableStateOf<Int?>(null) }
     var fullscreen by remember { mutableStateOf<Int?>(null) }
 
     // 全屏时告诉 MainScreen：锁住 tab 滑动、藏起底部 tab 栏
@@ -148,6 +147,8 @@ fun MultiSessionScreen(
         onDispose { SlotSessionManager.setFullscreenActive(false) }
     }
     var showPicker by remember { mutableStateOf(false) }
+    // 长按某个收藏时，为它打开的操作菜单（null = 没有打开）
+    var favMenuFor by remember { mutableStateOf<String?>(null) }
     var installed by remember { mutableStateOf<List<Scrcpy.AppInfo>>(emptyList()) }
     var loadingApps by remember { mutableStateOf(false) }
 
@@ -258,20 +259,23 @@ fun MultiSessionScreen(
                                 if (running) colorScheme.primary.copy(alpha = 0.18f)
                                 else colorScheme.surfaceVariant,
                             )
-                            .clickable(enabled = chipEnabled) {
-                                val target = slots.indexOfFirst { !it.occupied }
-                                    .takeIf { it >= 0 }
-                                    ?: slots.indexOfFirst { it.packageName == fav.packageName }
+                            .combinedClickable(
+                                enabled = chipEnabled,
+                                onClick = {
+                                    val target = slots.indexOfFirst { !it.occupied }
                                         .takeIf { it >= 0 }
-                                if (target != null && target >= 0) {
-                                    selected = target
-                                    scope.launch {
-                                        SlotSessionManager.startApp(
-                                            target, fav.packageName, fav.label,
-                                        )
+                                        ?: slots.indexOfFirst { it.packageName == fav.packageName }
+                                            .takeIf { it >= 0 }
+                                    if (target != null && target >= 0) {
+                                        scope.launch {
+                                            SlotSessionManager.startApp(
+                                                target, fav.packageName, fav.label,
+                                            )
+                                        }
                                     }
-                                }
-                            }
+                                },
+                                onLongClick = { favMenuFor = fav.packageName },
+                            )
                             .padding(horizontal = UiSpacing.MediumLarge, vertical = 6.dp),
                     ) {
                         Text(
@@ -281,6 +285,42 @@ fun MultiSessionScreen(
                             else colorScheme.onSurface.copy(alpha = 0.38f),
                             maxLines = 1,
                         )
+                    }
+
+                    // 长按收藏 → 管理菜单（删除 / 调序）。收藏多了以后没有这个就只能一直攒着。
+                    if (favMenuFor == fav.packageName) {
+                        DropdownMenu(
+                            expanded = true,
+                            onDismissRequest = { favMenuFor = null },
+                        ) {
+                            DropdownMenuItem(
+                                text = { Text("上移") },
+                                onClick = {
+                                    prefs = MultiSessionPrefs.moveFavorite(
+                                        context, fav.packageName, -1,
+                                    )
+                                    favMenuFor = null
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("下移") },
+                                onClick = {
+                                    prefs = MultiSessionPrefs.moveFavorite(
+                                        context, fav.packageName, 1,
+                                    )
+                                    favMenuFor = null
+                                },
+                            )
+                            DropdownMenuItem(
+                                text = { Text("删除") },
+                                onClick = {
+                                    prefs = MultiSessionPrefs.removeFavorite(
+                                        context, fav.packageName,
+                                    )
+                                    favMenuFor = null
+                                },
+                            )
+                        }
                     }
                 }
             }
@@ -307,14 +347,8 @@ fun MultiSessionScreen(
                                 // 全屏时把缩略图节点移出组合：返回四宫格时 surface 会重建，
                                 // 否则那格会停在最后一帧（会话已被全屏那路挤掉）
                                 showVideo = fullscreen == null,
-                                selected = selected == index,
-                                onSelect = { selected = index },
-                                onFullscreen = {
-                                    selected = index
-                                    fullscreen = index
-                                },
+                                onFullscreen = { fullscreen = index },
                                 onStop = {
-                                    selected = null
                                     scope.launch { SlotSessionManager.stopSlot(index) }
                                 },
                                 modifier = Modifier.weight(1f),
@@ -443,8 +477,6 @@ fun MultiSessionScreen(
 private fun SlotCell(
     index: Int,
     showVideo: Boolean,
-    selected: Boolean,
-    onSelect: () -> Unit,
     onFullscreen: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -459,8 +491,9 @@ private fun SlotCell(
             .fillMaxSize()
             .clip(RoundedCornerShape(10.dp))
             .background(Color(0xFF101010))
+            // 只保留双击：单击进全屏太容易误触，而"选中"已经没有任何功能了
             .combinedClickable(
-                onClick = onSelect,
+                onClick = {},
                 onDoubleClick = { if (slot.occupied) onFullscreen() },
             ),
     ) {
@@ -501,13 +534,6 @@ private fun SlotCell(
 
             if (slot.occupied && showVideo) {
                 SlotSurface(index = index, full = false)
-            }
-            if (selected) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0x3300AAFF), RoundedCornerShape(8.dp)),
-                )
             }
             if (!slot.occupied) {
                 Text(

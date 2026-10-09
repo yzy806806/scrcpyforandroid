@@ -52,6 +52,20 @@ object MultiSessionPrefs {
         return prefs.copy(favorites = prefs.favorites + app).also { save(context, it) }
     }
 
+    /** 收藏在列表里挪一位（delta = -1 上移 / +1 下移），用于给收藏排序。 */
+    fun moveFavorite(context: Context, packageName: String, delta: Int): Prefs {
+        val prefs = load(context)
+        val list = prefs.favorites.toMutableList()
+        val from = list.indexOfFirst { it.packageName == packageName }
+        if (from < 0) return prefs
+        val to = (from + delta).coerceIn(0, list.size - 1)
+        if (from == to) return prefs
+        list.add(to, list.removeAt(from))
+        val updated = prefs.copy(favorites = list)
+        save(context, updated)
+        return updated
+    }
+
     fun removeFavorite(context: Context, packageName: String): Prefs {
         val prefs = load(context)
         return prefs.copy(favorites = prefs.favorites.filterNot { it.packageName == packageName })
