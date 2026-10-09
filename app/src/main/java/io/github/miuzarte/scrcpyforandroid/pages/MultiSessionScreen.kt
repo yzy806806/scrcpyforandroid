@@ -262,10 +262,14 @@ fun MultiSessionScreen(
                             .combinedClickable(
                                 enabled = chipEnabled,
                                 onClick = {
-                                    val target = slots.indexOfFirst { !it.occupied }
+                                    // 先看这个应用是不是已经在某个格子跑着 —— 必须优先复用。
+                                    // 反过来的顺序（先找空槽）会让同一个应用被启动两次，
+                                    // 而 Android 上一个应用不能同时在两个显示上跑实例，第二个
+                                    // 格子就变成"占用中但没有画面"的黑格子。
+                                    val target = slots
+                                        .indexOfFirst { it.packageName == fav.packageName }
                                         .takeIf { it >= 0 }
-                                        ?: slots.indexOfFirst { it.packageName == fav.packageName }
-                                            .takeIf { it >= 0 }
+                                        ?: slots.indexOfFirst { !it.occupied }.takeIf { it >= 0 }
                                     if (target != null && target >= 0) {
                                         scope.launch {
                                             SlotSessionManager.startApp(
@@ -483,6 +487,9 @@ private fun SlotCell(
 ) {
     val slots by SlotSessionManager.slots.collectAsState()
     val slot = slots.getOrNull(index) ?: return
+    // 会话的首个视频包带来真实尺寸；在那之前是"占用中但还没有画面"
+    val sizeForCell by SlotSessionManager.sessionSize(index).collectAsState()
+    val hasPicture = sizeForCell.width > 0 && sizeForCell.height > 0
 
     // 整个格子就是一块画面，标签与 ✕ 浮在格子内部顶部：
     // 之前标签单独占一格外面的一整行，四格就白吃掉四行高度，格子和按钮都被挤扁了。
@@ -540,6 +547,15 @@ private fun SlotCell(
                     "空位",
                     modifier = Modifier.align(Alignment.Center),
                     color = Color(0xFF666666),
+                    fontSize = 13.sp,
+                )
+            } else if (!hasPicture) {
+                // 槽位被占用、但还没有画面：以前这里什么都不显示，就是一个黑格子，
+                // 从外面完全看不出是"在启动"还是"卡住了"。给一句话。
+                Text(
+                    text = if (slot.error != null) "画面异常" else "等待画面…",
+                    modifier = Modifier.align(Alignment.Center),
+                    color = if (slot.error != null) Color(0xFFFF8A80) else Color(0xFF9E9E9E),
                     fontSize = 13.sp,
                 )
             }
