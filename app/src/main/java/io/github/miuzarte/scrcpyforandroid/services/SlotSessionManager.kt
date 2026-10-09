@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.services
 
 import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.Codec
+import io.github.miuzarte.scrcpyforandroid.scrcpy.Shared.DisplayImePolicy
 import android.util.Log
 import android.view.Surface
 import io.github.miuzarte.scrcpyforandroid.nativecore.PersistentVideoRenderer
@@ -431,6 +432,16 @@ object SlotSessionManager {
                 // 关键帧间隔从默认 10s 缩短到 2s：进全屏／切那一路时要等下一个 I 帧
                 // 才能出画，缩短它能明显减少"点进去黑一下"的时间。
                 videoCodecOptions = "i-frame-interval=2"
+                // 输入法（IME）策略 —— AOSP DisplayWindowSettings.getImePolicyLocked 写得很明白：
+                // 主屏恒为 DISPLAY_IME_POLICY_LOCAL，而**任何副屏（含 holder 建的虚拟显示）默认是
+                // DISPLAY_IME_POLICY_FALLBACK_DISPLAY**，即 Android 把输入法送到主屏去显示。
+                // 表现就是：在挂机小窗里点输入框，被控端的键盘弹在它自己的屏幕上，我们这一路看不到。
+                // （官方镜像的是主屏，主屏恒为 LOCAL，所以官方的全屏一切正常 —— 这就是差距所在。）
+                // 上游为此提供 --display-ime-policy，落到 IWindowManager.setDisplayImePolicy：
+                // 显式设成 local，让输入法显示在被镜像的这块屏上；会话结束时 server 会把旧策略恢复
+                // （上游 CleanUp.java 只在 display_id > 0 时处理，正是副屏场景）。
+                // 只给全屏（可交互）那一路设：缩略图那路不碰，避免两路会话互相覆盖策略。
+                if (full) displayImePolicy = DisplayImePolicy.LOCAL
             }
 
             val info = scrcpy.start(options)
