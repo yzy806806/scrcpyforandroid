@@ -2,6 +2,8 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.draw.clip
 import top.yukonga.miuix.kmp.basic.Card
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.ui.unit.Dp
@@ -186,7 +188,7 @@ fun MultiSessionScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = UiSpacing.Large, vertical = UiSpacing.MediumLarge),
+                    .padding(horizontal = UiSpacing.Large, vertical = UiSpacing.Medium),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
@@ -212,8 +214,8 @@ fun MultiSessionScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(UiSpacing.Large),
-                verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                    .padding(UiSpacing.MediumLarge),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.Small),
             ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("我的应用", fontWeight = FontWeight.Medium, fontSize = textStyles.body1.fontSize)
@@ -238,26 +240,44 @@ fun MultiSessionScreen(
             }
 
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
+                verticalArrangement = Arrangement.spacedBy(UiSpacing.Medium),
             ) {
                 prefs.favorites.forEach { fav ->
                     val running = slots.any { it.packageName == fav.packageName }
-                    OutlinedButton(
-                        onClick = {
-                            val target = slots.indexOfFirst { !it.occupied }
-                                .takeIf { it >= 0 }
-                                ?: slots.indexOfFirst { it.packageName == fav.packageName }.takeIf { it >= 0 }
-                            if (target != null && target >= 0) {
-                                selected = target
-                                scope.launch {
-                                    SlotSessionManager.startApp(target, fav.packageName, fav.label)
+                    // 自绘小 chip：Material3 按钮默认尺寸太大，五个收藏就能占掉三行，
+                    // 把下面的四格挤成扁的（用户实测反馈）。这里只保留必要的内边距。
+                    val chipEnabled = !busy && holderAlive
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .background(
+                                if (running) colorScheme.primary.copy(alpha = 0.18f)
+                                else colorScheme.surfaceVariant,
+                            )
+                            .clickable(enabled = chipEnabled) {
+                                val target = slots.indexOfFirst { !it.occupied }
+                                    .takeIf { it >= 0 }
+                                    ?: slots.indexOfFirst { it.packageName == fav.packageName }
+                                        .takeIf { it >= 0 }
+                                if (target != null && target >= 0) {
+                                    selected = target
+                                    scope.launch {
+                                        SlotSessionManager.startApp(
+                                            target, fav.packageName, fav.label,
+                                        )
+                                    }
                                 }
                             }
-                        },
-                        enabled = !busy && holderAlive,
+                            .padding(horizontal = UiSpacing.MediumLarge, vertical = 6.dp),
                     ) {
-                        Text(if (running) "● ${fav.label}" else fav.label, fontSize = 13.sp)
+                        Text(
+                            text = if (running) "● ${fav.label}" else fav.label,
+                            fontSize = textStyles.body2.fontSize,
+                            color = if (chipEnabled) colorScheme.onSurface
+                            else colorScheme.onSurface.copy(alpha = 0.38f),
+                            maxLines = 1,
+                        )
                     }
                 }
             }
@@ -418,36 +438,53 @@ private fun SlotCell(
     val slots by SlotSessionManager.slots.collectAsState()
     val slot = slots.getOrNull(index) ?: return
 
-    // 必须 fillMaxHeight：本格在 Row 里拿到的是"半屏高"的槽位，但 Column 默认按内容高，
-    // 里面的 weight(1f) 就落到了无界高度上而失效 —— 格子会被压成扁的（实测就是这么出现的）。
-    Column(modifier = modifier.fillMaxHeight()) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
-                // 于是有画面运行的格子也显示「格 N 空」，看起来像没跑起来。
-                text = "格 ${index + 1}  " + slot.label.ifEmpty {
-                    slot.packageName.substringAfterLast('.').ifEmpty { "空" }
-                },
-                fontSize = 12.sp,
-                maxLines = 1,
-                color = if (slot.error != null) Color(0xFFC62828) else Color.Unspecified,
-            )
-            Spacer(Modifier.weight(1f))
-            if (slot.occupied) {
-                TextButton(onClick = onStop) { Text("✕", fontSize = 12.sp) }
-            }
-        }
+    // 整个格子就是一块画面，标签与 ✕ 浮在格子内部顶部：
+    // 之前标签单独占一格外面的一整行，四格就白吃掉四行高度，格子和按钮都被挤扁了。
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .clip(RoundedCornerShape(10.dp))
+            .background(Color(0xFF101010))
+            .combinedClickable(
+                onClick = onSelect,
+                onDoubleClick = { if (slot.occupied) onFullscreen() },
+            ),
+    ) {
 
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .background(Color(0xFF101010), RoundedCornerShape(8.dp))
-                .combinedClickable(
-                    onClick = onSelect,
-                    onDoubleClick = { if (slot.occupied) onFullscreen() },
-                ),
-        ) {
+            // 标签 + ✕（浮层，带半透明底以免压在画面上看不清）
+            Row(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(UiSpacing.Medium)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0x99000000))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
+                    // 于是有画面运行的格子也显示「格 N 空」，看起来像没跑起来。
+                    text = "格 ${index + 1}  " + slot.label.ifEmpty {
+                        slot.packageName.substringAfterLast('.').ifEmpty { "空" }
+                    },
+                    fontSize = 11.sp,
+                    maxLines = 1,
+                    color = if (slot.error != null) Color(0xFFFF8A80) else Color.White,
+                )
+                if (slot.occupied) {
+                    Spacer(Modifier.width(UiSpacing.Small))
+                    Text(
+                        text = "✕",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.85f),
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(50))
+                            .clickable(onClick = onStop)
+                            .padding(4.dp),
+                    )
+                }
+            }
+
             if (slot.occupied && showVideo) {
                 SlotSurface(index = index, full = false)
             }
@@ -466,8 +503,6 @@ private fun SlotCell(
                     fontSize = 13.sp,
                 )
             }
-        }
-    }
 }
 
 /** 一路视频的 SurfaceView 容器。 */
