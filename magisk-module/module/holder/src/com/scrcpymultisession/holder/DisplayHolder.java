@@ -99,6 +99,7 @@ public final class DisplayHolder {
         int index;
         int displayId = -1;
         String pkg = "";
+        String error = ""; // 非空 = 最近一次 launch 失败的原因（主控端可见）
         VirtualDisplay vd;
         ImageReader reader; // surface mode = reader 时使用
 
@@ -471,6 +472,15 @@ public final class DisplayHolder {
         }
         String out = exec(cmd);
         log("slot" + slotIndex + " launch " + pkg + " -> " + oneLine(out));
+        s.error = "";
+
+        // am start 失败（应用不支持虚拟显示 / 不存在）时把 slot 标成 error，
+        // 让主控端立刻看到，而不是对着一个"running 但没画面"的格子等超时
+        if (out != null && out.contains("Error")) {
+            s.error = oneLine(out);
+            writeState();
+            log("slot" + slotIndex + " launch failed: " + oneLine(out));
+        }
     }
 
     private static void killSlot(int slotIndex) throws Exception {
@@ -622,7 +632,8 @@ public final class DisplayHolder {
             sb.append("    {\"slot\": ").append(s.index)
                     .append(", \"displayId\": ").append(s.displayId)
                     .append(", \"package\": \"").append(jsonEscape(s.pkg)).append("\"")
-                    .append(", \"state\": \"").append(s.isActive() ? (s.pkg.isEmpty() ? "empty" : "running") : "empty")
+                    .append(", \"state\": \"").append(!s.error.isEmpty() ? "error" : (s.isActive() ? (s.pkg.isEmpty() ? "empty" : "running") : "empty"))
+                    .append(", \"error\": \"").append(jsonEscape(s.error)).append("\"")
                     .append("\"}");
             sb.append(i == slots.length - 1 ? "\n" : ",\n");
         }

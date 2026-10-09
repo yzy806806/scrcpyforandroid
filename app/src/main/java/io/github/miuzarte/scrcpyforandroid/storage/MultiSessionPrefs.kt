@@ -1,6 +1,7 @@
 package io.github.miuzarte.scrcpyforandroid.storage
 
 import android.content.Context
+import android.util.Log
 import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -37,6 +38,8 @@ object MultiSessionPrefs {
         val ballYFraction: Float = 0.5f,
     )
 
+    private const val TAG = "MultiSessionPrefs"
+
     private val json = Json {
         ignoreUnknownKeys = true
         prettyPrint = true
@@ -52,6 +55,7 @@ object MultiSessionPrefs {
 
     fun save(context: Context, prefs: Prefs) {
         runCatching { file(context).writeText(json.encodeToString(Prefs.serializer(), prefs)) }
+            .onFailure { Log.e(TAG, "save() failed", it) }
     }
 
     fun addFavorite(context: Context, app: FavoriteApp): Prefs {

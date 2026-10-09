@@ -179,6 +179,15 @@ object SlotSessionManager {
                     s.label = ""
                 }
             }
+            // holder 侧 launch 失败（应用不支持虚拟显示等）时把原因透传给 UI
+            val holderError = remote?.error.orEmpty()
+            if (holderError.isNotEmpty() && s.error != holderError) {
+                s.error = holderError
+                Log.w(TAG, "slot${s.index}: holder launch error: $holderError")
+            } else if (holderError.isEmpty() && s.error == holderError) {
+                // holder 已清掉 error（比如重新 launch 成功），本地同步清掉
+                s.error = null
+            }
         }
         publishUi()
     }
@@ -262,6 +271,13 @@ object SlotSessionManager {
     suspend fun attachSurface(index: Int, surface: Surface, full: Boolean) {
         val s = session[index]
         if (s.running && s.full == full && s.surface === surface) return
+        // 全停期间只记录 surface 不拉流：否则设备旋转等 UI 重组事件会单独复活某一路，
+        // 和其余格子的"已全停"状态不一致
+        if (_pausedFlow.value) {
+            s.surface = surface
+            s.full = full
+            return
+        }
 
         // 同一模式下的 surface 重建（设备旋转/尺寸变化）**不重建会话**：会话（scrcpy 连接 +
         // 解码器）与渲染目标无关，拆了重建既慢又会和紧随其后的销毁回调打架，实测就是
@@ -336,7 +352,8 @@ object SlotSessionManager {
 
     /** 停掉所有投屏（不影响被控端应用运行 —— 这正是 holder 架构的意义）。 */
     suspend fun stopAllSessions() {
-        _pausedFlow.value = false
+        // 不重置 paused：onDispose（切 tab）也走这里，全停是用户显式选择，
+        // 切个 tab 不该把"已全停"偷偷变成"恢复"
         session.forEach { stopSession(it) }
         publishUi()
     }
@@ -454,6 +471,7 @@ object SlotSessionManager {
                             it[s.index] = IntSize(cur.width, cur.height)
                         }
                         runCatching { s.controller?.rebuildDecoderForSize(cur) }
+                            .onFailure { AndroidLog.e(TAG, "rebuildDecoderForSize(slot=$index) failed", it) }
                     }
                 }
             }
@@ -469,9 +487,13 @@ object SlotSessionManager {
         s.sizeWatchJob?.cancel()
         s.sizeWatchJob = null
         runCatching { s.scrcpy?.session?.clearVideoConsumer() }
+            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): clearVideoConsumer", it) }
         runCatching { s.scrcpy?.stop() }
+            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): scrcpy.stop", it) }
         runCatching { s.controller?.releaseAll() }
+            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): releaseAll", it) }
         runCatching { s.renderer?.release() }
+            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): renderer.release", it) }
         s.scrcpy = null
         s.controller = null
         s.renderer = null

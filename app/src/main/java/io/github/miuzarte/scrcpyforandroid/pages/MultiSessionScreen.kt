@@ -2,6 +2,7 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonSurface
 import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.Text
@@ -167,6 +168,12 @@ fun MultiSessionScreen(
     }
 
     DisposableEffect(Unit) {
+        // 进入页面：非全停状态下，把占用中的槽拉起（覆盖"全停→切 tab→切回"的场景：
+        // onDispose 停了流、paused 仍为 true 时 surface 不会自动重连，但此刻用户回到
+        // 页面就是要看画面 —— 全停语义只在用户显式点击时生效）。
+        if (!SlotSessionManager.pausedFlow.value) {
+            scope.launch { SlotSessionManager.resumeAll() }
+        }
         onDispose {
             // 离开页面只停投屏，被控端应用继续跑。
             // 必须走管理器自己的 scope：onDispose 之后本组合的协程已被取消。
@@ -782,6 +789,8 @@ private fun FullscreenSlot(
         // 应用挂机跑在**虚拟显示**上，没有 launcher、也没有独立的任务栈：
         // 主页 / 多任务 / 最近任务 / 所有应用 这几个动作在这里按下去不会有用，
         // 与其留着让人以为"坏了"，不如直接从菜单里去掉。
+        // SLOT_* 动作已由 visibleOn(SLOT_FULLSCREEN) 过滤保证不出现在别的页面，
+        // 这里不再需要手动排除 Slot 动作；虚拟显示下无效的动作（主页/多任务等）仍要排除。
         val slotUnsupportedActions = remember {
             setOf(
                 VirtualButtonAction.HOME,
@@ -794,6 +803,7 @@ private fun FullscreenSlot(
             val base = VirtualButtonActions.mergedOrder(
                 items = VirtualButtonActions.parseStoredLayout(asBundle.virtualButtonsLayout),
                 excluded = setOf(VirtualButtonAction.MORE) + slotUnsupportedActions,
+                surface = VirtualButtonSurface.SLOT_FULLSCREEN,
             ).toMutableList()
 
             // 「回应用列表」放到「填充锁屏密码」所在的位置（菜单第二位），而不是像新动作那样

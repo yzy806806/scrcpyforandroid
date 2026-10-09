@@ -34,6 +34,8 @@ object DisplayHolderClient {
         val displayId: Int,
         val packageName: String,
         val state: String,
+        /** holder 侧 launch 失败的原因（state=error 时非空）。 */
+        val error: String = "",
     )
 
     data class State(
@@ -62,6 +64,7 @@ object DisplayHolderClient {
                         displayId = o["displayId"]!!.jsonPrimitive.int,
                         packageName = o["package"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                         state = o["state"]?.jsonPrimitive?.contentOrNull.orEmpty(),
+                        error = o["error"]?.jsonPrimitive?.contentOrNull.orEmpty(),
                     )
                 }.getOrNull()
             }

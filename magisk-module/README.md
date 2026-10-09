@@ -43,6 +43,15 @@ cd tunnel && gomobile bind -target=android/arm64 -o ../build/libquictunnel.aar .
 ANDROID_SDK_ROOT=/path/to/android-sdk bash module/build.sh
 ```
 
+## Trust boundary
+
+The command channel (`/data/local/tmp/display-holder/cmd`) and state dir are
+world-writable (0666/0777) so the adb-shell user can drive them. Anything with
+shell or root access on the device can therefore create displays, launch or
+force-stop apps through it. This is acceptable for a personal rooting setup
+(adb itself grants full device control) but the module should not be treated as
+a security boundary between apps.
+
 ## Configuration
 
 - **Tunnel port**: `22289` by default. To change it, create a `port` file in the

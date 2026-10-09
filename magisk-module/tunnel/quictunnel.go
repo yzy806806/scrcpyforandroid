@@ -8,6 +8,8 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"bufio"
+	"crypto/subtle"
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
@@ -48,7 +50,7 @@ func StartClient(serverAddr string, localPort int, psk string) string {
 		KeepAlivePeriod:                5 * time.Second,
 		InitialStreamReceiveWindow:     4 * 1024 * 1024,  // 4MB
 		InitialConnectionReceiveWindow: 8 * 1024 * 1024,  // 8MB
-		MaxIncomingStreams:             10,
+		MaxIncomingStreams:             16,
 		DisablePathMTUDiscovery:        false,
 	}
 
@@ -131,7 +133,7 @@ func StartServer(listenAddr, targetAddr, psk string) string {
 		KeepAlivePeriod:                5 * time.Second,
 		InitialStreamReceiveWindow:     4 * 1024 * 1024,
 		InitialConnectionReceiveWindow: 8 * 1024 * 1024,
-		MaxIncomingStreams:             10,
+		MaxIncomingStreams:             16,
 		DisablePathMTUDiscovery:        false,
 	}
 
@@ -164,15 +166,15 @@ func handleServerConn(qconn *quic.Conn, targetAddr, psk string) {
 	}
 	defer stream.Close()
 
-	// Read auth
-	buf := make([]byte, 256)
-	n, err := stream.Read(buf)
+	// Read auth: read a full line (a single Read may return a partial write split
+	// across QUIC packets, which would fail the prefix check spuriously)
+	reader := bufio.NewReader(stream)
+	authLine, err := reader.ReadString('\n')
 	if err != nil {
 		return
 	}
-	authLine := string(buf[:n])
-	expected := fmt.Sprintf("AUTH:%s", psk)
-	if len(authLine) < len(expected) || authLine[:len(expected)] != expected {
+	expected := fmt.Sprintf("AUTH:%s\n", psk)
+	if subtle.ConstantTimeCompare([]byte(authLine), []byte(expected)) != 1 {
 		log.Printf("QUIC server: auth failed")
 		stream.Write([]byte{'F'})
 		return

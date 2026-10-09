@@ -14,6 +14,21 @@ else
     echo "✅ QuicTunnelManager.kt"
 fi
 
+# 1b. multi-app session files must exist
+for f in \
+    app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/SlotSessionManager.kt \
+    app/src/main/java/io/github/miuzarte/scrcpyforandroid/services/DisplayHolderClient.kt \
+    app/src/main/java/io/github/miuzarte/scrcpyforandroid/pages/MultiSessionScreen.kt \
+    app/src/main/java/io/github/miuzarte/scrcpyforandroid/storage/MultiSessionPrefs.kt \
+    magisk-module/module/holder/src/com/scrcpymultisession/holder/DisplayHolder.java; do
+    if [ ! -f "$f" ]; then
+        echo "❌ missing: $f"
+        fail=1
+    else
+        echo "✅ $f"
+    fi
+done
+
 # 2. libquictunnel.aar must be bundled
 if [ ! -f "app/libs/libquictunnel.aar" ]; then
     echo "❌ libquictunnel.aar missing"

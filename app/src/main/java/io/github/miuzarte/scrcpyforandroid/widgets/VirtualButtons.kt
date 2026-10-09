@@ -62,6 +62,10 @@ enum class VirtualButtonSurface {
 
     // 流媒体全屏页的停靠栏
     FULLSCREEN,
+
+    // 多会话挂机页的悬浮球（SLOT_* 动作只在这里可见，
+    // 原版全屏页它们没有作用对象，出现只会是"按了没反应"）
+    SLOT_FULLSCREEN,
 }
 
 enum class VirtualButtonAction(
@@ -242,11 +246,6 @@ interface VirtualButtonHost {
     // 把本机剪贴板内容粘贴到设备
     fun handlePasteLocalClipboard() = Unit
 
-    // 多应用会话全屏页: 切到下一个挂机位
-    fun handleSlotNextApp() = Unit
-
-    // 多应用会话全屏页: 回到应用列表
-    fun handleSlotBackToGrid() = Unit
 }
 
 object VirtualButtonActions {
@@ -260,13 +259,19 @@ object VirtualButtonActions {
 
     fun byKeycode(keycode: Int): VirtualButtonAction? = byKeycode[keycode]
 
-    // 该界面上可见的动作: 全屏专属动作只在流媒体全屏页提供
+    // 该界面上可见的动作: 全屏专属动作只在流媒体全屏页提供，
+    // SLOT_* 只在多会话全屏页提供（在原版全屏页它们没有作用对象，按了没反应）
     fun visibleOn(surface: VirtualButtonSurface): List<VirtualButtonAction> = all.filter { action ->
         when (surface) {
-            VirtualButtonSurface.FULLSCREEN -> true
+            VirtualButtonSurface.FULLSCREEN -> action !isSlotOnly
+            VirtualButtonSurface.SLOT_FULLSCREEN -> true
             VirtualButtonSurface.PREVIEW -> !action.fullscreenOnly
         }
     }
+
+    /** 只在多会话（挂机位）全屏页有意义的动作。 */
+    private val VirtualButtonAction.isSlotOnly: Boolean
+        get() = this == SLOT_NEXT_APP || this == SLOT_BACK_TO_GRID
 
     fun parseStoredLayout(raw: String): List<VirtualButtonItem> {
         val parsed = raw.takeIf { it.isNotBlank() }
@@ -322,8 +327,9 @@ object VirtualButtonActions {
     fun mergedOrder(
         items: List<VirtualButtonItem>,
         excluded: Set<VirtualButtonAction> = emptySet(),
+        surface: VirtualButtonSurface = VirtualButtonSurface.FULLSCREEN,
     ): List<VirtualButtonAction> {
-        val visible = visibleOn(VirtualButtonSurface.FULLSCREEN).toSet()
+        val visible = visibleOn(surface).toSet()
         return items.map { it.action }
             .filter { it in visible && it !in excluded }
             .distinct()
@@ -360,8 +366,6 @@ object VirtualButtonActions {
                 VirtualButtonAction.ALL_APPS -> host.handleShowAllApps()
                 VirtualButtonAction.TOGGLE_IME -> host.handleToggleIme()
                 VirtualButtonAction.PASTE_LOCAL_CLIPBOARD -> host.handlePasteLocalClipboard()
-                VirtualButtonAction.SLOT_NEXT_APP -> host.handleSlotNextApp()
-                VirtualButtonAction.SLOT_BACK_TO_GRID -> host.handleSlotBackToGrid()
                 // 该动作标了 HOST_ACTION 却没有分发目标: 属于接错线, 直接暴露而不是静默吞掉
                 else -> error("unhandled host action: ${action.id}")
             }
