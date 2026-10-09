@@ -505,38 +505,37 @@ private fun SlotCell(
             ),
     ) {
 
-            // 标签 + ✕（浮层，带半透明底以免压在画面上看不清）
-            Row(
+            // 标签（左上）与 ✕（右上）分开两处：之前同处一行且文字不限宽，
+            // 标签一长就把 ✕ 顶出格子被裁掉（实测格1 有画面却没有 ✕ 就是这个原因）。
+            Text(
+                // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
+                // 于是有画面运行的格子也显示「格 N 空」，看起来像没跑起来。
+                text = "格 ${index + 1}  " + slot.label.ifEmpty {
+                    slot.packageName.substringAfterLast('.').ifEmpty { "空" }
+                },
+                fontSize = 11.sp,
+                maxLines = 1,
+                color = if (slot.error != null) Color(0xFFFF8A80) else Color.White,
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(UiSpacing.Medium)
                     .clip(RoundedCornerShape(6.dp))
                     .background(Color(0x99000000))
                     .padding(horizontal = 6.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            )
+            if (slot.occupied) {
                 Text(
-                    // 标签：优先中文应用名，取不到就退回包名 —— 之前取不到就写「空」，
-                    // 于是有画面运行的格子也显示「格 N 空」，看起来像没跑起来。
-                    text = "格 ${index + 1}  " + slot.label.ifEmpty {
-                        slot.packageName.substringAfterLast('.').ifEmpty { "空" }
-                    },
-                    fontSize = 11.sp,
-                    maxLines = 1,
-                    color = if (slot.error != null) Color(0xFFFF8A80) else Color.White,
+                    text = "✕",
+                    fontSize = 13.sp,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(UiSpacing.Medium)
+                        .clip(RoundedCornerShape(50))
+                        .background(Color(0x99000000))
+                        .clickable(onClick = onStop)
+                        .padding(horizontal = 7.dp, vertical = 1.dp),
                 )
-                if (slot.occupied) {
-                    Spacer(Modifier.width(UiSpacing.Small))
-                    Text(
-                        text = "✕",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.85f),
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .clickable(onClick = onStop)
-                            .padding(4.dp),
-                    )
-                }
             }
 
             if (slot.occupied && showVideo) {
