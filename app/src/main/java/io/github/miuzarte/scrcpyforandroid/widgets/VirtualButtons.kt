@@ -271,7 +271,7 @@ object VirtualButtonActions {
 
     /** 只在多会话（挂机位）全屏页有意义的动作。 */
     private fun VirtualButtonAction.isSlotOnly(): Boolean =
-        this == SLOT_NEXT_APP || this == SLOT_BACK_TO_GRID
+        id == "slot_next_app" || id == "slot_back_to_grid"
 
     fun parseStoredLayout(raw: String): List<VirtualButtonItem> {
         val parsed = raw.takeIf { it.isNotBlank() }
