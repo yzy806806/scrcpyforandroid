@@ -138,6 +138,14 @@ fun MultiSessionScreen(
 
     var selected by remember { mutableStateOf<Int?>(null) }
     var fullscreen by remember { mutableStateOf<Int?>(null) }
+
+    // 全屏时告诉 MainScreen：锁住 tab 滑动、藏起底部 tab 栏
+    LaunchedEffect(fullscreen) {
+        SlotSessionManager.setFullscreenActive(fullscreen != null)
+    }
+    DisposableEffect(Unit) {
+        onDispose { SlotSessionManager.setFullscreenActive(false) }
+    }
     var showPicker by remember { mutableStateOf(false) }
     var installed by remember { mutableStateOf<List<Scrcpy.AppInfo>>(emptyList()) }
     var loadingApps by remember { mutableStateOf(false) }

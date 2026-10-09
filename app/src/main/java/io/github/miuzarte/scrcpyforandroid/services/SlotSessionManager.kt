@@ -92,6 +92,17 @@ object SlotSessionManager {
     private val _slots = MutableStateFlow(List(MAX_SLOTS) { SlotUi(index = it) })
     val slots: StateFlow<List<SlotUi>> = _slots.asStateFlow()
 
+    /**
+     * 全屏页是否开着。MainScreen 用它决定两件事：tab 的左右滑动要锁住（否则在全屏里
+     * 横滑会翻到别的 tab）、底部 tab 栏要藏起来（全屏就该是沉浸的）。
+     */
+    private val _fullscreenActive = MutableStateFlow(false)
+    val fullscreenActive: StateFlow<Boolean> = _fullscreenActive.asStateFlow()
+
+    fun setFullscreenActive(active: Boolean) {
+        _fullscreenActive.value = active
+    }
+
     private val _holderAlive = MutableStateFlow(false)
     val holderAlive: StateFlow<Boolean> = _holderAlive.asStateFlow()
 

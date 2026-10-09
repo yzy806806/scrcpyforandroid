@@ -1,5 +1,6 @@
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.services.SlotSessionManager
 import io.github.miuzarte.scrcpyforandroid.models.ConnectionTarget
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.material.icons.rounded.Apps
@@ -182,6 +183,7 @@ fun MainScreen() {
     }
     var pagerNavigationJob by remember { mutableStateOf<Job?>(null) }
     var isPagerNavigating by remember { mutableStateOf(false) }
+    val slotFullscreenActive by SlotSessionManager.fullscreenActive.collectAsState()
     val currentTab = tabs[selectedTabIndex]
     val rootBackStack = rememberNavBackStack<RootScreen>(RootScreen.Home)
     val currentRootScreen = rootBackStack.lastOrNull() as? RootScreen ?: RootScreen.Home
@@ -537,7 +539,8 @@ fun MainScreen() {
 
             Scaffold(
                 bottomBar = {
-                    if (!asBundle.floatingBottomBar) {
+                    // 挂机页全屏时不显示底栏（沉浸）
+                    if (!slotFullscreenActive && !asBundle.floatingBottomBar) {
                         // 底栏不跟随渐进模糊, 渐进模糊回退到高斯模糊, 没启用模糊则无模糊
                         BlurredBar(backdrop = blurBackdrop, allowProgressive = false) {
                             NavigationBar(
@@ -581,6 +584,9 @@ fun MainScreen() {
                                     && terminalGestureLock
                                     || selectedTabIndex == MainBottomTabDestination.Devices.ordinal
                                     && devicePreviewGestureLock
+                                    // 挂机页全屏时锁住 tab 的左右滑动
+                                    || selectedTabIndex == MainBottomTabDestination.Apps.ordinal
+                                    && slotFullscreenActive
 
                         HorizontalPager(
                             modifier = Modifier
@@ -658,6 +664,7 @@ fun MainScreen() {
                     // 低版本组合即崩, 故在此拦截, 不依赖设置页的清理
                     if (
                         asBundle.floatingBottomBar &&
+                            !slotFullscreenActive &&
                             Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
                     ) {
                         FloatingBottomBar(
