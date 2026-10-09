@@ -117,6 +117,7 @@ public final class DisplayHolder {
     // =====================================================================
     public static void main(String[] args) {
         parseArgs(args);
+        bootLogFile = new java.io.File(cfgDir, "boot.log");
 
         log("start pid=" + Process.myPid() + " " + cfgWidth + "x" + cfgHeight + "/" + cfgDpi
                 + " slots=" + cfgSlotCount + " surface=" + cfgSurfaceMode + " dir=" + cfgDir);
@@ -141,6 +142,7 @@ public final class DisplayHolder {
 
         try {
             Workarounds.apply();
+            log("W: apply 完成");
             initDisplayManager();
             displayManagerReady = true;
             log("DisplayManager 就绪");
@@ -633,8 +635,9 @@ public final class DisplayHolder {
                     .append(", \"displayId\": ").append(s.displayId)
                     .append(", \"package\": \"").append(jsonEscape(s.pkg)).append("\"")
                     .append(", \"state\": \"").append(!s.error.isEmpty() ? "error" : (s.isActive() ? (s.pkg.isEmpty() ? "empty" : "running") : "empty"))
+                    .append("\"")
                     .append(", \"error\": \"").append(jsonEscape(s.error)).append("\"")
-                    .append("\"}");
+                    .append("}");
             sb.append(i == slots.length - 1 ? "\n" : ",\n");
         }
         sb.append("  ]\n");
@@ -735,6 +738,7 @@ public final class DisplayHolder {
                 Constructor<?> ctor = activityThreadClass.getDeclaredConstructor();
                 ctor.setAccessible(true);
                 activityThread = ctor.newInstance();
+                log("W: ActivityThread 实例化 OK");
 
                 Field f = activityThreadClass.getDeclaredField("sCurrentActivityThread");
                 f.setAccessible(true);
@@ -748,13 +752,16 @@ public final class DisplayHolder {
                 return;
             }
 
+            log("W: SDK=" + Build.VERSION.SDK_INT);
             if (Build.VERSION.SDK_INT >= 31) {
                 fillConfigurationController();
             }
             if (!"ONYX".equalsIgnoreCase(Build.BRAND)) {
                 fillAppInfo();
             }
+            log("W: fillAppInfo/config 完成");
             fillAppContext();
+            log("W: fillAppContext 完成");
         }
 
         static Context getSystemContext() {
@@ -823,7 +830,12 @@ public final class DisplayHolder {
     //  FakeContext（照抄 scrcpy FakeContext，去掉 ContentResolver 相关）
     // =====================================================================
     static final class FakeContext extends ContextWrapper {
-        static final String PACKAGE_NAME = "com.android.shell";
+        // 包名必须与调用方 uid 匹配，否则 Android 12 的 DisplayManagerService 直接拒：
+        //   java.lang.SecurityException: packageName must match the calling uid
+        // 以 root(uid 0) 运行时用 "android"；以 shell(uid 2000) 运行时用
+        // "com.android.shell"。按实际 uid 选，避免在部分 ROM 上建不出显示。
+        static final String PACKAGE_NAME =
+                android.os.Process.myUid() == 0 ? "android" : "com.android.shell";
         private static FakeContext instance;
 
         static synchronized FakeContext get() {
@@ -866,8 +878,19 @@ public final class DisplayHolder {
     }
 
     // =====================================================================
+    private static java.io.File bootLogFile;
+
     private static void log(String msg) {
-        System.out.println("[" + TAG + "] " + msg);
+        String line = "[" + TAG + "] " + msg;
+        System.out.println(line);
         System.out.flush();
+        // Android 12 的 app_process 不把 System.out 接到 logcat/ssh（MIUI 实测静默），
+        // 同步落一份到状态目录，启动卡死时能看出卡在哪一步
+        if (bootLogFile != null) {
+            try (java.io.FileOutputStream fos = new java.io.FileOutputStream(bootLogFile, true)) {
+                fos.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+            } catch (Throwable ignored) {
+            }
+        }
     }
 }

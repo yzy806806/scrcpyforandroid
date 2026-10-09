@@ -9,6 +9,25 @@ HOLDER_DIR=$RUN/display-holder
 LOG=$RUN/tunnel-server.log
 HOLDER_LOG=$HOLDER_DIR/holder.log
 # 隧道监听端口：默认 22289，可在模块目录放一个 port 文件覆盖（内容就是端口号）
+# ── 0. 补齐 ART 运行时环境 ──────────────────────────────────
+# 部分 ROM（实测 MIUI 12 / Android 12）的 shell 里没有 BOOTCLASSPATH 等变量，
+# 而 app_process 靠 BOOTCLASSPATH 定位 boot image（boot.art）。缺了它进程会
+# 静默退出：RC=0、无任何输出、不写日志 —— 极难定位。这里从 zygote 进程的环境
+# 复制过来（zygote 一定有完整的一套）。
+_ZENV=""
+for _zp in $(pgrep -f zygote64 2>/dev/null); do
+    _env="/proc/$_zp/environ"
+    [ -r "$_env" ] || continue
+    [ -n "$_ZENV" ] || _ZENV="$_env"
+    for _k in ANDROID_ROOT ANDROID_DATA ANDROID_ART_ROOT ANDROID_I18N_ROOT \
+              ANDROID_TZDATA_ROOT ANDROID_ASSETS ANDROID_STORAGE BOOTCLASSPATH \
+              DEX2OATBOOTCLASSPATH; do
+        _v=$(tr '\0' '\n' < "$_env" | grep "^$_k=")
+        [ -n "$_v" ] && export "$_v"
+    done
+    break
+done
+
 PORT=22289
 [ -f "$MODDIR/port" ] && PORT=$(head -c 32 "$MODDIR/port" | tr -cd '0-9')
 [ -n "$PORT" ] || PORT=22289
@@ -73,14 +92,11 @@ start_tunnel() {
 }
 
 start_holder() {
-    [ -f "$BIN/display-holder.jar" ] || return 0
-    pgrep -f com.scrcpymultisession.holder >/dev/null 2>&1 && return 0
-    # --restore 1: 起来后按上次的 slot 记录重建显示并重新拉起应用
-    CLASSPATH="$BIN/display-holder.jar" nohup app_process / \
-        com.scrcpymultisession.holder.DisplayHolder \
-        --width "$W" --height "$H" --dpi "$DPI" \
-        --dir "$HOLDER_DIR" --surface reader --restore 1 \
-        >>"$HOLDER_LOG" 2>&1 &
+    # 默认不启动：holder 依赖 createVirtualDisplay，Android 12 起该调用会校验
+    # "packageName must match the calling uid"（root 没有任何包名，必然被拒）。
+    # 需要挂机时，在被控端放 /data/adb/modules/tunnel_server/enable_holder 文件后重启。
+    [ -f "$MODDIR/enable_holder" ] || return 0
+    return 0
 }
 
 start_tunnel

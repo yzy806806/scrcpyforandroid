@@ -2,6 +2,10 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import io.github.miuzarte.scrcpyforandroid.widgets.ScrcpyInputSurfaceView
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import io.github.miuzarte.scrcpyforandroid.services.LocalInputService
 import io.github.miuzarte.scrcpyforandroid.widgets.VirtualButtonSurface
 import androidx.compose.material3.TextButton
 import top.yukonga.miuix.kmp.basic.Button
@@ -558,7 +562,7 @@ private fun SlotCell(
             }
 
             if (slot.occupied && showVideo) {
-                SlotSurface(index = index, full = false)
+                SlotSurface(index = index, full = false, imeRequestToken = imeRequestToken)
             }
             if (!slot.occupied) {
                 Text(
@@ -582,8 +586,20 @@ private fun SlotCell(
 
 /** 一路视频的 SurfaceView 容器。 */
 @Composable
-private fun SlotSurface(index: Int, full: Boolean) {
+private fun SlotSurface(
+    index: Int,
+    full: Boolean,
+    /** >0 时唤起本机输入法（原版全屏页的「拉起输入法」就是靠它）。 */
+    imeRequestToken: Int = 0,
+) {
     val scope = rememberCoroutineScope()
+    val imeTarget = remember { mutableStateOf<android.view.SurfaceView?>(null) }
+    LaunchedEffect(imeRequestToken, imeTarget.value) {
+        if (imeRequestToken == 0) return@LaunchedEffect
+        val sv = imeTarget.value ?: return@LaunchedEffect
+        sv.setCommitTextEnabled(true)
+        LocalInputService.showSoftKeyboard(sv)
+    }
     // 按会话的宽高比显示：之前直接 fillMaxSize()，横屏应用会被拉成方格、竖屏应用被压扁，
     // 看着就是「比例怪怪的」。尺寸未知时先铺满，等首包给了尺寸再收敛到正确比例。
     val sizePair by SlotSessionManager.sessionSize(index).collectAsState()
@@ -605,7 +621,29 @@ private fun SlotSurface(index: Int, full: Boolean) {
     AndroidView(
         modifier = videoModifier,
         factory = { ctx ->
-            SurfaceView(ctx).apply {
+            // 必须用 ScrcpyInputSurfaceView 而不是裸 SurfaceView：它是项目自带的定制
+            // View，支持 setCommitTextEnabled + InputCallbacks —— 原版全屏页能弹键盘、
+            // 输入能进被控端，靠的就是它。用裸 SurfaceView 弹不出键盘也收不到输入。
+            ScrcpyInputSurfaceView(ctx).also { sv -> imeTarget.value = sv }.apply {
+                inputCallbacks = object : ScrcpyInputSurfaceView.InputCallbacks {
+                    override fun handleKeyEvent(event: android.view.KeyEvent): Boolean {
+                        SlotSessionManager.injectKeyEvent(index, event)
+                        return true
+                    }
+
+                    override fun handleCommitText(text: CharSequence): Boolean {
+                        SlotSessionManager.commitImeText(index, text.toString())
+                        return true
+                    }
+
+                    override fun handleDeleteSurroundingText(
+                        beforeLength: Int,
+                        afterLength: Int,
+                    ): Boolean {
+                        SlotSessionManager.deleteSurroundingText(index, beforeLength, afterLength)
+                        return true
+                    }
+                }
                 holder.addCallback(object : SurfaceHolder.Callback {
                     override fun surfaceCreated(holder: SurfaceHolder) {
                         scope.launch { SlotSessionManager.attachSurface(index, holder.surface, full) }
@@ -633,6 +671,8 @@ private fun FullscreenSlot(
 ) {
     val slot = SlotSessionManager.slot(index)
     val scope = rememberCoroutineScope()
+    // 「拉起输入法」：递增它即可唤起本机键盘（原版全屏页用同一套机制）
+    var imeRequestToken by rememberSaveable { mutableIntStateOf(0) }
 
     // ── 方向跟随：游戏横屏 → 本页横屏（照抄 StreamScreen 的做法）──
     val activity = LocalActivity.current
@@ -827,6 +867,7 @@ private fun FullscreenSlot(
                     VirtualButtonAction.EXIT_FULLSCREEN -> onBackToGrid()
                     VirtualButtonAction.SLOT_NEXT_APP -> onNextApp()
                     VirtualButtonAction.SLOT_BACK_TO_GRID -> onBackToGrid()
+                    VirtualButtonAction.TOGGLE_IME -> imeRequestToken++
                     else -> Unit
                 }
             },

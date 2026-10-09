@@ -553,6 +553,105 @@ object SlotSessionManager {
     }
 
     /** 返回键（BACK down/up 各发一次，与原版虚拟按键 HOME 的注入方式一致）。 */
+    /**
+     * 输入法提交文字。
+     *
+     * 含非 ASCII（中文等）时走剪贴板粘贴 —— 与项目里 `submitImeText` 的做法一致：
+     * 键码注入打不出中文，只能整段塞剪贴板再 paste。
+     */
+    fun commitImeText(index: Int, text: String) {
+        if (index !in session.indices || text.isEmpty()) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: run {
+            AndroidLog.e(TAG, "commitImeText(slot=$index): 该槽位没有会话，丢弃")
+            return
+        }
+        s.jobScope.launch {
+            runCatching {
+                val usePaste = text.any { it.code > 0x7F }
+                if (usePaste) {
+                    scrcpy.setClipboard(text, paste = true)
+                } else {
+                    text.forEach { ch ->
+                        val (keycode, meta) = charToKeycode(ch)
+                        if (keycode != null) {
+                            scrcpy.injectKeycode(
+                                android.view.KeyEvent.ACTION_DOWN, keycode, 0, meta,
+                            )
+                            scrcpy.injectKeycode(
+                                android.view.KeyEvent.ACTION_UP, keycode, 0, meta,
+                            )
+                        }
+                    }
+                }
+            }.onFailure { t ->
+                AndroidLog.w(TAG, "commitImeText(slot=$index) failed", t)
+            }
+        }
+    }
+
+    /** 删除光标周围的文字（输入法回删）。 */
+    fun deleteSurroundingText(index: Int, beforeLength: Int, afterLength: Int) {
+        if (index !in session.indices) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: return
+        s.jobScope.launch {
+            runCatching {
+                repeat(beforeLength) {
+                    scrcpy.injectKeycode(
+                        android.view.KeyEvent.ACTION_DOWN,
+                        android.view.KeyEvent.KEYCODE_DEL,
+                    )
+                    scrcpy.injectKeycode(
+                        android.view.KeyEvent.ACTION_UP,
+                        android.view.KeyEvent.KEYCODE_DEL,
+                    )
+                }
+                repeat(afterLength) {
+                    scrcpy.injectKeycode(
+                        android.view.KeyEvent.ACTION_DOWN,
+                        android.view.KeyEvent.KEYCODE_FORWARD_DEL,
+                    )
+                    scrcpy.injectKeycode(
+                        android.view.KeyEvent.ACTION_UP,
+                        android.view.KeyEvent.KEYCODE_FORWARD_DEL,
+                    )
+                }
+            }.onFailure { t ->
+                AndroidLog.w(TAG, "deleteSurroundingText(slot=$index) failed", t)
+            }
+        }
+    }
+
+    /** 键盘按键事件（输入法回调里的硬件/软键盘按键）。 */
+    fun injectKeyEvent(index: Int, event: android.view.KeyEvent) {
+        if (index !in session.indices) return
+        val s = session[index]
+        val scrcpy = s.scrcpy ?: return
+        s.jobScope.launch {
+            runCatching {
+                scrcpy.injectKeycode(
+                    event.action, event.keyCode, event.repeatCount, event.metaState,
+                )
+            }.onFailure { t ->
+                AndroidLog.w(TAG, "injectKeyEvent(slot=$index) failed", t)
+            }
+        }
+    }
+
+    private fun charToKeycode(ch: Char): Pair<Int?, Int> {
+        val meta = if (ch.isUpperCase()) android.view.KeyEvent.META_SHIFT_ON else 0
+        val base = ch.uppercaseChar()
+        val keycode = when (base) {
+            in 'A'..'Z' -> android.view.KeyEvent.KEYCODE_A + (base - 'A')
+            in '0'..'9' -> android.view.KeyEvent.KEYCODE_0 + (base - '0')
+            ' ' -> android.view.KeyEvent.KEYCODE_SPACE
+            '\n' -> android.view.KeyEvent.KEYCODE_ENTER
+            else -> null
+        }
+        return keycode to meta
+    }
+
     fun injectBack(index: Int) {
         if (index !in session.indices) return
         val s = session[index]
