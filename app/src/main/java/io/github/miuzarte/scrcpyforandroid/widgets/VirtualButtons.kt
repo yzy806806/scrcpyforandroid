@@ -263,15 +263,15 @@ object VirtualButtonActions {
     // SLOT_* 只在多会话全屏页提供（在原版全屏页它们没有作用对象，按了没反应）
     fun visibleOn(surface: VirtualButtonSurface): List<VirtualButtonAction> = all.filter { action ->
         when (surface) {
-            VirtualButtonSurface.FULLSCREEN -> action !isSlotOnly
+            VirtualButtonSurface.FULLSCREEN -> !action.isSlotOnly()
             VirtualButtonSurface.SLOT_FULLSCREEN -> true
             VirtualButtonSurface.PREVIEW -> !action.fullscreenOnly
         }
     }
 
     /** 只在多会话（挂机位）全屏页有意义的动作。 */
-    private val VirtualButtonAction.isSlotOnly: Boolean
-        get() = this == SLOT_NEXT_APP || this == SLOT_BACK_TO_GRID
+    private fun VirtualButtonAction.isSlotOnly(): Boolean =
+        this == SLOT_NEXT_APP || this == SLOT_BACK_TO_GRID
 
     fun parseStoredLayout(raw: String): List<VirtualButtonItem> {
         val parsed = raw.takeIf { it.isNotBlank() }

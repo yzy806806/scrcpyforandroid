@@ -372,7 +372,7 @@ object SlotSessionManager {
     suspend fun resumeAll() = withContext(Dispatchers.IO) {
         _pausedFlow.value = false
         session.forEach { s ->
-            if (s.occupied) {
+            if (s.packageName.isNotEmpty()) {
                 val surface = s.surface
                 if (surface != null) {
                     attachSurface(s.index, surface, s.full)
@@ -471,7 +471,7 @@ object SlotSessionManager {
                             it[s.index] = IntSize(cur.width, cur.height)
                         }
                         runCatching { s.controller?.rebuildDecoderForSize(cur) }
-                            .onFailure { AndroidLog.e(TAG, "rebuildDecoderForSize(slot=$index) failed", it) }
+                            .onFailure { AndroidLog.e(TAG, "rebuildDecoderForSize(slot=${s.index}) failed", it) }
                     }
                 }
             }
