@@ -2,6 +2,9 @@
 
 package io.github.miuzarte.scrcpyforandroid.pages
 
+import androidx.compose.material3.TextButton
+import top.yukonga.miuix.kmp.basic.Button
+import top.yukonga.miuix.kmp.basic.Text
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.draw.clip
 import top.yukonga.miuix.kmp.basic.Card
@@ -51,13 +54,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
@@ -174,7 +172,7 @@ fun MultiSessionScreen(
         }
     }
 
-    Surface(modifier = Modifier.fillMaxSize()) {
+    Box(modifier = Modifier.fillMaxSize().background(colorScheme.surface)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -220,8 +218,13 @@ fun MultiSessionScreen(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("我的应用", fontWeight = FontWeight.Medium, fontSize = textStyles.body1.fontSize)
                 Spacer(Modifier.weight(1f))
-                TextButton(
-                    onClick = {
+                Text(
+                    "+ 添加",
+                    color = colorScheme.primary,
+                    fontSize = textStyles.body2.fontSize,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable {
                         showPicker = true
                         if (installed.isEmpty() && !loadingApps) {
                             loadingApps = true
@@ -236,7 +239,7 @@ fun MultiSessionScreen(
                             }
                         }
                     },
-                ) { Text("+ 添加") }
+                )
             }
 
             FlowRow(
@@ -342,10 +345,21 @@ fun MultiSessionScreen(
                     modifier = Modifier.weight(1f),
                 ) { Text(stringResource(R.string.button_direct_connect)) }
 
-                OutlinedButton(
-                    onClick = { scope.launch { SlotSessionManager.stopAllSessions() } },
-                    modifier = Modifier.weight(1f),
-                ) { Text("断开") }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(50))
+                        .border(
+                            1.dp,
+                            colorScheme.onSurface.copy(alpha = 0.25f),
+                            RoundedCornerShape(50),
+                        )
+                        .clickable { scope.launch { SlotSessionManager.stopAllSessions() } }
+                        .padding(vertical = UiSpacing.MediumLarge),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text("断开", color = colorScheme.onSurface, fontSize = textStyles.body2.fontSize)
+                }
             }
         }
 
