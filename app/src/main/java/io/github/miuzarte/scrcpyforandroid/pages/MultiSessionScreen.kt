@@ -136,6 +136,7 @@ fun MultiSessionScreen(
     val slots by SlotSessionManager.slots.collectAsState()
     val holderAlive by SlotSessionManager.holderAlive.collectAsState()
     val busy by SlotSessionManager.busy.collectAsState()
+    val paused by SlotSessionManager.pausedFlow.collectAsState()
 
     var fullscreen by remember { mutableStateOf<Int?>(null) }
 
@@ -392,11 +393,22 @@ fun MultiSessionScreen(
                             colorScheme.onSurface.copy(alpha = 0.25f),
                             RoundedCornerShape(50),
                         )
-                        .clickable { scope.launch { SlotSessionManager.stopAllSessions() } }
+                        .clickable {
+                            scope.launch {
+                                if (paused) SlotSessionManager.resumeAll()
+                                else SlotSessionManager.pauseAll()
+                            }
+                        }
                         .padding(vertical = UiSpacing.MediumLarge),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("断开", color = colorScheme.onSurface, fontSize = textStyles.body2.fontSize)
+                    // 全停 = 停掉所有格子的拉流，被控端应用继续跑（省电省流量）；
+                    // 恢复 = 对占用中的槽重新拉流
+                    Text(
+                        if (paused) "恢复" else "全停",
+                        color = colorScheme.onSurface,
+                        fontSize = textStyles.body2.fontSize,
+                    )
                 }
             }
         }

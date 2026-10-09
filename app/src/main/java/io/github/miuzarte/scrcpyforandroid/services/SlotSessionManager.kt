@@ -98,6 +98,10 @@ object SlotSessionManager {
      * 全屏页是否开着。MainScreen 用它决定两件事：tab 的左右滑动要锁住（否则在全屏里
      * 横滑会翻到别的 tab）、底部 tab 栏要藏起来（全屏就该是沉浸的）。
      */
+    /** 全停标志：true 时格子不拉流（应用照跑），恢复时对占用中的槽重新拉起。 */
+    private val _pausedFlow = MutableStateFlow(false)
+    val pausedFlow: StateFlow<Boolean> = _pausedFlow.asStateFlow()
+
     private val _fullscreenActive = MutableStateFlow(false)
     val fullscreenActive: StateFlow<Boolean> = _fullscreenActive.asStateFlow()
 
@@ -332,9 +336,35 @@ object SlotSessionManager {
 
     /** 停掉所有投屏（不影响被控端应用运行 —— 这正是 holder 架构的意义）。 */
     suspend fun stopAllSessions() {
+        _pausedFlow.value = false
         session.forEach { stopSession(it) }
         publishUi()
     }
+
+    /**
+     * 全停：停掉所有格子的拉流（应用照跑）。之后由 UI 把 paused 传进 attachSurface，
+     * 或调用 [resumeAll] 重新拉起。
+     */
+    suspend fun pauseAll() {
+        _pausedFlow.value = true
+        session.forEach { stopSession(it) }
+        publishUi()
+    }
+
+    /** 恢复：对占用中的槽重新拉流（用它们当前挂着的 surface）。 */
+    suspend fun resumeAll() = withContext(Dispatchers.IO) {
+        _pausedFlow.value = false
+        session.forEach { s ->
+            if (s.occupied) {
+                val surface = s.surface
+                if (surface != null) {
+                    attachSurface(s.index, surface, s.full)
+                }
+            }
+        }
+        publishUi()
+    }
+
 
     /** 停掉投屏并杀光所有挂机应用。 */
     suspend fun stopAllAndKill() = withContext(Dispatchers.IO) {
