@@ -36,12 +36,18 @@
 主控端只负责**附着**上去看、以及切换，所以：
 
 - 主控端切后台 / 退出 / 断连，被控端应用**继续运行**
-- 首页是应用列表 + 2×2 画格，点应用即占用一个挂机位，双击画格进全屏
-- 全屏时那一路按高画质重连（被控端应用不重启，只换画面通道）
+- 打开 App 默认进入「应用」tab：收藏的应用点一下就占一个挂机位，
+  2×2 竖格实时预览，双击画格进全屏（全屏那一路才透传音频）
+- 同一个应用重复点击会**复用**已有挂机位（一个应用无法同时在两个显示上跑）
+- 长按收藏可删除 / 排序；画格右上角 ✕ 结束应用并释放挂机位
+- 全屏：触摸透传、返回键注入被控端、横竖屏自动跟随、悬浮球（可拖动，含
+  「切换下一个应用 / 回应用列表」）
 
-入口：设备页右上角菜单 → 「多应用挂机」。设计与实测结论见
-[docs/multi-app-session-design.md](docs/multi-app-session-design.md)，被控端组件见
-[magisk-module/](magisk-module/)。
+被控端组件与主控端 App 通过本仓库自带的 Magisk 模块配合，安装与使用见
+[magisk-module/README.md](magisk-module/README.md)。设计与实测结论见
+[docs/multi-app-session-design.md](docs/multi-app-session-design.md)。
+
+画质参数（缩略图/全屏的分辨率、帧率、码率、H.265 开关）在 **设置 → 多应用挂机**。
 
 > [!IMPORTANT]
 > 被控端需**保持唤醒**（虚拟显示与主屏同显示组，主屏休眠会连带冻结其上的应用），
@@ -151,7 +157,8 @@ GitHub Actions 自动构建（push 到 main 触发），APK 产物见 Actions ar
 
 ## 建议搭配模块
 
-- 本仓库自带: [magisk-module/](magisk-module/) —— QUIC 隧道服务端 + display-holder（被控端常驻，见下）
+- 本仓库自带: [magisk-module/](magisk-module/) —— QUIC 隧道服务端 + display-holder
+  （被控端常驻，多应用挂机与隧道模式都依赖它，刷入方法见其 README）
 - 密码锁屏无法捕获: [LSPosed/DisableFlagSecure](https://github.com/LSPosed/DisableFlagSecure)
 - 开机自动启用 adb: [gist/906291](https://gist.github.com/Miuzarte/9062915f1615d5eebd363c759fda496c)
 

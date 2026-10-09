@@ -30,7 +30,7 @@ fork 相对上游新增/改动的文件：
 | `.github/workflows/pr-check.yml` → `renovate-check.yml` | 重命名 | 上游 rename 跟随 |
 | `CHANGELOG.md` / `README.md` | 修改 | fork 说明 + QUIC 隧道文档 |
 | `docs/multi-app-session-design.md` | 新增 | 多应用会话模式设计文档（虚拟显示 + display-holder） |
-| `magisk-module/` | 合并 | 被控端 Magisk 模块（QUIC 隧道服务端 + display-holder），来自独立仓库 `yzy806806/quic-tunnel`，用 `git subtree` 保留历史 |
+| `magisk-module/` | 合并 | 被控端 Magisk 模块（QUIC 隧道服务端 + display-holder），已从独立仓库合并进来（`git subtree` 保留历史） |
 | `.gitignore` | 修改 | 加例外放行 `docs/multi-app-session-design.md`（上游默认忽略 `docs/`） |
 | `nativecore/UsbAdb*.kt`、`res/xml/usb_device_filter.xml` | 上游新增 | USB 有线 ADB（v0.6.0 同步引入） |
 | `scrcpy/GamepadInput.kt` | 上游新增 | 手柄支持（v0.5.6 同步引入） |
@@ -50,26 +50,55 @@ fork 相对上游新增/改动的文件：
 - 协议：QUIC（UDP 传输，自带 TLS 1.3 加密 + 可靠传输 + 流复用 + 拥塞控制）
 - 认证：预共享密钥（PSK）通过 QUIC stream 发送，对端验证
 - 不占用 VpnService，与 V2Ray 共存
-- 对端（OnePlus）跑一个 Go 编译的 tunnel-server 二进制
+- 被控端跑一个 Go 编译的 tunnel-server 二进制
 
 ```
-小米 app                          OnePlus (被控端)
+主控 App                           被控端 (root + Magisk)
 本地 TCP listener (127.0.0.1)     tunnel-server (Go, 监听 22289/udp)
     ↓ adb 连接                     ↓ PSK 认证
 QUIC stream (TLS 1.3 加密)  ←→   转发到 127.0.0.1:5555 (adbd)
 ```
 
-## 对端（OnePlus）配置
+## 被控端配置
 
-OnePlus 上需要配套的 tunnel-server，不在本仓库内（是 Go 二进制 + Magisk 模块）：
+被控端需要本仓库自带的 Magisk 模块（[magisk-module/](magisk-module/)），它包含两个常驻组件：
 
-- 二进制：`/data/local/tmp/tunnel-server`（`quic-tunnel/cmd/main.go` 编译，`-mode server`）
-- 预共享密钥：`/data/local/tmp/tunnel-key`
-- 监听：`22289/udp`，认证后转发 `127.0.0.1:5555`
-- 防火墙：`lo→5555 ACCEPT`，`5555 DROP`（不暴露公网）
-- Magisk 模块：`tunnel_server`（开机自启 + iptables 加固）
+- `tunnel-server`：QUIC 隧道服务端，监听 `22289/udp`，PSK 认证后转发 `127.0.0.1:5555`（adbd）
+- `display-holder`：常驻 `app_process`，持有最多 4 个虚拟显示——多应用挂机的核心
 
-Go 源码在独立私有仓库 [yzy806806/quic-tunnel](https://github.com/yzy806806/quic-tunnel)（含 client AAR + server 二进制的构建说明），不在本仓库提交。
+### 安装（被控端，需 root + Magisk）
+
+```bash
+# 方式一：本地构建模块包（需要 Android SDK 与 Go 工具链）
+git clone --recursive <本仓库>
+cd scrcpyforandroid/magisk-module
+bash module/build.sh          # 产出 tunnel_server_vX.Y.zip
+
+# 方式二：直接用 Release 附件里附带的模块 zip
+```
+
+然后把 zip 刷进 Magisk（App 里「模块 → 从存储安装」或 `magisk --install-module`），
+重启即生效：`service.sh` 会拉起并守护两个组件，开机自启。
+
+### 首次使用
+
+1. **生成预共享密钥**（模块安装时若 `/data/local/tmp/tunnel-key` 不存在会自动生成，
+   也可手动生成：`head -c 32 /dev/urandom | xxd -p -c 64 > /data/local/tmp/tunnel-key`）
+2. **主控端**：设置 → TCP 隧道 → 开启 → 添加设备
+   （设备名任意 / 对端地址 = 被控端的公网可达地址 / 端口 `22289` / 密钥 = 上一步的值）
+3. 主控端连接时 App 会自动先建 QUIC 隧道再连 adb，无需手动 `adb connect`
+4. 多应用挂机：打开 App 的「应用」tab，点收藏或「+ 添加」把应用放进挂机位
+
+### 安全模型
+
+- adbd 只监听 `127.0.0.1`，模块用 iptables 保证 `5555` 不暴露公网
+- 公网上只暴露 `22289/udp`，且每个连接必须先通过 PSK 认证
+- 密钥泄露 = 被控端 adbd 完全暴露，请当作密码对待
+
+### 卸载
+
+Magisk 里移除模块并重启即可；`/data/local/tmp/display-holder/` 与
+`/data/local/tmp/tunnel-key` 是运行时文件，可手动删除。
 
 ## 同步上游步骤（重要）
 
@@ -101,7 +130,7 @@ CI 构建前会自动检查 QUIC 隧道关键代码是否完整，防止同步�
 ## 版本约定
 
 - `versionName` 带后缀标识 fork 特性：`0.7.0-quic`（当前，同步上游 v0.7.0）
-- `versionCode` 单调递增：当前 53
+- `versionCode` 单调递增：当前 57+（多应用挂机与 UI 迭代期间增长较快）
 - 发布走 GitHub Release + tag（如 `v0.6.6-quic`）
 
 ## 同步记录
