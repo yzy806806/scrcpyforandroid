@@ -503,6 +503,7 @@ private fun SlotCell(
                     fontSize = 13.sp,
                 )
             }
+        }
 }
 
 /** 一路视频的 SurfaceView 容器。 */
