@@ -562,7 +562,7 @@ private fun SlotCell(
             }
 
             if (slot.occupied && showVideo) {
-                SlotSurface(index = index, full = false, imeRequestToken = imeRequestToken)
+                SlotSurface(index = index, full = false)
             }
             if (!slot.occupied) {
                 Text(
@@ -593,7 +593,7 @@ private fun SlotSurface(
     imeRequestToken: Int = 0,
 ) {
     val scope = rememberCoroutineScope()
-    val imeTarget = remember { mutableStateOf<android.view.SurfaceView?>(null) }
+    val imeTarget = remember { mutableStateOf<ScrcpyInputSurfaceView?>(null) }
     LaunchedEffect(imeRequestToken, imeTarget.value) {
         if (imeRequestToken == 0) return@LaunchedEffect
         val sv = imeTarget.value ?: return@LaunchedEffect
@@ -814,7 +814,7 @@ private fun FullscreenSlot(
                     },
                 ),
         ) {
-            SlotSurface(index = index, full = true)
+            SlotSurface(index = index, full = true, imeRequestToken = imeRequestToken)
         }
 
         // 悬浮球：原版 VirtualButtonBar.FloatingBall（可拖动、位置持久化、外观一致）。
