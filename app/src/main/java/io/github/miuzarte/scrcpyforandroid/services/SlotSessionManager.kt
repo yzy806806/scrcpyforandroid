@@ -41,6 +41,22 @@ data class SlotUi(
 }
 
 /**
+ * 一路投屏管线：scrcpy 会话 + 解码器 + 渲染目标。
+ *
+ * 一个槽位**最多同时两条**：缩略图（[full] = false）和全屏（[full] = true），各自独立。
+ * 这是「进全屏后四个小格仍然常驻」的前提：以前一个槽位只有一条管线，进全屏必须先把
+ * 缩略图那一路拆掉，于是退回四宫格时那一格是死的（要重连，甚至一直不动）。
+ */
+private class SlotPipe(val full: Boolean) {
+    var surface: Surface? = null
+    var scrcpy: Scrcpy? = null
+    var renderer: PersistentVideoRenderer? = null
+    var controller: VideoDecoderController? = null
+    var sizeWatchJob: Job? = null
+    var running: Boolean = false
+}
+
+/**
  * 槽位内部可变状态，只在管理器内部使用；对外一律走 [SlotUi] 快照。
  *
  * 被控端侧由常驻 holder 持有虚拟显示并运行应用；主控端这里只维护「看这一路」的
@@ -52,17 +68,25 @@ private class SlotSession(val index: Int) {
     var packageName: String = ""
     var label: String = ""
 
-    /** true = 全屏（高画质、可操作），false = 缩略图（1fps 低码率）。 */
+    /** 当前**显示在屏幕上**的是哪一路：true = 正在全屏看这一路（注入目标跟着它）。 */
     var full: Boolean = false
 
     var running: Boolean = false
     var error: String? = null
 
-    var surface: Surface? = null
-    var scrcpy: Scrcpy? = null
-    var renderer: PersistentVideoRenderer? = null
-    var controller: VideoDecoderController? = null
-    var sizeWatchJob: Job? = null
+    val thumbPipe = SlotPipe(full = false)
+    val fullPipe = SlotPipe(full = true)
+
+    fun pipe(full: Boolean): SlotPipe = if (full) fullPipe else thumbPipe
+
+    /** 当前可见的那条管线：注入 / 会话信息 / 尺寸都取它。 */
+    val live: SlotPipe get() = pipe(full)
+
+    // 访问器沿用旧名字，注入相关代码不需要改
+    val surface: Surface? get() = live.surface
+    val scrcpy: Scrcpy? get() = live.scrcpy
+    val renderer: PersistentVideoRenderer? get() = live.renderer
+    val controller: VideoDecoderController? get() = live.controller
 
     /** 该槽位的注入协程域（触摸/按键注入用，不阻塞主线程）。 */
     val jobScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -110,6 +134,23 @@ object SlotSessionManager {
         _fullscreenActive.value = active
     }
 
+    /**
+     * 全屏页当前显示的是哪一路（null = 回到四宫格）。
+     *
+     * 只做一件事：切换**注入目标**（[SlotSession.full]）。收会话不在这里做 ——
+     * 全屏页的 surface 销毁会走 [detachSurface]，那里有 500ms 宽限期，
+     * 能容忍旋转/换页这种"销毁紧跟创建"的时序。
+     */
+    fun setVisibleFullscreen(index: Int?) {
+        session.forEach { s ->
+            val wantFull = index == s.index
+            if (s.full != wantFull) {
+                s.full = wantFull
+                Log.i(TAG, "slot${s.index}: 可见模式 -> ${if (wantFull) "全屏" else "缩略图"}")
+            }
+        }
+    }
+
     private val _holderAlive = MutableStateFlow(false)
     val holderAlive: StateFlow<Boolean> = _holderAlive.asStateFlow()
 
@@ -137,7 +178,7 @@ object SlotSessionManager {
     /** 全屏页进入时调用：确保该槽位的尺寸监听在跑（挂机位运行中但页面晚开的情况）。 */
     fun attachSessionWatcher(index: Int) {
         session.getOrNull(index) ?: return
-        // 尺寸监听在 startSession 里已启动；这里只是占位，让调用方语义完整。
+        // 尺寸监听在 startPipe 里已启动；这里只是占位，让调用方语义完整。
     }
 
     fun slot(index: Int): SlotUi = _slots.value[index.coerceIn(0, MAX_SLOTS - 1)]
@@ -248,8 +289,9 @@ object SlotSessionManager {
                     return@withContext
                 }
 
-                if (s.surface != null) {
-                    startSession(s)
+                if (s.thumbPipe.surface != null || s.fullPipe.surface != null) {
+                    if (s.thumbPipe.surface != null) startPipe(s, full = false)
+                    if (s.fullPipe.surface != null) startPipe(s, full = true)
                 } else {
                     Log.i(TAG, "slot$index: 显示就绪 id=${s.displayId}，等画面容器附着")
                 }
@@ -264,34 +306,38 @@ object SlotSessionManager {
     }
 
     /**
-     * 绑定画面容器。
+     * 给某个模式（缩略图 / 全屏）绑定画面容器。
      *
-     * Compose 里进入四宫格 / 全屏时调用。画质模式或 surface 变化时会重建这一路会话
-     * （被控端应用不受影响）。
+     * 两个模式各有一条常驻管线：进全屏**不拆缩略图那一路**，所以四个小格始终有画面，
+     * 从全屏退回四宫格是即时的（不重连、也不会出现"某一格死了"）。
      */
     suspend fun attachSurface(index: Int, surface: Surface, full: Boolean) {
         val s = session[index]
-        if (s.running && s.full == full && s.surface === surface) return
+        val p = s.pipe(full)
+        if (p.running && p.surface === surface) return
         // 全停期间只记录 surface 不拉流：否则设备旋转等 UI 重组事件会单独复活某一路，
         // 和其余格子的"已全停"状态不一致
         if (_pausedFlow.value) {
-            s.surface = surface
-            s.full = full
+            p.surface = surface
             return
         }
 
         // 同一模式下的 surface 重建（设备旋转/尺寸变化）**不重建会话**：会话（scrcpy 连接 +
         // 解码器）与渲染目标无关，拆了重建既慢又会和紧随其后的销毁回调打架，实测就是
         // 横屏游戏点进全屏后黑屏（会话明明建好了、首包 2378x1080 也到了）。换 surface 即可。
-        if (s.running && s.full == full && s.scrcpy != null && s.surface !== surface) {
-            s.surface = surface
-            runCatching { s.controller?.attachDisplaySurface(surface) }
-                .onFailure { t -> AndroidLog.w(TAG, "attachSurface(slot=$index) 复用会话换 surface 失败", t) }
+        if (p.running && p.scrcpy != null && p.surface !== surface) {
+            p.surface = surface
+            runCatching { p.controller?.attachDisplaySurface(surface) }
+                .onFailure { t ->
+                    AndroidLog.w(TAG, "attachSurface(slot=$index, full=$full) 复用会话换 surface 失败", t)
+                }
             return
         }
 
-        s.surface = surface
-        s.full = full
+        p.surface = surface
+        // 只有全屏那一路会把"当前可见模式"置为全屏；缩略图附着**不能**把它改回来
+        // （全屏时四宫格仍在后台组合，格子会重新附着它的 surface）
+        if (full) s.full = true
         if (s.displayId < 0) {
             refresh()
         }
@@ -299,7 +345,7 @@ object SlotSessionManager {
             Log.w(TAG, "attachSurface(slot=$index): 显示尚未就绪")
             return
         }
-        startSession(s)
+        startPipe(s, full)
     }
 
     /**
@@ -312,20 +358,22 @@ object SlotSessionManager {
      */
     suspend fun detachSurface(index: Int, full: Boolean) {
         val s = session[index]
-        if (s.full != full) return
-        s.surface = null
+        val p = s.pipe(full)
+        // 该模式的管线此刻没挂 surface（例如已退出全屏、或这是过期回调）→ 什么都不做
+        if (p.surface == null) return
+        p.surface = null
         // 旋转时 surfaceDestroyed 紧跟 surfaceCreated：等一下，如果新的 surface 已经接管，
         // 说明只是换了个渲染目标，会话要保留（否则横屏游戏一进全屏就被自己拆掉）。
         delay(500)
-        if (s.surface != null) return
-        stopSession(s)
+        if (p.surface != null) return
+        stopPipe(s, full)
         publishUi()
     }
 
     /** 关掉一路：停投屏 + 让 holder force-stop 应用并销毁显示。 */
     suspend fun stopSlot(index: Int) = withContext(Dispatchers.IO) {
         val s = session[index]
-        stopSession(s)
+        stopPipes(s)
         runCatching { DisplayHolderClient.kill(index) }
         s.packageName = ""
         s.label = ""
@@ -355,7 +403,7 @@ object SlotSessionManager {
     suspend fun stopAllSessions() {
         // 不重置 paused：onDispose（切 tab）也走这里，全停是用户显式选择，
         // 切个 tab 不该把"已全停"偷偷变成"恢复"
-        session.forEach { stopSession(it) }
+        session.forEach { stopPipes(it) }
         publishUi()
     }
 
@@ -365,7 +413,7 @@ object SlotSessionManager {
      */
     suspend fun pauseAll() {
         _pausedFlow.value = true
-        session.forEach { stopSession(it) }
+        session.forEach { stopPipes(it) }
         publishUi()
     }
 
@@ -374,10 +422,12 @@ object SlotSessionManager {
         _pausedFlow.value = false
         session.forEach { s ->
             if (s.packageName.isNotEmpty()) {
-                val surface = s.surface
-                if (surface != null) {
-                    attachSurface(s.index, surface, s.full)
-                }
+                // 两条管线各自恢复：缩略图那路一直在（它的 surface 还挂着），
+                // 全屏那路只在它确实占着 surface 时恢复
+                val thumbSurface = s.thumbPipe.surface
+                if (thumbSurface != null) attachSurface(s.index, thumbSurface, full = false)
+                val fullSurface = s.fullPipe.surface
+                if (s.full && fullSurface != null) attachSurface(s.index, fullSurface, full = true)
             }
         }
         publishUi()
@@ -387,7 +437,7 @@ object SlotSessionManager {
     /** 停掉投屏并杀光所有挂机应用。 */
     suspend fun stopAllAndKill() = withContext(Dispatchers.IO) {
         session.forEach { s ->
-            stopSession(s)
+            stopPipes(s)
             if (s.packageName.isNotEmpty()) {
                 runCatching { DisplayHolderClient.kill(s.index) }
             }
@@ -396,9 +446,13 @@ object SlotSessionManager {
         refresh()
     }
 
-    private suspend fun startSession(s: SlotSession) = withContext(Dispatchers.IO) {
-        stopSession(s)
-        val surface = s.surface ?: return@withContext
+    /**
+     * 起一条管线（[full] 指定是哪一条）。两条管线互不影响，所以进全屏不会打断缩略图那一路。
+     */
+    private suspend fun startPipe(s: SlotSession, full: Boolean) = withContext(Dispatchers.IO) {
+        val p = s.pipe(full)
+        stopPipe(s, full)
+        val surface = p.surface ?: return@withContext
         if (s.displayId < 0) return@withContext
 
         try {
@@ -407,13 +461,12 @@ object SlotSessionManager {
             // 关键：槽位会话必须关掉 facade 上报，否则会顶掉主投屏的解码器绑定
             val scrcpy = Scrcpy(AppRuntime.context).apply { reportToNativeCoreFacade = false }
 
-            s.renderer = renderer
-            s.controller = controller
-            s.scrcpy = scrcpy
+            p.renderer = renderer
+            p.controller = controller
+            p.scrcpy = scrcpy
 
             controller.attachDisplaySurface(surface)
 
-            val full = s.full
             val options = ClientOptions().apply {
                 displayId = s.displayId
                 // 缩略图也开 control：实测 control=false 时 Session 的视频读取会停在第 1 帧
@@ -448,14 +501,15 @@ object SlotSessionManager {
             controller.ensureDecoder(info)
             scrcpy.session.attachVideoConsumer { packet -> controller.feed(packet) }
 
-            s.running = true
+            p.running = true
+            s.running = s.thumbPipe.running || s.fullPipe.running
             s.error = null
             publishUi()
             AndroidLog.i(
                 TAG,
-                "startSession(slot=${s.index}): display=${s.displayId} full=$full " +
+                "startPipe(slot=${s.index}, full=$full): display=${s.displayId} " +
                     "control=${options.control} size=${info.width}x${info.height} " +
-                    "sessionState=${s.scrcpy?.currentSessionState?.value != null}",
+                    "sessionState=${p.scrcpy?.currentSessionState?.value != null}",
             )
             Log.i(
                 TAG,
@@ -466,49 +520,68 @@ object SlotSessionManager {
             // v4.0 协议下 start() 返回的宽高是 0，真正的尺寸来自首个视频包，所以解码器
             // 一定是在这里被创建出来的（rebuildDecoderForSize 在无解码器时会新建）。
             // 首次检查要快，否则每次附着都要黑屏一秒。
-            s.sizeWatchJob = scope.launch {
+            p.sizeWatchJob = scope.launch {
                 var lastW = -1
                 var lastH = -1
                 var tick = 0
                 while (true) {
                     delay(if (tick++ == 0) 120 else 500)
-                    val cur = s.scrcpy?.currentSessionState?.value ?: continue
+                    val cur = p.scrcpy?.currentSessionState?.value ?: continue
                     if (cur.width <= 0 || cur.height <= 0) continue
                     if (cur.width != lastW || cur.height != lastH) {
                         lastW = cur.width
                         lastH = cur.height
-                        // 发布尺寸（全屏页据此旋转）并按需重建解码器
-                        sessionSizes.value = sessionSizes.value.toMutableList().also {
-                            it[s.index] = IntSize(cur.width, cur.height)
+                        // 只有**当前可见**那条管线才发布尺寸：全屏页据此旋转、并据此把触摸
+                        // 映射到视频坐标系。缩略图（720p）和全屏（原生）同时存在、尺寸不同，
+                        // 两条都发布会互相覆盖 —— 触摸映射和旋转都会错。
+                        if (s.full == full) {
+                            sessionSizes.value = sessionSizes.value.toMutableList().also {
+                                it[s.index] = IntSize(cur.width, cur.height)
+                            }
                         }
-                        runCatching { s.controller?.rebuildDecoderForSize(cur) }
-                            .onFailure { AndroidLog.e(TAG, "rebuildDecoderForSize(slot=${s.index}) failed", it) }
+                        runCatching { p.controller?.rebuildDecoderForSize(cur) }
+                            .onFailure {
+                                AndroidLog.e(
+                                    TAG,
+                                    "rebuildDecoderForSize(slot=${s.index}, full=$full) failed",
+                                    it,
+                                )
+                            }
                     }
                 }
             }
         } catch (t: Throwable) {
-            Log.e(TAG, "startSession(slot=${s.index}) failed", t)
-            s.running = false
+            Log.e(TAG, "startPipe(slot=${s.index}, full=$full) failed", t)
+            p.running = false
+            s.running = s.thumbPipe.running || s.fullPipe.running
             s.error = t.message ?: "投屏失败"
             publishUi()
         }
     }
 
-    private suspend fun stopSession(s: SlotSession) {
-        s.sizeWatchJob?.cancel()
-        s.sizeWatchJob = null
-        runCatching { s.scrcpy?.session?.clearVideoConsumer() }
-            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): clearVideoConsumer", it) }
-        runCatching { s.scrcpy?.stop() }
-            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): scrcpy.stop", it) }
-        runCatching { s.controller?.releaseAll() }
-            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): releaseAll", it) }
-        runCatching { s.renderer?.release() }
-            .onFailure { AndroidLog.w(TAG, "stopSession(slot=${s.index}): renderer.release", it) }
-        s.scrcpy = null
-        s.controller = null
-        s.renderer = null
-        s.running = false
+    private suspend fun stopPipe(s: SlotSession, full: Boolean) {
+        val p = s.pipe(full)
+        p.sizeWatchJob?.cancel()
+        p.sizeWatchJob = null
+        runCatching { p.scrcpy?.session?.clearVideoConsumer() }
+            .onFailure { AndroidLog.w(TAG, "stopPipe(slot=${s.index}, full=$full): clearVideoConsumer", it) }
+        runCatching { p.scrcpy?.stop() }
+            .onFailure { AndroidLog.w(TAG, "stopPipe(slot=${s.index}, full=$full): scrcpy.stop", it) }
+        runCatching { p.controller?.releaseAll() }
+            .onFailure { AndroidLog.w(TAG, "stopPipe(slot=${s.index}, full=$full): releaseAll", it) }
+        runCatching { p.renderer?.release() }
+            .onFailure { AndroidLog.w(TAG, "stopPipe(slot=${s.index}, full=$full): renderer.release", it) }
+        p.scrcpy = null
+        p.controller = null
+        p.renderer = null
+        p.running = false
+        s.running = s.thumbPipe.running || s.fullPipe.running
+    }
+
+    /** 两条管线一起收（关槽位 / 全停 / 离开页面）。 */
+    private suspend fun stopPipes(s: SlotSession) {
+        stopPipe(s, full = false)
+        stopPipe(s, full = true)
     }
 
     // ── 输入注入（全屏页触摸透传 / 返回手势）────────────────────────

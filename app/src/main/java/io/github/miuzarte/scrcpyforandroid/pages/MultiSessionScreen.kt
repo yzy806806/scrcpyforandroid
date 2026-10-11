@@ -145,9 +145,12 @@ fun MultiSessionScreen(
 
     var fullscreen by remember { mutableStateOf<Int?>(null) }
 
-    // 全屏时告诉 MainScreen：锁住 tab 滑动、藏起底部 tab 栏
+    // 全屏时告诉 MainScreen：锁住 tab 滑动、藏起底部 tab 栏；
+    // 同时把"当前可见的是哪一路"告诉会话管理器 —— 注入目标（触摸/返回/输入法）跟着它走。
+    // 缩略图那四路**不因此停流**：它们各有自己的常驻管线。
     LaunchedEffect(fullscreen) {
         SlotSessionManager.setFullscreenActive(fullscreen != null)
+        SlotSessionManager.setVisibleFullscreen(fullscreen)
     }
     DisposableEffect(Unit) {
         onDispose { SlotSessionManager.setFullscreenActive(false) }
@@ -360,9 +363,9 @@ fun MultiSessionScreen(
                             val index = row * 2 + col
                             SlotCell(
                                 index = index,
-                                // 全屏时把缩略图节点移出组合：返回四宫格时 surface 会重建，
-                                // 否则那格会停在最后一帧（会话已被全屏那路挤掉）
-                                showVideo = fullscreen == null,
+                                // 四格**始终**保留画面容器：这样四条缩略图管线一直活着，
+                                // 从全屏退回四宫格是即时的（以前全屏时把节点移出组合，
+                                // 缩略图那一路跟着被拆，退回来是最后一帧甚至是死的）。
                                 onFullscreen = { fullscreen = index },
                                 onStop = {
                                     scope.launch { SlotSessionManager.stopSlot(index) }
@@ -503,7 +506,6 @@ fun MultiSessionScreen(
 @Composable
 private fun SlotCell(
     index: Int,
-    showVideo: Boolean,
     onFullscreen: () -> Unit,
     onStop: () -> Unit,
     modifier: Modifier = Modifier,
@@ -561,7 +563,7 @@ private fun SlotCell(
                 )
             }
 
-            if (slot.occupied && showVideo) {
+            if (slot.occupied) {
                 SlotSurface(index = index, full = false)
             }
             if (!slot.occupied) {
@@ -854,6 +856,10 @@ private fun FullscreenSlot(
             base.remove(VirtualButtonAction.SLOT_BACK_TO_GRID)
             val anchor = base.indexOf(VirtualButtonAction.PASSWORD_INPUT)
             base.add(if (anchor >= 0) anchor else base.size, VirtualButtonAction.SLOT_BACK_TO_GRID)
+            // 「下一个应用」固定在**第三位**（用户要求）：切应用是这一页的高频操作，
+            // 原来被追加到菜单末尾，够不着。
+            base.remove(VirtualButtonAction.SLOT_NEXT_APP)
+            base.add(minOf(2, base.size), VirtualButtonAction.SLOT_NEXT_APP)
             base
         }
         // **必须 remember**：球内部的弹层状态槽是 `remember(this) { PopupSlots() }`，
