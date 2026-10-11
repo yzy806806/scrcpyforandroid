@@ -48,6 +48,17 @@ import kotlin.random.nextUInt
  * @param serverAsset Asset path for the default server jar
  * @param initialSessionConfig 初始会话配置, 之后通过 [sessionConfig] 整体替换
  */
+/**
+ * 已确认"设备上就是这一份 server"的记录（key = 远端路径|大小|修改时间）。
+ *
+ * 730KB 的 scrcpy-server 走隧道推一次要几百毫秒起，而以前**每条会话启动都完整推一遍**：
+ * 四格开一次页面 = 4 遍，再算上进全屏 / 切应用，切换慢有相当一部分吃在这里。
+ */
+private val pushedServers = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+
+/** 串行化推送：四格同时起会话时不要 4 个并发推同一份文件（并发抢带宽只会更慢）。 */
+private val serverPushMutex = Mutex()
+
 class Scrcpy(
     private val appContext: Context,
 
@@ -791,7 +802,7 @@ class Scrcpy(
             extractUriToCache(cfg.customServerUri.toUri())
         }
 
-        NativeAdbService.push(serverJar.toPath(), cfg.serverRemotePath)
+        ensureServerPushed(serverJar, cfg.serverRemotePath)
 
         val scid = generateScid()
         val options = ClientOptions(
@@ -1013,7 +1024,7 @@ class Scrcpy(
     ): Session.SessionInfo {
         // 会话配置可能被并发替换, 先取局部快照, 本次启动全程用同一套
         val cfg = sessionConfig
-        NativeAdbService.push(serverJar.toPath(), cfg.serverRemotePath)
+        ensureServerPushed(serverJar, cfg.serverRemotePath)
 
         val serverParams = options.toServerParams(scid)
 
@@ -1039,6 +1050,32 @@ class Scrcpy(
             Log.e(TAG, "executeServer(): WARNING - session was cleared immediately after start()!")
         }
         return sessionInfo
+    }
+
+    /**
+     * 只在远端缺失 / 对不上时才推 scrcpy server（推送本身要走隧道传 730KB）。
+     */
+    private suspend fun ensureServerPushed(serverJar: File, remotePath: String) {
+        val key = "$remotePath|${serverJar.length()}|${serverJar.lastModified()}"
+        if (pushedServers.contains(key)) return
+        serverPushMutex.withLock {
+            // 等锁期间可能别的会话已经推完了
+            if (pushedServers.contains(key)) return@withLock
+            // 本进程第一次见到这份 server：一次廉价的 shell stat 就能确认远端是否已有同样大小
+            // （app 重启过但设备 /data/local/tmp 里的文件还在，就是这种情况）
+            val remoteSize = runCatching {
+                NativeAdbService.shell("stat -c %s '$remotePath' 2>/dev/null")
+                    .trim()
+                    .toLongOrNull()
+            }.getOrNull()
+            if (remoteSize == serverJar.length()) {
+                Log.i(TAG, "ensureServerPushed(): 远端已有一致的 server（$remoteSize B），跳过推送")
+            } else {
+                NativeAdbService.push(serverJar.toPath(), remotePath)
+                Log.i(TAG, "ensureServerPushed(): 已推送 server（${serverJar.length()} B）")
+            }
+            pushedServers.add(key)
+        }
     }
 
     private fun extractAssetToCache(assetPath: String): File {
